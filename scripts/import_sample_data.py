@@ -290,7 +290,11 @@ def parse_approved_work_orders(wb):
 def parse_pm_schedule(wb, source_file):
     ws = required_sheet(wb, "Sheet1")
     rows = list(ws.iter_rows(values_only=True))
+    if len(rows) < 6:
+        raise ValueError(f"Sheet1 in {source_file} has only {len(rows)} row(s); expected station headers at row 4 and PM data from row 6.")
     location_row = [clean(v) for v in rows[3]]
+    if len(location_row) < 3 or not any(location_row[2:]):
+        raise ValueError(f"Sheet1 in {source_file} is missing station headers on row 4.")
     tasks = []
     for row in rows[5:]:
         item = clean(row[0])

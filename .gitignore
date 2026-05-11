@@ -1,0 +1,24 @@
+# OS/editor
+.DS_Store
+*.swp
+.vscode/
+.idea/
+
+# Rails
+api/log/*
+api/tmp/*
+api/storage/*
+api/db/*.sqlite3
+api/db/*.sqlite3-*
+api/config/master.key
+api/.kamal/secrets
+
+# Node
+web/node_modules/
+web/dist/
+.env
+.env.*
+
+# Sensitive/raw customer artifacts
+john-ilao-artifacts/
+data/raw/

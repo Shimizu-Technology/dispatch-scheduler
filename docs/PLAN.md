@@ -133,7 +133,7 @@ Leon prefers Rails + React, matching current Shimizu Technology stack. Use a mon
 Recommended repo structure:
 
 ```txt
-john-dispatch-poc/
+dispatch-scheduler/
   README.md
   docs/
     PLAN.md
@@ -360,7 +360,7 @@ Demo sequence:
 ## 10. Immediate Build Plan
 
 ### Step 1 — Create Repo/Scaffold
-- Create monorepo under `~/work/john-dispatch-poc` or chosen Shimizu repo name.
+- Create monorepo under `~/work/dispatch-scheduler` or chosen Shimizu repo name.
 - Rails API in `api/`.
 - Vite React TS app in `web/`.
 - Add `docs/` copied from this plan.

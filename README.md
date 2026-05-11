@@ -1,4 +1,4 @@
-# John Dispatch POC
+# Dispatch Scheduler
 
 Focused dispatch/scheduling proof of concept for facilities work orders.
 

@@ -1,6 +1,27 @@
 module Serializers
   module_function
 
+  def schedule(dispatch_schedule, summary: nil)
+    schedule = DispatchSchedule.includes(dispatch_items: [ :team, { work_order: [ :client, :location ] }, { pm_task: [ :client, :location ] } ]).find(dispatch_schedule.id)
+    {
+      id: schedule.id,
+      date: schedule.date,
+      status: schedule.status,
+      summary: summary || schedule_summary(schedule),
+      items: schedule.dispatch_items.map { |item| dispatch_item(item) }
+    }
+  end
+
+  def schedule_summary(schedule)
+    {
+      scheduled_items: schedule.dispatch_items.size,
+      eligible_work_orders: schedule.dispatch_items.count(&:work_order_id),
+      eligible_pm_tasks: schedule.dispatch_items.count(&:pm_task_id),
+      blocked_work_orders: WorkOrder.open.where(status: %w[waiting_for_parts waiting_for_approval]).count,
+      message: "Current saved draft schedule."
+    }
+  end
+
   def work_order(work_order)
     {
       id: work_order.id,

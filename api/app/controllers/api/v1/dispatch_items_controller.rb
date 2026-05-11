@@ -47,14 +47,24 @@ module Api
       def normalize_orders(schedule, team_id)
         return if team_id.blank?
 
-        schedule.dispatch_items.where(team_id: team_id).order(:order_index, :id).each_with_index do |item, index|
-          item.update_column(:order_index, index) if item.order_index != index
-        end
+        changes = schedule.dispatch_items
+          .where(team_id: team_id)
+          .order(:order_index, :id)
+          .pluck(:id, :order_index)
+          .each_with_index
+          .filter_map { |(id, order_index), index| [ id, index ] if order_index != index }
+        return if changes.empty?
+
+        ids = changes.map(&:first)
+        cases = changes.map { |id, index| "WHEN #{id.to_i} THEN #{index.to_i}" }.join(" ")
+        DispatchItem.where(id: ids).update_all("order_index = CASE id #{cases} END")
       end
 
       def dispatch_item_params
         permitted = params.permit(:team_id, :order_index, :scheduled_time, :notes)
-        permitted[:scheduled_time] = normalize_time(permitted[:scheduled_time]) if permitted[:scheduled_time].present?
+        if params.key?(:scheduled_time)
+          permitted[:scheduled_time] = permitted[:scheduled_time].present? ? normalize_time(permitted[:scheduled_time]) : nil
+        end
         permitted
       end
 

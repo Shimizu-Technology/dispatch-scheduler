@@ -13,13 +13,47 @@ module Serializers
   end
 
   def schedule_summary(schedule)
+    candidate_work_orders = eligible_work_orders_for(schedule.date)
+    candidate_pm_tasks = pm_tasks_due_for(schedule.date)
+    candidate_count = candidate_work_orders.count + candidate_pm_tasks.count
+    deferred = [ candidate_count - schedule.dispatch_items.size, 0 ].max
+    blocked = blocked_work_orders_for(schedule.date).count
     {
       scheduled_items: schedule.dispatch_items.size,
-      eligible_work_orders: schedule.dispatch_items.count(&:work_order_id),
-      eligible_pm_tasks: schedule.dispatch_items.count(&:pm_task_id),
-      blocked_work_orders: WorkOrder.open.where(status: %w[waiting_for_parts waiting_for_approval]).count,
-      message: "Current saved draft schedule."
+      eligible_work_orders: candidate_work_orders.count,
+      eligible_pm_tasks: candidate_pm_tasks.count,
+      deferred_items: deferred,
+      daily_item_limit: daily_item_limit,
+      blocked_work_orders: blocked,
+      message: schedule_summary_message(blocked, deferred)
     }
+  end
+
+  def eligible_work_orders_for(date)
+    WorkOrder.open
+      .where("scheduled_date = ? OR scheduled_date IS NULL", date)
+      .where.not(status: %w[waiting_for_parts waiting_for_approval])
+  end
+
+  def pm_tasks_due_for(date)
+    PmTask.where(scheduled_date: date)
+  end
+
+  def blocked_work_orders_for(date)
+    WorkOrder.open
+      .where(status: %w[waiting_for_parts waiting_for_approval])
+      .where("scheduled_date = ? OR scheduled_date IS NULL", date)
+  end
+
+  def daily_item_limit
+    ENV.fetch("DISPATCH_DAILY_ITEM_LIMIT", DispatchSuggestionService::DEFAULT_DAILY_ITEM_LIMIT).to_i
+  end
+
+  def schedule_summary_message(blocked, deferred)
+    notes = []
+    notes << "#{deferred} eligible item(s) deferred by the daily draft limit." if deferred.positive?
+    notes << "#{blocked} waiting-for-parts/approval item(s) were held out of dispatch." if blocked.positive?
+    notes.presence&.join(" ") || "No eligible or blocked items were held out."
   end
 
   def work_order(work_order)

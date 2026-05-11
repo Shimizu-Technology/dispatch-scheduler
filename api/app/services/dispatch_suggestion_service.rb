@@ -1,5 +1,6 @@
 class DispatchSuggestionService
   START_TIME = Time.zone.parse("08:00")
+  DEFAULT_DAILY_ITEM_LIMIT = 24
 
   attr_reader :summary
 
@@ -19,7 +20,8 @@ class DispatchSuggestionService
       counters = Hash.new(0)
       team_skills = teams.to_h { |team| [ team.id, team.skills ] }
       team_driver_status = teams.to_h { |team| [ team.id, team.has_driver?(@date) ] }
-      items = schedulables
+      candidate_items = schedulables
+      items = candidate_items.first(daily_item_limit)
 
       items.each do |item|
         team = choose_team(item, teams, counters, team_skills, team_driver_status)
@@ -37,7 +39,7 @@ class DispatchSuggestionService
         )
       end
 
-      @summary = build_summary(items, schedule)
+      @summary = build_summary(candidate_items, schedule)
     end
 
     schedule
@@ -84,14 +86,34 @@ class DispatchSuggestionService
   end
 
   def build_summary(items, schedule)
-    blocked = WorkOrder.open.where(status: blocked_statuses).count
+    blocked = blocked_work_orders.count
+    deferred = [ items.size - schedule.dispatch_items.count, 0 ].max
     {
       scheduled_items: schedule.dispatch_items.count,
       eligible_work_orders: items.count { |item| item.is_a?(WorkOrder) },
       eligible_pm_tasks: items.count { |item| item.is_a?(PmTask) },
+      deferred_items: deferred,
+      daily_item_limit: daily_item_limit,
       blocked_work_orders: blocked,
-      message: blocked.positive? ? "#{blocked} waiting-for-parts/approval item(s) were held out of dispatch." : "No blocked work orders were held out."
+      message: summary_message(blocked, deferred)
     }
+  end
+
+  def summary_message(blocked, deferred)
+    notes = []
+    notes << "#{deferred} eligible item(s) deferred by the daily draft limit." if deferred.positive?
+    notes << "#{blocked} waiting-for-parts/approval item(s) were held out of dispatch." if blocked.positive?
+    notes.presence&.join(" ") || "No eligible or blocked items were held out."
+  end
+
+  def blocked_work_orders
+    WorkOrder.open
+      .where(status: blocked_statuses)
+      .where("scheduled_date = ? OR scheduled_date IS NULL", @date)
+  end
+
+  def daily_item_limit
+    ENV.fetch("DISPATCH_DAILY_ITEM_LIMIT", DEFAULT_DAILY_ITEM_LIMIT).to_i
   end
 
   def blocked_statuses

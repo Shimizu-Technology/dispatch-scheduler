@@ -73,6 +73,8 @@ type DispatchSummary = {
   scheduled_items: number
   eligible_work_orders: number
   eligible_pm_tasks: number
+  deferred_items: number
+  daily_item_limit: number | null
   blocked_work_orders: number
   message: string
 }
@@ -124,7 +126,10 @@ async function patchJson<T>(path: string, body: Record<string, unknown>): Promis
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
+  if (!res.ok) {
+    const errorJson = await res.json().catch(() => null) as { errors?: string[] } | null
+    throw new Error(errorJson?.errors?.join(', ') || `${res.status} ${res.statusText}`)
+  }
   return res.json()
 }
 
@@ -371,10 +376,10 @@ function Metric({ icon, label, value, danger = false }: { icon: React.ReactNode;
 
 function ScheduleSummary({ summary }: { summary: DispatchSummary }) {
   return <div className="grid gap-2 rounded-2xl border border-cyan-100 bg-cyan-50 p-4 text-sm text-cyan-950 sm:grid-cols-4">
-    <strong>{summary.scheduled_items} scheduled</strong>
+    <strong>{summary.scheduled_items}{summary.daily_item_limit ? `/${summary.daily_item_limit}` : ''} scheduled</strong>
     <span>{summary.eligible_work_orders} work orders</span>
     <span>{summary.eligible_pm_tasks} PM tasks</span>
-    <span>{summary.blocked_work_orders} held out</span>
+    <span>{summary.deferred_items + summary.blocked_work_orders} held out</span>
     <p className="sm:col-span-4">{summary.message}</p>
   </div>
 }
@@ -405,6 +410,14 @@ function DispatchCard({ item, teams, disabled, onUpdate }: { item: DispatchItem;
   const [teamId, setTeamId] = useState(String(item.team_id))
   const [scheduledTime, setScheduledTime] = useState(item.scheduled_time || '')
   const [notes, setNotes] = useState(item.notes || '')
+
+  useEffect(() => {
+    // Keep each editable card aligned with the last persisted schedule response.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setTeamId(String(item.team_id))
+    setScheduledTime(item.scheduled_time || '')
+    setNotes(item.notes || '')
+  }, [item.team_id, item.scheduled_time, item.notes])
 
   const title = wo ? `${wo.location} - ${wo.title}` : `${pm?.location} - ${pm?.task_name}`
   const kind = wo?.normalized_priority || 'pm'

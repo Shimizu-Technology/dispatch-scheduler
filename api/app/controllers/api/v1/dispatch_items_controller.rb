@@ -5,6 +5,14 @@ module Api
         item = DispatchItem.includes(:dispatch_schedule).find(params[:id])
         update_item(item, dispatch_item_params)
         render json: Serializers.schedule(item.dispatch_schedule)
+      rescue ActiveRecord::RecordNotFound => e
+        render json: { errors: [ e.message ] }, status: :not_found
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
+      rescue ActiveRecord::InvalidForeignKey => e
+        render json: { errors: [ e.message ] }, status: :unprocessable_entity
+      rescue ArgumentError => e
+        render json: { errors: [ e.message ] }, status: :unprocessable_entity
       end
 
       private

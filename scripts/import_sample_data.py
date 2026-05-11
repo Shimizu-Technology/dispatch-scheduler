@@ -89,6 +89,16 @@ def find_required_file(patterns: list[str]) -> Path:
     raise FileNotFoundError(f"Could not find {expected} in {ARTIFACT_DIR}")
 
 
+def required_sheet(wb, name: str):
+    if name not in wb.sheetnames:
+        raise KeyError(f"Required sheet '{name}' not found. Available sheets: {', '.join(wb.sheetnames)}")
+    return wb[name]
+
+
+def optional_sheet(wb, name: str):
+    return wb[name] if name in wb.sheetnames else None
+
+
 def region_for(location: str | None) -> str:
     if not location:
         return "Unknown"
@@ -160,7 +170,7 @@ def title_from_description(description: str | None) -> str:
 
 
 def parse_technicians(wb):
-    ws = wb["Team"]
+    ws = required_sheet(wb, "Team")
     techs = []
     section = "Mobil"
     for row in ws.iter_rows(values_only=True):
@@ -217,7 +227,7 @@ def work_order_record(client, location, wo_number, description, status, source, 
 
 
 def parse_mobil_schedule(wb):
-    ws = wb["May2026"]
+    ws = required_sheet(wb, "May2026")
     work_orders = []
     current_date = None
     headers = None
@@ -250,7 +260,10 @@ def parse_mobil_schedule(wb):
 
 
 def parse_approved_work_orders(wb):
-    ws = wb["Approved Work Orders"]
+    ws = optional_sheet(wb, "Approved Work Orders")
+    if ws is None:
+        return []
+
     work_orders = []
     for row in ws.iter_rows(values_only=True):
         values = [clean(v) for v in row]
@@ -275,7 +288,7 @@ def parse_approved_work_orders(wb):
 
 
 def parse_pm_schedule(wb, source_file):
-    ws = wb["Sheet1"]
+    ws = required_sheet(wb, "Sheet1")
     rows = list(ws.iter_rows(values_only=True))
     location_row = [clean(v) for v in rows[3]]
     tasks = []
@@ -303,7 +316,10 @@ def parse_pm_schedule(wb, source_file):
 
 
 def parse_mobil_embedded_pms(wb):
-    ws = wb["May2026"]
+    ws = optional_sheet(wb, "May2026")
+    if ws is None:
+        return []
+
     pms = []
     current_date = None
     headers = None
@@ -333,9 +349,9 @@ def parse_mobil_embedded_pms(wb):
 
 
 def parse_typhoon_routes(wb):
-    if "Typhoon " not in wb.sheetnames:
+    ws = optional_sheet(wb, "Typhoon ")
+    if ws is None:
         return []
-    ws = wb["Typhoon "]
     routes = []
     for col in range(2, ws.max_column + 1, 2):
         team = clean(ws.cell(row=2, column=col).value)

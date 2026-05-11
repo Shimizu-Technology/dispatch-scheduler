@@ -186,6 +186,10 @@ function App() {
   }
 
   async function suggestSchedule() {
+    if (schedule && !window.confirm('Regenerate this draft? Current manual overrides will be replaced with a fresh suggestion.')) {
+      return
+    }
+
     setWorking(true)
     setError('')
     try {

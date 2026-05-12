@@ -104,7 +104,7 @@ def find_required_file(patterns: list[str], env_var: str | None = None) -> Path:
     if len(matches) > 1:
         names = ", ".join(path.name for path in matches)
         hint = f" Set {env_var} to choose one." if env_var else ""
-        raise FileExistsError(f"Multiple files match {', '.join(patterns)} in {ARTIFACT_DIR}: {names}.{hint}")
+        raise ValueError(f"Multiple files match {', '.join(patterns)} in {ARTIFACT_DIR}: {names}.{hint}")
 
     expected = ", ".join(patterns)
     raise FileNotFoundError(f"Could not find {expected} in {ARTIFACT_DIR}")

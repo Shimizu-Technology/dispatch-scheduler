@@ -10,7 +10,7 @@ import json
 import os
 import re
 from collections import Counter
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from openpyxl import load_workbook
@@ -455,7 +455,7 @@ def main():
     teams = team_names_from_orders(work_orders)
 
     data = {
-        "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
+        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "notes": "Sanitized demo data generated from John's sample workflow artifacts in docs/examples-from-john.",
         "source_files": sorted(p.name for p in ARTIFACT_DIR.iterdir() if p.is_file()),
         "typhoon_routes": parse_typhoon_routes(pm_wb),

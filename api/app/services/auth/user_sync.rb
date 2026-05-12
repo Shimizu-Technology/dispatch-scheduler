@@ -6,12 +6,15 @@ module Auth
     class << self
       def call(payload)
         attempts = 0
-        sync_user(payload)
-      rescue ActiveRecord::RecordNotUnique, ActiveRecord::StatementInvalid
-        attempts += 1
-        raise if attempts > MAX_RETRIES
 
-        retry
+        begin
+          sync_user(payload)
+        rescue ActiveRecord::RecordNotUnique, ActiveRecord::StatementInvalid
+          attempts += 1
+          raise if attempts > MAX_RETRIES
+
+          retry
+        end
       end
 
       private

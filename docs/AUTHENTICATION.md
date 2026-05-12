@@ -26,6 +26,24 @@ Set the frontend key in `web/.env.local`:
 VITE_CLERK_PUBLISHABLE_KEY=pk_test_...
 ```
 
+Rails needs the Clerk token to include an email claim. Clerk's default session token does not include email/name by default, so configure one of these before testing with real Clerk credentials:
+
+- Recommended: customize the Clerk session token claims and add the claims below.
+- Alternative: create a Clerk JWT template with the claims below and set `VITE_CLERK_JWT_TEMPLATE=<template-name>` in `web/.env.local` so the frontend requests that token template.
+
+Required/optional claims:
+
+```json
+{
+  "email": "{{user.primary_email_address}}",
+  "name": "{{user.first_name}} {{user.last_name}}",
+  "first_name": "{{user.first_name}}",
+  "last_name": "{{user.last_name}}"
+}
+```
+
+`email` is required. The name fields are optional but make `/api/v1/me` display friendlier user information.
+
 Set Rails JWT verification in `api/.env` or your shell. Use one of these:
 
 ```bash

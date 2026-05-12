@@ -13,7 +13,8 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
   const [isCheckingApi, setIsCheckingApi] = useState(true)
 
   useEffect(() => {
-    setAuthTokenGetter(async () => getToken())
+    const template = import.meta.env.VITE_CLERK_JWT_TEMPLATE
+    setAuthTokenGetter(async () => getToken(template ? { template } : undefined))
   }, [getToken])
 
   const refreshUser = useCallback(async () => {

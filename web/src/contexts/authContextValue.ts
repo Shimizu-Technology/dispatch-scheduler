@@ -13,10 +13,10 @@ export type AuthContextValue = {
 
 export const AuthContext = createContext<AuthContextValue>({
   isClerkEnabled: false,
-  isSignedIn: true,
+  isSignedIn: false,
   isLoading: false,
   user: null,
   authError: null,
-  canEditDispatch: true,
+  canEditDispatch: false,
   refreshUser: async () => undefined,
 })

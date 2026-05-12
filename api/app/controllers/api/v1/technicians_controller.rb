@@ -1,6 +1,8 @@
 module Api
   module V1
     class TechniciansController < ApplicationController
+      before_action :require_dispatch_edit!, only: [ :update ]
+
       def index
         date = Date.parse(params[:date].presence || Date.new(2026, 5, 1).to_s)
         render json: Technician.includes(:technician_skills, :technician_availabilities).order(:name).map { |tech| Serializers.technician(tech, date: date) }

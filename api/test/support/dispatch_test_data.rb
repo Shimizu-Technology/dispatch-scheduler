@@ -2,7 +2,7 @@ module DispatchTestData
   DEFAULT_DATE = Date.new(2026, 5, 5)
 
   def reset_dispatch_records
-    [ FollowUp, DispatchItem, DispatchSchedule, WorkOrder, PmTask, TeamMembership, TechnicianAvailability, TechnicianSkill, Technician, Team, Location, Client ].each(&:delete_all)
+    [ FollowUp, DispatchItem, DispatchSchedule, WorkOrder, PmTask, TeamMembership, TechnicianAvailability, TechnicianSkill, Technician, Team, Location, Client, User ].each(&:delete_all)
   end
 
   def client(name = "Mobil")

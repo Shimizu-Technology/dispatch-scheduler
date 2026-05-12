@@ -1,6 +1,8 @@
 module Api
   module V1
     class DispatchItemsController < ApplicationController
+      before_action :require_dispatch_edit!
+
       def update
         item = DispatchItem.includes(:dispatch_schedule).find(params[:id])
         update_item(item, dispatch_item_params)

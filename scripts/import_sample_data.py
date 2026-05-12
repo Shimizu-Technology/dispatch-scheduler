@@ -90,23 +90,43 @@ def canonical(text: str | None) -> str:
     return value
 
 
-def find_required_file(patterns: list[str]) -> Path:
+def find_required_file(patterns: list[str], env_var: str | None = None) -> Path:
+    if env_var and os.environ.get(env_var):
+        selected = Path(os.environ[env_var])
+        return selected if selected.is_absolute() else ARTIFACT_DIR / selected
+
+    matches = []
     for pattern in patterns:
-        matches = sorted(ARTIFACT_DIR.glob(pattern))
-        if matches:
-            return matches[0]
+        matches.extend(ARTIFACT_DIR.glob(pattern))
+    matches = sorted(set(matches))
+    if len(matches) == 1:
+        return matches[0]
+    if len(matches) > 1:
+        names = ", ".join(path.name for path in matches)
+        hint = f" Set {env_var} to choose one." if env_var else ""
+        raise FileExistsError(f"Multiple files match {', '.join(patterns)} in {ARTIFACT_DIR}: {names}.{hint}")
+
     expected = ", ".join(patterns)
     raise FileNotFoundError(f"Could not find {expected} in {ARTIFACT_DIR}")
 
 
+def sheet_by_name(wb, name: str):
+    expected = name.strip().lower()
+    for sheet_name in wb.sheetnames:
+        if sheet_name.strip().lower() == expected:
+            return wb[sheet_name]
+    return None
+
+
 def required_sheet(wb, name: str):
-    if name not in wb.sheetnames:
+    sheet = sheet_by_name(wb, name)
+    if sheet is None:
         raise KeyError(f"Required sheet '{name}' not found. Available sheets: {', '.join(wb.sheetnames)}")
-    return wb[name]
+    return sheet
 
 
 def optional_sheet(wb, name: str):
-    return wb[name] if name in wb.sheetnames else None
+    return sheet_by_name(wb, name)
 
 
 def value_at(values, index):
@@ -376,7 +396,7 @@ def parse_mobil_embedded_pms(wb):
 
 
 def parse_typhoon_routes(wb):
-    ws = optional_sheet(wb, "Typhoon ")
+    ws = optional_sheet(wb, "Typhoon")
     if ws is None:
         return []
     routes = []
@@ -443,8 +463,8 @@ def team_names_from_orders(orders):
 
 
 def main():
-    mobil_path = find_required_file(["MOBIL SCHEDULE - MAY2026.xlsx"])
-    pm_path = find_required_file(["PM SCHEDULE-*2026.xlsx", "PM SCHEDULE-*.xlsx"])
+    mobil_path = find_required_file(["MOBIL SCHEDULE - MAY2026.xlsx"], env_var="JOHN_MOBIL_SCHEDULE_FILE")
+    pm_path = find_required_file(["PM SCHEDULE-*2026.xlsx", "PM SCHEDULE-*.xlsx"], env_var="JOHN_PM_SCHEDULE_FILE")
     mobil_wb = load_workbook(mobil_path, data_only=True)
     pm_wb = load_workbook(pm_path, data_only=True)
 

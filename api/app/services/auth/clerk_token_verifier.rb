@@ -1,5 +1,6 @@
 require "json"
 require "net/http"
+require "openssl"
 require "jwt"
 
 module Auth
@@ -19,7 +20,7 @@ module Auth
         return nil unless enabled?
 
         decode_with_jwks(token)
-      rescue JWT::DecodeError, JSON::ParserError, SystemCallError, Timeout::Error => e
+      rescue JWT::DecodeError, JSON::ParserError, SystemCallError, Timeout::Error, SocketError, OpenSSL::SSL::SSLError => e
         Rails.logger.warn("Clerk JWT verification failed: #{e.message}")
         nil
       end

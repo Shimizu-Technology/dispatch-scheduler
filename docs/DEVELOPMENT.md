@@ -20,6 +20,10 @@ npm run dev -- --port 5175
 
 Open http://127.0.0.1:5175.
 
+## Authentication
+
+The app runs with a local admin auth bypass when Clerk env vars are absent. To test real auth, copy `.env.example` values into `web/.env.local` and your Rails shell/API environment, then add real Clerk values. See `docs/AUTHENTICATION.md`.
+
 ## Verification
 
 ```bash

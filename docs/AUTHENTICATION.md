@@ -1,0 +1,107 @@
+# Authentication
+
+The dispatch scheduler uses Clerk for browser sign-in and Rails-side JWT verification.
+
+## Local Development Modes
+
+### No Clerk Credentials
+
+In development and test only, if `VITE_CLERK_PUBLISHABLE_KEY` is not set in the web app and neither `CLERK_JWKS_URL` nor `CLERK_DOMAIN` is set for Rails, the app runs with a local development bypass:
+
+- User: `dev-dispatcher@example.com`
+- Role: `admin` by default
+- Override Rails with `DEV_AUTH_ROLE=dispatcher` or `DEV_AUTH_ROLE=viewer`
+- Override the React dev UI with `VITE_DEV_AUTH_ROLE=dispatcher` or `VITE_DEV_AUTH_ROLE=viewer`
+
+This keeps CI and local setup unblocked before real Clerk credentials are added.
+Keep `DEV_AUTH_ROLE` and `VITE_DEV_AUTH_ROLE` aligned when testing viewer/dispatcher behavior locally.
+
+Production does not use this bypass. If Clerk JWT verification is not configured, Rails returns a service-unavailable auth configuration error.
+
+### Clerk Enabled
+
+Set the frontend key in `web/.env.local`:
+
+```bash
+VITE_CLERK_PUBLISHABLE_KEY=pk_test_...
+```
+
+Rails needs the Clerk token to include an email claim. Clerk's default session token does not include email/name by default, so configure one of these before testing with real Clerk credentials:
+
+- Recommended: customize the Clerk session token claims and add the claims below.
+- Alternative: create a Clerk JWT template with the claims below and set `VITE_CLERK_JWT_TEMPLATE=<template-name>` in `web/.env.local` so the frontend requests that token template.
+
+Required/optional claims:
+
+```json
+{
+  "email": "{{user.primary_email_address}}",
+  "name": "{{user.first_name}} {{user.last_name}}",
+  "first_name": "{{user.first_name}}",
+  "last_name": "{{user.last_name}}"
+}
+```
+
+`email` is required. The name fields are optional but make `/api/v1/me` display friendlier user information.
+
+Set Rails JWT verification in `api/.env` or your shell. Use one of these:
+
+```bash
+CLERK_JWKS_URL=https://your-clerk-domain/.well-known/jwks.json
+```
+
+or:
+
+```bash
+CLERK_DOMAIN=your-clerk-domain
+```
+
+JWKS fetches use a 3-second open/read timeout by default. Override with `CLERK_JWKS_TIMEOUT_SECONDS` if your deployment needs a different limit.
+
+The React API client automatically attaches `Authorization: Bearer <token>` to Rails requests when Clerk is enabled.
+
+## Roles
+
+Roles live in the Rails `users` table. The first time a Clerk user is verified, Rails creates or updates the user record.
+
+Supported roles:
+
+- `admin`: full dispatch edit access and future admin-only settings.
+- `dispatcher`: can create/regenerate schedules, edit dispatch items, and update availability.
+- `viewer`: can read dashboard/work-order/team/PM data but cannot change dispatch data.
+
+Role assignment is refreshed from comma-separated env vars on every verified sign-in:
+
+```bash
+CLERK_ADMIN_EMAILS=admin@example.com
+CLERK_DISPATCHER_EMAILS=john@example.com,dispatcher@example.com
+```
+
+Anyone not listed there is created as `viewer`.
+
+## Approved Access
+
+To restrict who can read dispatch data, configure at least one allowlist variable:
+
+```bash
+CLERK_ALLOWED_EMAILS=john@example.com,dispatcher@example.com
+CLERK_ALLOWED_DOMAINS=jmiguam.com,shimizutechnology.com
+```
+
+If neither allowlist variable is set, any signed-in Clerk user can enter as a viewer. That is convenient for early setup, but production should use an allowlist.
+
+## API Protection
+
+All Rails API endpoints require auth when Clerk is configured, except:
+
+- `OPTIONS *` CORS preflight
+- `GET /up` health check
+
+Mutating dispatch endpoints also require `admin` or `dispatcher`:
+
+- `POST /api/v1/work_orders`
+- `PATCH /api/v1/technicians/:id`
+- `POST /api/v1/dispatch_schedules/suggest`
+- `PATCH /api/v1/dispatch_items/:id`
+
+`GET /api/v1/me` returns the current role and permissions for the frontend.

@@ -82,3 +82,16 @@ export type DispatchSchedule = {
   summary: DispatchSummary
   items: DispatchItem[]
 }
+
+export type CurrentUser = {
+  id: number | null
+  clerk_id: string
+  email: string
+  name: string
+  role: 'admin' | 'dispatcher' | 'viewer'
+  auth_mode?: string
+  permissions: {
+    can_edit_dispatch: boolean
+    can_admin: boolean
+  }
+}

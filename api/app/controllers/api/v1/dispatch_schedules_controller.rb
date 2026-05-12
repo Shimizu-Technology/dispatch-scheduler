@@ -1,6 +1,8 @@
 module Api
   module V1
     class DispatchSchedulesController < ApplicationController
+      before_action :require_dispatch_edit!, only: [ :suggest ]
+
       def suggest
         service = DispatchSuggestionService.new(date: params[:date].presence || Date.new(2026, 5, 1))
         schedule = service.call

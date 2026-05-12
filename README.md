@@ -8,6 +8,7 @@ Stack:
 
 See `docs/PLAN.md` for product scope, architecture, and build plan.
 See `docs/POST_PR_IMPLEMENTATION_PLAN.md` for the current phased implementation plan.
+See `docs/AUTHENTICATION.md` for Clerk setup, roles, and local auth-bypass behavior.
 
 Current demo data is generated from John's review examples in `docs/examples-from-john/` with:
 

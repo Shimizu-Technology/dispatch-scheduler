@@ -1,6 +1,8 @@
 module Api
   module V1
     class WorkOrdersController < ApplicationController
+      before_action :require_dispatch_edit!, only: [ :create ]
+
       def index
         scope = WorkOrder.includes(:client, :location, :team).order(:scheduled_date, :id)
         scope = scope.where(status: params[:status]) if params[:status].present?

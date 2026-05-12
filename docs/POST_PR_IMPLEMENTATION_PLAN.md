@@ -14,10 +14,11 @@ Implemented in the POC:
 - Rule-based dispatch suggestion using priority, status, driver availability, skill match, region, and PM commitments.
 - Manual dispatch item overrides for crew, time, order, and notes.
 - Regenerate confirmation and idempotent draft rebuilding for a schedule date.
+- CI, Rails request/service tests, importer tests, and frontend module split.
+- Clerk auth plumbing with Rails JWT verification, local dev bypass, `admin`/`dispatcher`/`viewer` roles, and viewer-only UI mode.
 
 Not implemented yet:
 
-- Clerk authentication and roles.
 - Production file upload/intake.
 - OCR or OpenRouter extraction.
 - Human review workflow for AI-extracted work orders.

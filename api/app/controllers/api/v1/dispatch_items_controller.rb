@@ -19,48 +19,52 @@ module Api
 
       def update_item(item, attrs)
         old_team_id = item.team_id
-        old_order = item.order_index
         target_order = attrs.delete(:order_index)
 
         ActiveRecord::Base.transaction do
           item.assign_attributes(attrs)
-          item.order_index = target_order if target_order.present?
           team_changed = item.team_id != old_team_id
           order_changed = target_order.present?
           item.save!
 
-          if order_changed && !team_changed
-            swap_order(item, old_order)
-          elsif team_changed
+          if team_changed
             normalize_orders(item.dispatch_schedule, old_team_id)
           end
-          normalize_orders(item.dispatch_schedule, item.team_id) if order_changed || team_changed
+          if order_changed
+            reorder_team(item.dispatch_schedule, item.team_id, item, target_order)
+          elsif team_changed
+            normalize_orders(item.dispatch_schedule, item.team_id)
+          end
         end
       end
 
-      def swap_order(item, old_order)
-        sibling = item.dispatch_schedule.dispatch_items
-          .where(team_id: item.team_id, order_index: item.order_index)
-          .where.not(id: item.id)
-          .first
-        sibling&.update!(order_index: old_order)
+      def normalize_orders(schedule, team_id)
+        reorder_team(schedule, team_id)
       end
 
-      def normalize_orders(schedule, team_id)
+      def reorder_team(schedule, team_id, pinned_item = nil, target_order = nil)
         return if team_id.blank?
 
-        changes = schedule.dispatch_items
+        ordered_ids = schedule.dispatch_items
           .where(team_id: team_id)
           .order(:order_index, :id)
           .pluck(:id, :order_index)
+        current_orders = ordered_ids.to_h
+        ids = ordered_ids.map(&:first)
+        if pinned_item
+          ids.delete(pinned_item.id)
+          insert_at = target_order.to_i.clamp(0, ids.length)
+          ids.insert(insert_at, pinned_item.id)
+        end
+
+        changes = ids
           .each_with_index
-          .filter_map { |(id, order_index), index| [ id, index ] if order_index != index }
+          .filter_map { |id, index| [ id, index ] if current_orders[id] != index }
         return if changes.empty?
 
-        ids = changes.map(&:first)
         cases = changes.map { |id, index| "WHEN #{id.to_i} THEN #{index.to_i}" }.join(" ")
         timestamp = ActiveRecord::Base.connection.quote(Time.current)
-        DispatchItem.where(id: ids).update_all("order_index = CASE id #{cases} END, updated_at = #{timestamp}")
+        DispatchItem.where(id: changes.map(&:first)).update_all("order_index = CASE id #{cases} END, updated_at = #{timestamp}")
       end
 
       def dispatch_item_params

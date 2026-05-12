@@ -133,6 +133,19 @@ async function patchJson<T>(path: string, body: Record<string, unknown>): Promis
   return res.json()
 }
 
+async function postJson<T>(path: string, body: Record<string, unknown>): Promise<T> {
+  const res = await fetch(`${API}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const errorJson = await res.json().catch(() => null) as { errors?: string[] } | null
+    throw new Error(errorJson?.errors?.join(', ') || `${res.status} ${res.statusText}`)
+  }
+  return res.json()
+}
+
 function App() {
   const [dashboard, setDashboard] = useState<Dashboard | null>(null)
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([])
@@ -193,13 +206,7 @@ function App() {
     setWorking(true)
     setError('')
     try {
-      const res = await fetch(`${API}/dispatch_schedules/suggest`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date: DEMO_DATE }),
-      })
-      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
-      const created: DispatchSchedule = await res.json()
+      const created = await postJson<DispatchSchedule>('/dispatch_schedules/suggest', { date: DEMO_DATE })
       setSchedule(created)
       await refreshWhatsApp(created.id)
     } catch (err) {

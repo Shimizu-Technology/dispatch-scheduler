@@ -15,14 +15,16 @@ module Serializers
   def schedule_summary(schedule)
     candidate_work_orders = eligible_work_orders_for(schedule.date)
     candidate_pm_tasks = pm_tasks_due_for(schedule.date)
-    candidate_count = candidate_work_orders.count + candidate_pm_tasks.count
+    eligible_work_order_count = candidate_work_orders.count
+    eligible_pm_task_count = candidate_pm_tasks.count
+    candidate_count = eligible_work_order_count + eligible_pm_task_count
     scheduled_capacity = [ candidate_count, daily_item_limit ].min
     deferred = [ candidate_count - scheduled_capacity, 0 ].max
     blocked = blocked_work_orders_for(schedule.date).count
     {
       scheduled_items: schedule.dispatch_items.size,
-      eligible_work_orders: candidate_work_orders.count,
-      eligible_pm_tasks: candidate_pm_tasks.count,
+      eligible_work_orders: eligible_work_order_count,
+      eligible_pm_tasks: eligible_pm_task_count,
       deferred_items: deferred,
       daily_item_limit: daily_item_limit,
       blocked_work_orders: blocked,

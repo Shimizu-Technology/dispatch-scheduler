@@ -216,7 +216,11 @@ function App() {
     try {
       const updated = await patchJson<DispatchSchedule>(`/dispatch_items/${itemId}`, changes)
       setSchedule(updated)
-      await refreshWhatsApp(updated.id)
+      try {
+        await refreshWhatsApp(updated.id)
+      } catch (err) {
+        setError(err instanceof Error ? `Override saved, but WhatsApp preview did not refresh: ${err.message}` : 'Override saved, but WhatsApp preview did not refresh')
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to update dispatch item')
     } finally {

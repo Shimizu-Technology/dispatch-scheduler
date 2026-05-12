@@ -63,9 +63,12 @@ module Api
         return if changes.empty?
 
         timestamp = Time.current
+        table = DispatchItem.arel_table
+        order_case = Arel::Nodes::Case.new(table[:id])
         changes.each do |id, index|
-          DispatchItem.where(id: id).update_all(order_index: index, updated_at: timestamp)
+          order_case.when(id).then(index)
         end
+        DispatchItem.where(id: changes.map(&:first)).update_all(order_index: order_case, updated_at: timestamp)
       end
 
       def dispatch_item_params

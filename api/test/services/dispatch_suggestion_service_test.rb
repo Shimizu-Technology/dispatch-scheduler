@@ -30,15 +30,18 @@ class DispatchSuggestionServiceTest < ActiveSupport::TestCase
   end
 
   test "deferred summary uses the capped scheduling slice" do
+    team(name: "North Crew", skills: [ "General" ])
     5.times { |index| work_order(title: "Candidate #{index}") }
 
     old_limit = ENV["DISPATCH_DAILY_ITEM_LIMIT"]
     ENV["DISPATCH_DAILY_ITEM_LIMIT"] = "2"
     service = DispatchSuggestionService.new(date: DEFAULT_DATE)
-    service.call
+    schedule = service.call
 
     assert_equal 2, service.summary[:daily_item_limit]
-    assert_equal 2, service.summary[:deferred_items]
+    assert_equal 2, schedule.dispatch_items.count
+    assert_equal 2, service.summary[:eligible_work_orders]
+    assert_equal 0, service.summary[:deferred_items]
   ensure
     ENV["DISPATCH_DAILY_ITEM_LIMIT"] = old_limit
   end

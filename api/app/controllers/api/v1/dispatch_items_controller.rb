@@ -62,9 +62,13 @@ module Api
           .filter_map { |id, index| [ id, index ] if current_orders[id] != index }
         return if changes.empty?
 
-        cases = changes.map { |id, index| "WHEN #{id.to_i} THEN #{index.to_i}" }.join(" ")
-        timestamp = ActiveRecord::Base.connection.quote(Time.current)
-        DispatchItem.where(id: changes.map(&:first)).update_all("order_index = CASE id #{cases} END, updated_at = #{timestamp}")
+        timestamp = Time.current
+        table = DispatchItem.arel_table
+        order_case = Arel::Nodes::Case.new(table[:id])
+        changes.each do |id, index|
+          order_case.when(id).then(index)
+        end
+        DispatchItem.where(id: changes.map(&:first)).update_all(order_index: order_case, updated_at: timestamp)
       end
 
       def dispatch_item_params

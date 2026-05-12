@@ -18,6 +18,22 @@ module Auth
       end
     end
 
+    test "token decode failures do not force refresh jwks" do
+      with_clerk_jwks_url do
+        fetches = 0
+        response = successful_jwks_response({ keys: [] })
+
+        with_fetch_jwks_override(-> do
+          fetches += 1
+          response
+        end) do
+          assert_nil ClerkTokenVerifier.verify("expired.or.malformed.token")
+        end
+
+        assert_equal 1, fetches
+      end
+    end
+
     private
 
     def with_clerk_jwks_url
@@ -31,11 +47,24 @@ module Auth
     end
 
     def with_fetch_jwks_error(error)
+      with_fetch_jwks_override(-> { raise error }) do
+        yield
+      end
+    end
+
+    def with_fetch_jwks_override(override)
       original = ClerkTokenVerifier.method(:fetch_jwks)
-      ClerkTokenVerifier.define_singleton_method(:fetch_jwks) { raise error }
+      ClerkTokenVerifier.define_singleton_method(:fetch_jwks, &override)
       yield
     ensure
       ClerkTokenVerifier.define_singleton_method(:fetch_jwks) { original.call }
+    end
+
+    def successful_jwks_response(body)
+      Net::HTTPOK.new("1.1", "200", "OK").tap do |response|
+        response.instance_variable_set(:@read, true)
+        response.body = JSON.generate(body)
+      end
     end
   end
 end

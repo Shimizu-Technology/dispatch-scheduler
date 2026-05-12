@@ -34,7 +34,7 @@ module Auth
       def decode_with_jwks(token, force_refresh: false)
         decoded = JWT.decode(token, nil, true, algorithms: [ "RS256" ], jwks: jwks(force_refresh: force_refresh))
         decoded.first
-      rescue JWT::JWKError, JWT::DecodeError => e
+      rescue JWT::JWKError => e
         raise e if force_refresh
 
         Rails.cache.delete(JWKS_CACHE_KEY)

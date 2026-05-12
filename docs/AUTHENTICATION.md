@@ -38,6 +38,8 @@ or:
 CLERK_DOMAIN=your-clerk-domain
 ```
 
+JWKS fetches use a 3-second open/read timeout by default. Override with `CLERK_JWKS_TIMEOUT_SECONDS` if your deployment needs a different limit.
+
 The React API client automatically attaches `Authorization: Bearer <token>` to Rails requests when Clerk is enabled.
 
 ## Roles

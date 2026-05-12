@@ -9,6 +9,7 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
   const { getToken, isLoaded, isSignedIn } = useAuth()
   const { user: clerkUser } = useUser()
   const [user, setUser] = useState<CurrentUser | null>(null)
+  const [authError, setAuthError] = useState<string | null>(null)
   const [isCheckingApi, setIsCheckingApi] = useState(true)
 
   useEffect(() => {
@@ -18,6 +19,7 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
   const refreshUser = useCallback(async () => {
     if (!isLoaded || !isSignedIn) {
       setUser(null)
+      setAuthError(null)
       setIsCheckingApi(false)
       return
     }
@@ -26,6 +28,10 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
     try {
       const payload = await getJson<{ user: CurrentUser }>('/me')
       setUser(payload.user)
+      setAuthError(null)
+    } catch (error) {
+      setUser(null)
+      setAuthError(error instanceof Error ? error.message : 'Unable to verify access')
     } finally {
       setIsCheckingApi(false)
     }
@@ -34,10 +40,7 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // Sync the local role/permission state once Clerk has a session.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    void refreshUser().catch(() => {
-      setUser(null)
-      setIsCheckingApi(false)
-    })
+    void refreshUser()
   }, [refreshUser, clerkUser?.id])
 
   return <AuthContext.Provider value={{
@@ -45,6 +48,7 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
     isSignedIn: Boolean(isSignedIn),
     isLoading: !isLoaded || isCheckingApi,
     user,
+    authError,
     canEditDispatch: Boolean(user?.permissions.can_edit_dispatch),
     refreshUser,
   }}>{children}</AuthContext.Provider>
@@ -72,6 +76,7 @@ function NoAuthProvider({ children }: { children: ReactNode }) {
     isSignedIn: true,
     isLoading: false,
     user,
+    authError: null,
     canEditDispatch,
     refreshUser: async () => undefined,
   }}>{children}</AuthContext.Provider>

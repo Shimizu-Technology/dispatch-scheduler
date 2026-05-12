@@ -6,6 +6,7 @@ export type AuthContextValue = {
   isSignedIn: boolean
   isLoading: boolean
   user: CurrentUser | null
+  authError: string | null
   canEditDispatch: boolean
   refreshUser: () => Promise<void>
 }
@@ -15,6 +16,7 @@ export const AuthContext = createContext<AuthContextValue>({
   isSignedIn: true,
   isLoading: false,
   user: null,
+  authError: null,
   canEditDispatch: true,
   refreshUser: async () => undefined,
 })

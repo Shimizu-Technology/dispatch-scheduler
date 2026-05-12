@@ -6,6 +6,7 @@ module Auth
   class ClerkTokenVerifier
     JWKS_CACHE_KEY = "clerk_jwks".freeze
     JWKS_CACHE_TTL = 1.hour
+    DEFAULT_JWKS_TIMEOUT_SECONDS = 3
 
     class << self
       def enabled?
@@ -42,11 +43,30 @@ module Auth
       def jwks(force_refresh: false)
         Rails.cache.delete(JWKS_CACHE_KEY) if force_refresh
         Rails.cache.fetch(JWKS_CACHE_KEY, expires_in: JWKS_CACHE_TTL) do
-          response = Net::HTTP.get_response(URI(jwks_url))
+          response = fetch_jwks
           raise JWT::DecodeError, "Unable to fetch Clerk JWKS: HTTP #{response.code}" unless response.is_a?(Net::HTTPSuccess)
 
           JSON.parse(response.body)
         end
+      end
+
+      def fetch_jwks
+        uri = URI(jwks_url)
+        Net::HTTP.start(
+          uri.host,
+          uri.port,
+          use_ssl: uri.scheme == "https",
+          open_timeout: jwks_timeout_seconds,
+          read_timeout: jwks_timeout_seconds
+        ) do |http|
+          http.get(uri.request_uri)
+        end
+      end
+
+      def jwks_timeout_seconds
+        Integer(ENV.fetch("CLERK_JWKS_TIMEOUT_SECONDS", DEFAULT_JWKS_TIMEOUT_SECONDS))
+      rescue ArgumentError
+        DEFAULT_JWKS_TIMEOUT_SECONDS
       end
 
       def domain_jwks_url

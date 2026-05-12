@@ -25,14 +25,16 @@ module Api
         ActiveRecord::Base.transaction do
           item.assign_attributes(attrs)
           item.order_index = target_order if target_order.present?
+          team_changed = item.team_id != old_team_id
+          order_changed = target_order.present?
           item.save!
 
-          if target_order.present? && item.team_id == old_team_id
+          if order_changed && !team_changed
             swap_order(item, old_order)
-          else
+          elsif team_changed
             normalize_orders(item.dispatch_schedule, old_team_id)
           end
-          normalize_orders(item.dispatch_schedule, item.team_id)
+          normalize_orders(item.dispatch_schedule, item.team_id) if order_changed || team_changed
         end
       end
 
@@ -57,7 +59,8 @@ module Api
 
         ids = changes.map(&:first)
         cases = changes.map { |id, index| "WHEN #{id.to_i} THEN #{index.to_i}" }.join(" ")
-        DispatchItem.where(id: ids).update_all("order_index = CASE id #{cases} END")
+        timestamp = ActiveRecord::Base.connection.quote(Time.current)
+        DispatchItem.where(id: ids).update_all("order_index = CASE id #{cases} END, updated_at = #{timestamp}")
       end
 
       def dispatch_item_params

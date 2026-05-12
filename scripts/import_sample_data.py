@@ -41,6 +41,16 @@ CENTRAL = {
 SOUTH = {"AGAT", "APRA", "APRA HEIGHTS", "YONA", "IPAN", "INARAJAN", "UMATAC", "MERIZO"}
 DRIVERS = {"REY", "EFREN", "ERWIN", "RONALD", "ARIEL", "NILO", "RENE", "BERNIE", "MANNY", "ROBERT", "NELSON V."}
 
+APPROVED_WORK_ORDER_COLUMNS = {
+    "client": 0,
+    "location": 1,
+    "wo_number": 2,
+    "description": 3,
+    "team_name": 4,
+    "approval_status": 6,
+    "dispatch_status": 7,
+}
+
 SKILL_ALIASES = {
     "HVAC": "HVAC",
     "ELECTRICAL": "Electrical",
@@ -97,6 +107,14 @@ def required_sheet(wb, name: str):
 
 def optional_sheet(wb, name: str):
     return wb[name] if name in wb.sheetnames else None
+
+
+def value_at(values, index):
+    return values[index] if index < len(values) else None
+
+
+def mapped_value(values, columns, key):
+    return value_at(values, columns[key])
 
 
 def region_for(location: str | None) -> str:
@@ -267,21 +285,26 @@ def parse_approved_work_orders(wb):
     work_orders = []
     for row in ws.iter_rows(values_only=True):
         values = [clean(v) for v in row]
-        if not values[0] or not values[0].upper().startswith("MOBIL"):
+        client = mapped_value(values, APPROVED_WORK_ORDER_COLUMNS, "client")
+        if not client or not client.upper().startswith("MOBIL"):
             continue
-        description = values[3]
+        description = mapped_value(values, APPROVED_WORK_ORDER_COLUMNS, "description")
         if not description:
             continue
-        status = values[7] or values[6] or "APPROVED"
+        status = (
+            mapped_value(values, APPROVED_WORK_ORDER_COLUMNS, "dispatch_status")
+            or mapped_value(values, APPROVED_WORK_ORDER_COLUMNS, "approval_status")
+            or "APPROVED"
+        )
         work_orders.append(work_order_record(
-            client="Mobil",
-            location=values[1],
-            wo_number=values[2],
+            client=client.title(),
+            location=mapped_value(values, APPROVED_WORK_ORDER_COLUMNS, "location"),
+            wo_number=mapped_value(values, APPROVED_WORK_ORDER_COLUMNS, "wo_number"),
             description=description,
             status=status,
             source="approved_work_orders_import",
             source_reference="MOBIL SCHEDULE - MAY2026.xlsx / Approved Work Orders",
-            team_name=values[4],
+            team_name=mapped_value(values, APPROVED_WORK_ORDER_COLUMNS, "team_name"),
             notes="Approved/material-prep sample from John's workbook.",
         ))
     return work_orders

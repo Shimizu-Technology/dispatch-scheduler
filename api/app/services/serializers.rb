@@ -19,7 +19,7 @@ module Serializers
     eligible_pm_task_count = candidate_pm_tasks.count
     candidate_count = eligible_work_order_count + eligible_pm_task_count
     scheduled_capacity = [ candidate_count, daily_item_limit ].min
-    deferred = [ candidate_count - scheduled_capacity, 0 ].max
+    deferred = [ scheduled_capacity - schedule.dispatch_items.size, 0 ].max
     blocked = blocked_work_orders_for(schedule.date).count
     {
       scheduled_items: schedule.dispatch_items.size,

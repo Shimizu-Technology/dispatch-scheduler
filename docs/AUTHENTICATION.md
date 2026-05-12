@@ -10,9 +10,11 @@ In development and test only, if `VITE_CLERK_PUBLISHABLE_KEY` is not set in the 
 
 - User: `dev-dispatcher@example.com`
 - Role: `admin` by default
-- Override with `DEV_AUTH_ROLE=dispatcher` or `DEV_AUTH_ROLE=viewer`
+- Override Rails with `DEV_AUTH_ROLE=dispatcher` or `DEV_AUTH_ROLE=viewer`
+- Override the React dev UI with `VITE_DEV_AUTH_ROLE=dispatcher` or `VITE_DEV_AUTH_ROLE=viewer`
 
 This keeps CI and local setup unblocked before real Clerk credentials are added.
+Keep `DEV_AUTH_ROLE` and `VITE_DEV_AUTH_ROLE` aligned when testing viewer/dispatcher behavior locally.
 
 Production does not use this bypass. If Clerk JWT verification is not configured, Rails returns a service-unavailable auth configuration error.
 
@@ -48,7 +50,7 @@ Supported roles:
 - `dispatcher`: can create/regenerate schedules, edit dispatch items, and update availability.
 - `viewer`: can read dashboard/work-order/team/PM data but cannot change dispatch data.
 
-Initial role assignment can be controlled with comma-separated env vars:
+Role assignment is refreshed from comma-separated env vars on every verified sign-in:
 
 ```bash
 CLERK_ADMIN_EMAILS=admin@example.com

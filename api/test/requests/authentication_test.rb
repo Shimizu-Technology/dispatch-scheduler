@@ -47,6 +47,32 @@ class AuthenticationTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "existing users refresh their role from auth environment on sign in" do
+    with_auth_env(
+      "CLERK_JWKS_URL" => "https://clerk.example.test/.well-known/jwks.json",
+      "CLERK_DISPATCHER_EMAILS" => "promoted@example.com"
+    ) do
+      user = User.create!(clerk_id: "promoted_123", email: "promoted@example.com", role: "viewer")
+
+      get "/api/v1/me", headers: auth_headers("promoted_123", "promoted@example.com")
+
+      assert_response :success
+      assert_equal "dispatcher", user.reload.role
+      assert_equal "dispatcher", JSON.parse(response.body).dig("user", "role")
+    end
+  end
+
+  test "auth sync constraint errors return structured json" do
+    with_auth_env("CLERK_JWKS_URL" => "https://clerk.example.test/.well-known/jwks.json") do
+      with_user_sync_error(ActiveRecord::RecordNotUnique.new("collision")) do
+        get "/api/v1/me", headers: auth_headers("collision_123", "collision@example.com")
+      end
+
+      assert_response :conflict
+      assert_equal [ "Unable to sync authenticated user. Please retry." ], JSON.parse(response.body).fetch("errors")
+    end
+  end
+
   private
 
   AUTH_ENV_KEYS = %w[CLERK_JWKS_URL CLERK_DOMAIN CLERK_ALLOWED_EMAILS CLERK_ALLOWED_DOMAINS CLERK_ADMIN_EMAILS CLERK_DISPATCHER_EMAILS DEV_AUTH_ROLE].freeze
@@ -64,5 +90,13 @@ class AuthenticationTest < ActionDispatch::IntegrationTest
 
   def auth_headers(clerk_id, email)
     { "Authorization" => "Bearer test_token:#{clerk_id}:#{email}" }
+  end
+
+  def with_user_sync_error(error)
+    original = Auth::UserSync.method(:call)
+    Auth::UserSync.define_singleton_method(:call) { |_payload| raise error }
+    yield
+  ensure
+    Auth::UserSync.define_singleton_method(:call) { |payload| original.call(payload) }
   end
 end

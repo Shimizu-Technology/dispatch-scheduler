@@ -35,6 +35,8 @@ class ApplicationController < ActionController::API
     render json: { errors: [ e.message ] }, status: :forbidden
   rescue ActiveRecord::RecordInvalid => e
     render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
+  rescue ActiveRecord::RecordNotUnique, ActiveRecord::StatementInvalid
+    render json: { errors: [ "Unable to sync authenticated user. Please retry." ] }, status: :conflict
   end
 
   def require_dispatch_edit!

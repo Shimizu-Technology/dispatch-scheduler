@@ -27,6 +27,10 @@ class User < ApplicationRecord
     name.presence || email.to_s.split("@").first
   end
 
+  def auth_mode
+    "clerk"
+  end
+
   private
 
   def normalize_email

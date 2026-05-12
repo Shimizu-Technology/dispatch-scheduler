@@ -55,14 +55,16 @@ function NoAuthProvider({ children }: { children: ReactNode }) {
     setAuthTokenGetter(async () => null)
   }, [])
 
+  const devRole = normalizeDevRole(import.meta.env.VITE_DEV_AUTH_ROLE)
+  const canEditDispatch = devRole === 'admin' || devRole === 'dispatcher'
   const user: CurrentUser = {
     id: null,
     clerk_id: 'dev_user',
     email: 'dev-dispatcher@example.com',
     name: 'Dev Dispatcher',
-    role: 'admin',
+    role: devRole,
     auth_mode: 'development_bypass',
-    permissions: { can_edit_dispatch: true, can_admin: true },
+    permissions: { can_edit_dispatch: canEditDispatch, can_admin: devRole === 'admin' },
   }
 
   return <AuthContext.Provider value={{
@@ -70,9 +72,13 @@ function NoAuthProvider({ children }: { children: ReactNode }) {
     isSignedIn: true,
     isLoading: false,
     user,
-    canEditDispatch: true,
+    canEditDispatch,
     refreshUser: async () => undefined,
   }}>{children}</AuthContext.Provider>
+}
+
+function normalizeDevRole(value: string | undefined): CurrentUser['role'] {
+  return value === 'dispatcher' || value === 'viewer' ? value : 'admin'
 }
 
 export function AuthProvider({ children, isClerkEnabled }: { children: ReactNode; isClerkEnabled: boolean }) {

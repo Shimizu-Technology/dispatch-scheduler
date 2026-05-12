@@ -1,8 +1,9 @@
-# Post-PR Implementation Plan
+# Current Implementation Roadmap
 
-This plan starts after the current dispatch workflow PR is merged. The PR proves
-the core scheduling loop with John's sample data; the next work should turn the
-POC into a usable internal tool for JMI operations.
+Last updated: 2026-05-12
+
+This plan tracks what is done after the dispatch workflow and Clerk-auth PRs
+merged, and what should come next to make the app solid for JMI operations.
 
 ## Current State
 
@@ -14,48 +15,47 @@ Implemented in the POC:
 - Rule-based dispatch suggestion using priority, status, driver availability, skill match, region, and PM commitments.
 - Manual dispatch item overrides for crew, time, order, and notes.
 - Regenerate confirmation and idempotent draft rebuilding for a schedule date.
-- CI, Rails request/service tests, importer tests, and frontend module split.
-- Clerk auth plumbing with Rails JWT verification, local dev bypass, `admin`/`dispatcher`/`viewer` roles, and viewer-only UI mode.
+- CI, Rails request/service tests, importer tests, frontend lint/build, Brakeman, and bundler-audit.
+- Clerk auth with Rails JWT verification, Clerk token-claim setup docs, local dev/test bypass, `admin`/`dispatcher`/`viewer` roles, role refresh on sign-in, and viewer-only UI/API mode.
 
 Not implemented yet:
 
 - Production file upload/intake.
 - OCR or OpenRouter extraction.
 - Human review workflow for AI-extracted work orders.
+- Robust work-order edit/search/filter workflow.
 - Finalize/publish schedule state.
-- Audit history of overrides and regenerations.
-- Production deployment hardening.
+- Audit history of overrides, regenerations, availability changes, and future intake approval.
+- Daily team composition editing by date.
+- Production deployment hardening, backups, and monitoring.
 
-## Phase 1 - Secure Internal Access
+## Completed Phase 1 - Secure Internal Access
 
 Goal: only approved JMI/Shimizu users can access the board.
 
-Tasks:
+Completed:
 
-- Add Clerk to the React app.
-- Add a Rails auth middleware/service that verifies Clerk JWTs.
-- Protect all API endpoints except health checks.
-- Add basic roles: admin, dispatcher, viewer.
-- Hide edit controls from viewer users.
-- Store user identity on manual changes once audit logging exists.
-
-Acceptance criteria:
-
-- Anonymous users cannot load dispatch data.
-- Signed-in users can load the app and call the API.
-- Viewer users can inspect schedules but cannot edit teams, availability, or dispatch items.
+- Clerk added to the React app.
+- Rails verifies Clerk JWTs against JWKS.
+- All API endpoints are protected when Clerk is configured, except health/CORS paths.
+- Mutating dispatch endpoints require `admin` or `dispatcher`.
+- Roles implemented: `admin`, `dispatcher`, `viewer`.
+- Viewer users can inspect but cannot edit dispatch data.
+- Local dev/test bypass keeps setup and CI unblocked before real Clerk credentials are added.
+- Auth docs cover Clerk token claims, allowlists, role env vars, and local bypass variables.
 
 ## Phase 2 - Real Intake Foundation
 
-Goal: John/admin can add new work without editing seed files.
+Goal: John/admin can add and maintain work without editing seed files.
 
 Tasks:
 
 - Expand the manual work-order form into a real intake screen.
-- Add fields for source, requester, location, WO number, priority, status, trade, requested date, due date, and notes.
 - Add edit/update endpoints for work orders.
+- Add UI controls for source, requester, location, WO number, priority, status, trade, requested date, due date, and notes.
 - Add filters/search for status, priority, client, region, trade, and scheduled date.
 - Add duplicate detection by source plus external WO number.
+- Decide whether created/edited work orders should be immediately dispatch-eligible or require review.
 
 Acceptance criteria:
 
@@ -127,34 +127,33 @@ Goal: the app is safe and supportable for real JMI usage.
 Tasks:
 
 - Move production to PostgreSQL.
-- Add environment variable documentation.
-- Add CI for Rails lint/tests and frontend lint/build.
-- Add request/model tests around scheduling, manual overrides, auth, and intake approval.
+- Add deployment documentation.
 - Add error monitoring and structured logs.
 - Add backup/restore plan.
-- Add deployment documentation.
+- Expand request/model tests around intake approval, audit history, and schedule finalization.
+- Confirm production Clerk allowlists and role env vars with JMI/Shimizu stakeholders.
 
 Acceptance criteria:
 
 - A new developer can set up the app from docs.
 - CI protects the core dispatch workflow.
 - Production data is backed up and recoverable.
+- Support can diagnose auth, intake, scheduling, and export failures from logs.
 
 ## Recommended Next PR Order
 
-1. Clerk auth and role-gated API/UI.
-2. Work-order create/edit/search improvements.
-3. Upload storage plus intake draft model.
-4. OpenRouter extraction service and review UI.
-5. Schedule finalize/audit trail.
-6. Daily team composition management.
-7. Production deployment hardening.
+1. Work-order create/edit/search improvements.
+2. Upload storage plus intake draft model.
+3. OpenRouter extraction service and review UI.
+4. Schedule finalize/audit trail.
+5. Daily team composition management.
+6. Production deployment hardening.
 
 ## Definition Of Ready For John/JMI Pilot
 
 The app is ready for a limited pilot when:
 
-- Auth is enabled.
+- Auth is enabled with real Clerk credentials and production allowlists.
 - John/admin can create/edit work orders without developer help.
 - OCR-created records require human approval.
 - Dispatch suggestions can be manually edited and finalized.

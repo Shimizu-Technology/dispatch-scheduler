@@ -39,7 +39,7 @@ class DispatchSuggestionService
         )
       end
 
-      @summary = build_summary(candidate_items, schedule)
+      @summary = build_summary(items, schedule)
     end
 
     schedule

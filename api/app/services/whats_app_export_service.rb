@@ -4,9 +4,9 @@ class WhatsAppExportService
   end
 
   def call
-    grouped = @schedule.dispatch_items.includes(:team, work_order: [:client, :location], pm_task: [:client, :location]).group_by(&:team)
+    grouped = @schedule.dispatch_items.includes(:team, work_order: [ :client, :location ], pm_task: [ :client, :location ]).group_by(&:team)
     grouped.map do |team, items|
-      lines = ["#{team.name} - #{@schedule.date.strftime('%b %-d, %Y')}", ""]
+      lines = [ "#{team.name} - #{@schedule.date.strftime('%b %-d, %Y')}", "" ]
       items.sort_by(&:order_index).each_with_index do |item, idx|
         thing = item.schedulable
         if item.work_order_id

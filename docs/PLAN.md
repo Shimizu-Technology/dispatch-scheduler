@@ -24,18 +24,18 @@ Everything else supports that.
 
 ## 3. What John Sent Us
 
-Artifacts are stored locally at:
+Artifacts are stored locally in this repo at:
 
-`/Users/jerry/.openclaw/workspaces/prime/john-ilao-artifacts/`
+`docs/examples-from-john/`
 
 Files:
 
 - `WORK ORDER 40787.pdf` — sample work order from external work-order workflow.
 - `Sodexo-sample.png` — sample WhatsApp/Sodexo request.
 - `MOBIL SCHEDULE - MAY2026.xlsx` — active schedule workbook. Includes team/trade tab, monthly daily schedule tabs, approved work order tab, landscaping/ACU PM tabs.
-- `PM SCHEDULE-APRIL2026.xlsx` — PM schedule sample sent to Mobil.
+- `PM SCHEDULE-ARPIL2026.xlsx` — PM schedule sample sent to Mobil. The filename is misspelled in the original attachment and the importer intentionally tolerates it.
 
-Important: John's email included external site credentials. Do **not** repeat them in notes/chat. Do **not** log into external systems without explicit Leon approval.
+Important: John's email included external site credentials. Do **not** repeat them in notes/chat. Do **not** log into external systems without explicit Leon approval. Keep generated seed data sanitized even when the local examples remain available for development review.
 
 ## 4. POC Scope
 
@@ -102,7 +102,7 @@ Principles:
    - Group by region/location when possible
    - Match skills/trades when possible
    - Warn if assigned team has no driver
-   - Allow manual override/editing
+   - Allow manual override/editing of crew, time, order, and notes
 
 6. **WhatsApp Export**
    - Generate clean copy/paste schedule by team
@@ -370,9 +370,9 @@ Demo sequence:
   - technicians/skills from `Team` tab
   - work orders from `May2026`
   - approved/waiting parts from `Approved Work Orders`
-- Parse `PM SCHEDULE-APRIL2026.xlsx` into PM task seed data.
+- Parse `PM SCHEDULE-ARPIL2026.xlsx` into PM task seed data.
 - Add Sodexo sample as a seed work order.
-- Do not commit raw confidential files unless Leon approves.
+- Do not commit external-system credentials. Keep generated seed data sanitized from the local review examples.
 
 ### Step 3 — Backend Models/API
 - Implement models and seed data.

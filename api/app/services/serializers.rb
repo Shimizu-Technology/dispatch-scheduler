@@ -1,6 +1,64 @@
 module Serializers
   module_function
 
+  def schedule(dispatch_schedule, summary: nil)
+    schedule = DispatchSchedule.includes(dispatch_items: [ :team, { work_order: [ :client, :location ] }, { pm_task: [ :client, :location ] } ]).find(dispatch_schedule.id)
+    {
+      id: schedule.id,
+      date: schedule.date,
+      status: schedule.status,
+      summary: summary || schedule_summary(schedule),
+      items: schedule.dispatch_items.map { |item| dispatch_item(item) }
+    }
+  end
+
+  def schedule_summary(schedule)
+    candidate_work_orders = eligible_work_orders_for(schedule.date)
+    candidate_pm_tasks = pm_tasks_due_for(schedule.date)
+    eligible_work_order_count = candidate_work_orders.count
+    eligible_pm_task_count = candidate_pm_tasks.count
+    candidate_count = eligible_work_order_count + eligible_pm_task_count
+    scheduled_capacity = [ candidate_count, daily_item_limit ].min
+    deferred = [ scheduled_capacity - schedule.dispatch_items.size, 0 ].max
+    blocked = blocked_work_orders_for(schedule.date).count
+    {
+      scheduled_items: schedule.dispatch_items.size,
+      eligible_work_orders: eligible_work_order_count,
+      eligible_pm_tasks: eligible_pm_task_count,
+      deferred_items: deferred,
+      daily_item_limit: daily_item_limit,
+      blocked_work_orders: blocked,
+      message: schedule_summary_message(blocked, deferred)
+    }
+  end
+
+  def eligible_work_orders_for(date)
+    WorkOrder.open
+      .where("scheduled_date = ? OR scheduled_date IS NULL", date)
+      .where.not(status: %w[waiting_for_parts waiting_for_approval])
+  end
+
+  def pm_tasks_due_for(date)
+    PmTask.where(scheduled_date: date)
+  end
+
+  def blocked_work_orders_for(date)
+    WorkOrder.open
+      .where(status: %w[waiting_for_parts waiting_for_approval])
+      .where("scheduled_date = ? OR scheduled_date IS NULL", date)
+  end
+
+  def daily_item_limit
+    ENV.fetch("DISPATCH_DAILY_ITEM_LIMIT", DispatchSuggestionService::DEFAULT_DAILY_ITEM_LIMIT).to_i
+  end
+
+  def schedule_summary_message(blocked, deferred)
+    notes = []
+    notes << "#{deferred} eligible item(s) deferred by the daily draft limit." if deferred.positive?
+    notes << "#{blocked} waiting-for-parts/approval item(s) were held out of dispatch." if blocked.positive?
+    notes.presence&.join(" ") || "No eligible or blocked items were held out."
+  end
+
   def work_order(work_order)
     {
       id: work_order.id,

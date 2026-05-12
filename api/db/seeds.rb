@@ -5,7 +5,7 @@ abort "Missing seed data at #{seed_path}. Run scripts/import_sample_data.py from
 
 data = JSON.parse(File.read(seed_path))
 
-[FollowUp, DispatchItem, DispatchSchedule, WorkOrder, PmTask, TeamMembership, TechnicianAvailability, TechnicianSkill, Technician, Team, Location, Client].each(&:delete_all)
+[ FollowUp, DispatchItem, DispatchSchedule, WorkOrder, PmTask, TeamMembership, TechnicianAvailability, TechnicianSkill, Technician, Team, Location, Client ].each(&:delete_all)
 
 clients = {}
 locations = {}
@@ -16,9 +16,9 @@ teams = {}
   clients[name] = Client.create!(name: name)
 end
 
-(data["work_orders"].map { |w| [w["client"], w["location"], w["region"]] } + data["pm_tasks"].map { |p| [p["client"], p["location"], p["region"]] }).uniq.each do |client_name, location_name, region|
+(data["work_orders"].map { |w| [ w["client"], w["location"], w["region"] ] } + data["pm_tasks"].map { |p| [ p["client"], p["location"], p["region"] ] }).uniq.each do |client_name, location_name, region|
   next unless client_name && location_name
-  key = [client_name, location_name]
+  key = [ client_name, location_name ]
   locations[key] = Location.create!(client: clients[client_name], name: location_name, region: region)
 end
 
@@ -44,7 +44,7 @@ end
 
 data["work_orders"].each do |attrs|
   client = clients[attrs["client"]]
-  location = locations[[attrs["client"], attrs["location"]]]
+  location = locations[[ attrs["client"], attrs["location"] ]]
   team = teams[attrs["team_name"]]
   WorkOrder.create!(
     client: client,
@@ -68,7 +68,7 @@ end
 data["pm_tasks"].each do |attrs|
   PmTask.create!(
     client: clients[attrs["client"]],
-    location: locations[[attrs["client"], attrs["location"]]],
+    location: locations[[ attrs["client"], attrs["location"] ]],
     task_name: attrs["task_name"],
     trade_category: attrs["trade_category"],
     frequency: attrs["frequency"],

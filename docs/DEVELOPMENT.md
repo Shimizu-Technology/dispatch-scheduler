@@ -3,7 +3,7 @@
 ## Setup
 
 ```bash
-# Generate sanitized sample data from local artifacts (raw files are not committed)
+# Generate sanitized sample data from docs/examples-from-john/
 ./scripts/import_sample_data.py
 
 # API
@@ -29,4 +29,4 @@ cd ../api && ~/.rbenv/shims/bundle exec rails runner 's=DispatchSuggestionServic
 
 ## Data Safety
 
-Do not commit raw John/customer artifacts or credentials. The repo only contains sanitized seed JSON generated from the sample workflow files.
+Do not commit external-system credentials. The committed seed JSON is sanitized and generated from the local review examples in `docs/examples-from-john/`.

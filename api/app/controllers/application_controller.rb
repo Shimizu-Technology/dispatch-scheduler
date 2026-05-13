@@ -1,5 +1,4 @@
 class ApplicationController < ActionController::API
-  before_action :set_cors_headers
   before_action :authenticate_request!
 
   attr_reader :current_user
@@ -7,20 +6,12 @@ class ApplicationController < ActionController::API
   private
 
   def authenticate_request!
-    if Auth::ClerkTokenVerifier.enabled?
-      authenticate_with_clerk!
-    elsif Rails.env.development? || Rails.env.test?
-      @current_user = Auth::UserContext.new(
-        id: nil,
-        clerk_id: "dev_user",
-        email: "dev-dispatcher@example.com",
-        name: "Dev Dispatcher",
-        role: ENV.fetch("DEV_AUTH_ROLE", "admin"),
-        auth_mode: "development_bypass"
-      )
-    else
+    unless Auth::ClerkTokenVerifier.enabled?
       render json: { errors: [ "Clerk authentication is not configured" ] }, status: :service_unavailable
+      return
     end
+
+    authenticate_with_clerk!
   end
 
   def authenticate_with_clerk!
@@ -54,11 +45,5 @@ class ApplicationController < ActionController::API
   def bearer_token
     header = request.authorization.to_s
     header[/\ABearer\s+(.+)\z/i, 1]
-  end
-
-  def set_cors_headers
-    response.set_header("Access-Control-Allow-Origin", "*")
-    response.set_header("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS")
-    response.set_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
   end
 end

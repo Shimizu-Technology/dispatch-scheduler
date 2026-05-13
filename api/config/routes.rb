@@ -1,5 +1,4 @@
 Rails.application.routes.draw do
-  match "*path", to: proc { [ 204, { "Access-Control-Allow-Origin" => "*", "Access-Control-Allow-Methods" => "GET, POST, PATCH, OPTIONS", "Access-Control-Allow-Headers" => "Content-Type, Authorization" }, [] ] }, via: :options
   get "up", to: proc { [ 200, { "Content-Type" => "application/json" }, [ { ok: true }.to_json ] ] }
 
   namespace :api do

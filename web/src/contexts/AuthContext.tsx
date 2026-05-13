@@ -45,7 +45,6 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
   }, [refreshUser, clerkUser?.id])
 
   return <AuthContext.Provider value={{
-    isClerkEnabled: true,
     isSignedIn: Boolean(isSignedIn),
     isLoading: !isLoaded || isCheckingApi,
     user,
@@ -55,38 +54,6 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
   }}>{children}</AuthContext.Provider>
 }
 
-function NoAuthProvider({ children }: { children: ReactNode }) {
-  useEffect(() => {
-    setAuthTokenGetter(async () => null)
-  }, [])
-
-  const devRole = normalizeDevRole(import.meta.env.VITE_DEV_AUTH_ROLE)
-  const canEditDispatch = devRole === 'admin' || devRole === 'dispatcher'
-  const user: CurrentUser = {
-    id: null,
-    clerk_id: 'dev_user',
-    email: 'dev-dispatcher@example.com',
-    name: 'Dev Dispatcher',
-    role: devRole,
-    auth_mode: 'development_bypass',
-    permissions: { can_edit_dispatch: canEditDispatch, can_admin: devRole === 'admin' },
-  }
-
-  return <AuthContext.Provider value={{
-    isClerkEnabled: false,
-    isSignedIn: true,
-    isLoading: false,
-    user,
-    authError: null,
-    canEditDispatch,
-    refreshUser: async () => undefined,
-  }}>{children}</AuthContext.Provider>
-}
-
-function normalizeDevRole(value: string | undefined): CurrentUser['role'] {
-  return value === 'dispatcher' || value === 'viewer' ? value : 'admin'
-}
-
-export function AuthProvider({ children, isClerkEnabled }: { children: ReactNode; isClerkEnabled: boolean }) {
-  return isClerkEnabled ? <ClerkAuthProvider>{children}</ClerkAuthProvider> : <NoAuthProvider>{children}</NoAuthProvider>
+export function AuthProvider({ children }: { children: ReactNode }) {
+  return <ClerkAuthProvider>{children}</ClerkAuthProvider>
 }

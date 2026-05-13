@@ -17,6 +17,25 @@ module Auth
       assert_equal 2, calls
     end
 
+    test "non-bootstrap users default to viewer" do
+      user = UserSync.call({ "sub" => "viewer_123", "email" => "viewer@example.com", "name" => "Viewer User" })
+
+      assert_equal "viewer", user.role
+      assert_equal "viewer@example.com", user.email
+      assert_equal "Viewer User", user.name
+    end
+
+    test "bootstrap admin email is resolved from the dedicated env var" do
+      previous = ENV["CLERK_BOOTSTRAP_ADMIN_EMAILS"]
+      ENV["CLERK_BOOTSTRAP_ADMIN_EMAILS"] = "owner@example.com"
+
+      user = UserSync.call({ "sub" => "owner_123", "email" => "owner@example.com" })
+
+      assert_equal "admin", user.role
+    ensure
+      previous.nil? ? ENV.delete("CLERK_BOOTSTRAP_ADMIN_EMAILS") : ENV["CLERK_BOOTSTRAP_ADMIN_EMAILS"] = previous
+    end
+
     private
 
     def with_sync_user_override(override)

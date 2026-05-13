@@ -26,7 +26,7 @@ function sectionFromHash(): ActiveSection {
 }
 
 function DispatchApp() {
-  const { isClerkEnabled, isLoading: authLoading, user, canEditDispatch, refreshUser } = useAuthContext()
+  const { isLoading: authLoading, user, canEditDispatch, refreshUser } = useAuthContext()
   const [activeSection, setActiveSection] = useState<ActiveSection>(sectionFromHash)
   const [dashboard, setDashboard] = useState<Dashboard | null>(null)
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([])
@@ -239,12 +239,12 @@ function DispatchApp() {
                   <span className="rounded-2xl bg-cyan-200/15 p-2 text-cyan-100"><ShieldCheck size={20} /></span>
                   <div>
                     <span className="font-display block font-extrabold text-white">{user.name}</span>
-                    <span className="capitalize text-cyan-50/75">{user.role}{!isClerkEnabled ? ' (dev)' : ''}</span>
+                    <span className="capitalize text-cyan-50/75">{user.role}</span>
                   </div>
                 </div>
               </div>}
               <div className="flex w-full flex-wrap gap-3 lg:max-w-sm lg:justify-end">
-                {isClerkEnabled && <UserButton />}
+                <UserButton />
                 {canEditDispatch && <button disabled={working} onClick={suggestSchedule} className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[#f2a51f] px-5 py-3 font-display text-sm font-extrabold text-[#10232a] shadow-[0_16px_38px_rgba(242,165,31,0.28)] transition hover:-translate-y-0.5 hover:bg-[#ffc453] disabled:cursor-wait disabled:opacity-60 sm:flex-none">
                   <ClipboardList size={18} /> {working ? 'Working...' : "Suggest Today's Schedule"}
                 </button>}

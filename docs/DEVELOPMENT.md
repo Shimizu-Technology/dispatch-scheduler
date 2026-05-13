@@ -22,12 +22,22 @@ Open http://127.0.0.1:5175.
 
 ## Authentication
 
-The app runs with a local auth bypass when Clerk env vars are absent. It defaults
-to an admin user so the POC opens quickly, but you can test read-only behavior
-with `DEV_AUTH_ROLE=viewer` for Rails and `VITE_DEV_AUTH_ROLE=viewer` for React.
+The app always uses Clerk. Local development needs the same Clerk setup shape as
+production, plus local URLs for the frontend and backend:
 
-To test real auth, copy `.env.example` values into `web/.env.local` and your
-Rails shell/API environment, then add real Clerk values. See
+```bash
+# web/.env.local
+VITE_CLERK_PUBLISHABLE_KEY=pk_test_...
+VITE_API_URL=http://localhost:3005
+
+# api/.env or Rails shell
+FRONTEND_URL=http://localhost:5175
+CLERK_JWKS_URL=https://your-clerk-domain/.well-known/jwks.json
+CLERK_BOOTSTRAP_ADMIN_EMAILS=you@example.com
+```
+
+The bootstrap admin email is only for first sign-in and recovery. After that,
+manage admins, dispatchers, and viewers from the in-app `Users` section. See
 `docs/AUTHENTICATION.md`.
 
 ## Verification

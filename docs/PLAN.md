@@ -142,7 +142,7 @@ Implemented as of May 12, 2026:
 - Idempotent draft regeneration by date with a configurable daily item cap.
 - Manual dispatch overrides for crew, scheduled time, order, and notes.
 - WhatsApp-ready schedule export.
-- Clerk auth with JWT verification, role refresh on sign-in, approved email/domain controls, and local dev/test bypass.
+- Clerk auth with JWT verification, `FRONTEND_URL` / `VITE_API_URL` wiring, bootstrap-admin setup, in-app user management, and role refresh on sign-in.
 - Viewer mode hides/disables mutating controls and Rails guards mutating endpoints.
 - CI for Rails tests/lint/security, frontend lint/build, and Python importer tests.
 

@@ -26,7 +26,6 @@ module Auth
 
         raise AccessDenied, "Missing Clerk user id" if clerk_id.blank?
         raise AccessDenied, "Missing Clerk email" if email.blank?
-        raise AccessDenied, "Email is not approved for this app" unless RoleResolver.allowed?(email)
 
         user = User.find_or_initialize_by(clerk_id: clerk_id)
         if user.new_record? && (existing = User.find_by(email: email.downcase))

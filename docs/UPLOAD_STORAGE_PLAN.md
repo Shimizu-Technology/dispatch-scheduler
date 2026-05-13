@@ -2,9 +2,9 @@
 
 Last updated: 2026-05-13
 
-This app does not need S3 for the current dispatch board because users cannot upload production files yet. The importer reads John's local example files during development, and the live UI currently works from database records.
+This app does not need S3 for the current Dispatch Scheduler because users cannot upload production files yet. The importer reads local example files during development, and the live UI currently works from database records.
 
-S3 becomes necessary in the next upload/OCR phase, when John or a dispatcher can upload PDFs, screenshots, images, or text files that should become reviewable intake drafts.
+S3 becomes necessary in the next upload/OCR phase, when a dispatcher can upload PDFs, screenshots, images, or text files that should become reviewable intake drafts.
 
 ## Recommendation
 
@@ -52,7 +52,7 @@ intake/derived/{environment}/{yyyy}/{mm}/{uuid}/extraction.json
 Do not add these to local `.env` until upload intake is implemented.
 
 ```bash
-AWS_REGION=ap-southeast-2
+AWS_REGION=ap-northeast-1
 AWS_S3_BUCKET=dispatch-scheduler-uploads-staging
 AWS_ACCESS_KEY_ID=...
 AWS_SECRET_ACCESS_KEY=...
@@ -61,7 +61,7 @@ AWS_S3_PRESIGN_EXPIRES_SECONDS=900
 AWS_S3_MAX_UPLOAD_MB=25
 ```
 
-`ap-southeast-2` is a reasonable first choice for Guam/Pacific users based on the starter-app S3 guide, but we should confirm latency and deployment region before production.
+`ap-northeast-1` is a reasonable first copy-paste default for Guam because Tokyo is usually closer than Sydney. Confirm latency, data residency expectations, and deployment region before production.
 
 ## CORS
 
@@ -74,7 +74,9 @@ When upload intake is added, configure bucket CORS for the exact frontend origin
     "AllowedMethods": ["GET", "POST", "PUT", "HEAD"],
     "AllowedOrigins": [
       "http://localhost:5173",
+      "http://localhost:5175",
       "http://127.0.0.1:5173",
+      "http://127.0.0.1:5175",
       "https://your-production-domain.com"
     ],
     "ExposeHeaders": ["ETag"],

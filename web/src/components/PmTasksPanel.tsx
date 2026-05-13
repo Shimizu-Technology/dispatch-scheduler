@@ -6,7 +6,7 @@ export function PmTasksPanel({ pmTasks }: { pmTasks: PmTask[] }) {
     <PanelHeader
       eyebrow="Preventive maintenance"
       title="PMs Due on Demo Date"
-      description="Preventive maintenance competes with reactive work and now uses station names from John's PM schedule."
+      description="Preventive maintenance competes with reactive work and now uses real station names from the PM schedule."
     />
     <div className="grid gap-3 p-4 sm:grid-cols-2">
       {pmTasks.slice(0, 8).map((pm) => (

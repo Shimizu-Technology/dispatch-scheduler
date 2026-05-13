@@ -83,7 +83,7 @@ export function DispatchBuilder({ schedule, teams, working, canEdit, onSuggest, 
     <PanelHeader
       eyebrow="Morning plan"
       title="Dispatch Builder"
-      description={canEdit ? 'Suggestions are a draft. John/admin can change crew, time, order, and notes before copying WhatsApp.' : 'Viewer access can inspect the draft, but cannot change crew, time, order, or notes.'}
+      description={canEdit ? 'Suggestions are a draft. Dispatchers can change crew, time, order, and notes before copying WhatsApp.' : 'Viewer access can inspect the draft, but cannot change crew, time, order, or notes.'}
       action={canEdit && <button disabled={working} onClick={onSuggest} className="rounded-2xl bg-[#10232a] px-4 py-2.5 font-display text-sm font-extrabold text-white shadow-[0_14px_30px_rgba(16,35,42,0.16)] transition hover:-translate-y-0.5 hover:bg-[#0b4c57] disabled:cursor-wait disabled:opacity-60">Regenerate Draft</button>}
     />
     {!schedule ? (

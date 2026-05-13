@@ -1,6 +1,6 @@
 # John Ilao Dispatch/Scheduling POC Plan
 
-Last updated: 2026-05-11
+Last updated: 2026-05-12
 Owner: Leon / Shimizu Technology
 Working agent: Prime
 
@@ -114,9 +114,14 @@ Principles:
    - Paste text demo using the Sodexo sample
    - Upload/OCR can be stubbed in the POC as "AI prefill preview" using the known sample. Full OCR pipeline can come later.
 
+8. **Secure Internal Access**
+   - Clerk browser sign-in
+   - Rails-side JWT verification against Clerk JWKS
+   - `admin`, `dispatcher`, and `viewer` roles
+   - Viewer-safe read-only UI and API guards
+
 ### Do Not Build Yet
 
-- Full production auth/roles
 - Technician mobile app
 - Billing/invoices
 - Customer portal
@@ -126,7 +131,32 @@ Principles:
 - Full OCR/AI automation pipeline
 - Multi-tenant SaaS packaging
 
-## 5. Tech Stack
+## 5. Current Implementation Snapshot
+
+Implemented as of May 12, 2026:
+
+- Rails API and React/Vite frontend monorepo.
+- Sanitized seed/import flow from John's Mobil workbook, PM workbook, Sodexo sample, and CBRE PDF sample.
+- Dashboard counts, work-order list, team/technician availability, PM task view, and dispatch builder.
+- Rule-based daily schedule suggestion using priority, status, skill/trade, driver availability, region, and PM commitments.
+- Idempotent draft regeneration by date with a configurable daily item cap.
+- Manual dispatch overrides for crew, scheduled time, order, and notes.
+- WhatsApp-ready schedule export.
+- Clerk auth with JWT verification, role refresh on sign-in, approved email/domain controls, and local dev/test bypass.
+- Viewer mode hides/disables mutating controls and Rails guards mutating endpoints.
+- CI for Rails tests/lint/security, frontend lint/build, and Python importer tests.
+
+Still not implemented:
+
+- Production upload/file intake.
+- OCR or OpenRouter extraction.
+- Human review workflow for AI-extracted work orders.
+- Work-order edit/search polish beyond the initial create/list flow.
+- Schedule finalize/publish state.
+- Audit history for overrides, regenerations, availability changes, and future intake approval.
+- Production deployment/backups/monitoring.
+
+## 6. Tech Stack
 
 Leon prefers Rails + React, matching current Shimizu Technology stack. Use a monorepo.
 
@@ -179,7 +209,7 @@ Later:
 - Confidence indicators
 - Human review before saving
 
-## 6. Data Model Draft
+## 7. Data Model Draft
 
 ### Core Tables
 
@@ -278,7 +308,15 @@ Later:
 - notes
 - due_at nullable
 
-## 7. Status Normalization
+#### users
+- id
+- clerk_id
+- email
+- name
+- role // admin, dispatcher, viewer
+- last_seen_at
+
+## 8. Status Normalization
 
 Current source data has messy statuses and typos:
 
@@ -312,7 +350,7 @@ Normalize into app statuses:
 
 Always preserve `original_status_text` for traceability.
 
-## 8. Scheduler Logic Draft
+## 9. Scheduler Logic Draft
 
 Start rule-based. AI can come later. Boring and reliable. Beautiful.
 
@@ -338,7 +376,7 @@ Warnings to show:
 - Item is overdue or near SLA breach.
 - Schedule sends team across far regions unnecessarily.
 
-## 9. POC Demo Flow
+## 10. POC Demo Flow
 
 The demo should answer one question:
 
@@ -357,30 +395,31 @@ Demo sequence:
 9. Generate WhatsApp messages.
 10. Show status board: needs assessment, approved, waiting parts, PM.
 
-## 10. Immediate Build Plan
+## 11. Completed POC Build Steps
+
+These steps are implemented and should be treated as historical context, not
+remaining work.
 
 ### Step 1 — Create Repo/Scaffold
-- Create monorepo under `~/work/dispatch-scheduler` or chosen Shimizu repo name.
-- Rails API in `api/`.
-- Vite React TS app in `web/`.
-- Add `docs/` copied from this plan.
+- Created monorepo with Rails API in `api/` and Vite React TS app in `web/`.
+- Added docs, CI, and root setup guidance.
 
 ### Step 2 — Prepare Sanitized Seed Data
-- Parse `MOBIL SCHEDULE - MAY2026.xlsx` into JSON/CSV:
+- Parsed `MOBIL SCHEDULE - MAY2026.xlsx` into seed data:
   - technicians/skills from `Team` tab
   - work orders from `May2026`
   - approved/waiting parts from `Approved Work Orders`
-- Parse `PM SCHEDULE-ARPIL2026.xlsx` into PM task seed data.
-- Add Sodexo sample as a seed work order.
+- Parsed `PM SCHEDULE-ARPIL2026.xlsx` into PM task seed data.
+- Added Sodexo and CBRE samples as seed work orders.
 - Do not commit external-system credentials. Keep generated seed data sanitized from the local review examples.
 
 ### Step 3 — Backend Models/API
-- Implement models and seed data.
-- API endpoints:
+- Implemented models, seed data, Clerk auth, and core endpoints:
   - `GET /work_orders`
+  - `POST /work_orders`
   - `GET /technicians`
   - `GET /teams`
-  - `PATCH /technicians/:id/availability`
+  - `PATCH /technicians/:id`
   - `GET /pm_tasks`
   - `POST /dispatch_schedules/suggest`
   - `PATCH /dispatch_items/:id`
@@ -390,16 +429,18 @@ Demo sequence:
 - Dashboard
 - Work Orders
 - Teams/Availability
+- PM Tasks
 - Dispatch Builder
 - WhatsApp Export
+- Clerk auth gate and viewer mode
 
 ### Step 5 — Demo Polish
-- Use John's real terminology.
-- Keep UI clean and business-like.
-- Add visible warnings for driver/call-out/region/status.
-- Make WhatsApp output look like something John would actually send.
+- Uses John's terminology.
+- Keeps UI clean and business-like.
+- Adds visible warnings for driver/call-out/region/status.
+- Produces copyable WhatsApp output.
 
-## 11. Open Questions For John / Office Walkthrough
+## 12. Open Questions For John / Office Walkthrough
 
 We can build a POC now, but before production we still need:
 
@@ -415,7 +456,7 @@ We can build a POC now, but before production we still need:
 10. What is the approval/parts/material-prep lifecycle?
 11. What does his dad/family need to see to approve moving forward?
 
-## 12. Recommended Message To John After Reviewing Artifacts
+## 13. Recommended Message To John After Reviewing Artifacts
 
 Brother, this is perfect — this is exactly the kind of stuff I needed. I’m going to review these examples and start mapping out how the proof of concept should work.
 
@@ -423,7 +464,7 @@ I think coming by your office is probably the right next step so you can walk me
 
 After that I should be able to put together something tangible using your real workflow/data.
 
-## 13. Success Criteria
+## 14. Success Criteria
 
 The POC succeeds if John says:
 

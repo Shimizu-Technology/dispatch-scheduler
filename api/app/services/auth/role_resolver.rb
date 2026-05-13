@@ -5,8 +5,7 @@ module Auth
     class << self
       def role_for(email)
         normalized = email.to_s.downcase.strip
-        return "admin" if list("CLERK_ADMIN_EMAILS").include?(normalized)
-        return "dispatcher" if list("CLERK_DISPATCHER_EMAILS").include?(normalized)
+        return "admin" if bootstrap_admin_emails.include?(normalized)
 
         DEFAULT_ROLE
       end
@@ -23,6 +22,10 @@ module Auth
       end
 
       private
+
+      def bootstrap_admin_emails
+        list("CLERK_BOOTSTRAP_ADMIN_EMAILS") | list("CLERK_ADMIN_EMAILS")
+      end
 
       def list(key)
         ENV.fetch(key, "").split(",").map { |value| value.downcase.strip }.reject(&:blank?)

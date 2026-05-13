@@ -95,3 +95,8 @@ export type CurrentUser = {
     can_admin: boolean
   }
 }
+
+export type ManagedUser = CurrentUser & {
+  id: number
+  last_seen_at: string | null
+}

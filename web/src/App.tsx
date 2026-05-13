@@ -1,23 +1,24 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { CalendarDays, ClipboardList, LayoutDashboard, MessageSquareText, RefreshCw, ShieldCheck, Users, Wrench } from 'lucide-react'
+import { CalendarDays, ClipboardList, LayoutDashboard, MessageSquareText, RefreshCw, ShieldCheck, UserCog, Users, Wrench } from 'lucide-react'
 import { UserButton } from '@clerk/react'
 import { AuthGate } from './components/auth/AuthGate'
 import { DashboardMetrics } from './components/DashboardMetrics'
 import { DispatchBuilder } from './components/DispatchBuilder'
 import { PmTasksPanel } from './components/PmTasksPanel'
 import { TeamsPanel } from './components/TeamsPanel'
+import { UserManagementPanel } from './components/UserManagementPanel'
 import { WhatsAppExport } from './components/WhatsAppExport'
 import { WorkOrdersPanel } from './components/WorkOrdersPanel'
 import { DEMO_DATE } from './constants'
 import { useAuthContext } from './contexts/useAuthContext'
 import { getJson, patchJson, postJson } from './lib/api'
-import type { Dashboard, DispatchSchedule, PmTask, Team, Technician, WorkOrder } from './types'
+import type { Dashboard, DispatchSchedule, ManagedUser, PmTask, Team, Technician, WorkOrder } from './types'
 import './index.css'
 
-type ActiveSection = 'overview' | 'dispatch' | 'work-orders' | 'teams' | 'pm-tasks' | 'whatsapp'
+type ActiveSection = 'overview' | 'dispatch' | 'work-orders' | 'teams' | 'pm-tasks' | 'whatsapp' | 'users'
 
-const SECTION_IDS: ActiveSection[] = ['overview', 'dispatch', 'work-orders', 'teams', 'pm-tasks', 'whatsapp']
+const SECTION_IDS: ActiveSection[] = ['overview', 'dispatch', 'work-orders', 'teams', 'pm-tasks', 'whatsapp', 'users']
 
 function sectionFromHash(): ActiveSection {
   const value = window.location.hash.replace('#', '')
@@ -25,17 +26,19 @@ function sectionFromHash(): ActiveSection {
 }
 
 function DispatchApp() {
-  const { isClerkEnabled, isLoading: authLoading, user, canEditDispatch } = useAuthContext()
+  const { isClerkEnabled, isLoading: authLoading, user, canEditDispatch, refreshUser } = useAuthContext()
   const [activeSection, setActiveSection] = useState<ActiveSection>(sectionFromHash)
   const [dashboard, setDashboard] = useState<Dashboard | null>(null)
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([])
   const [teams, setTeams] = useState<Team[]>([])
   const [pmTasks, setPmTasks] = useState<PmTask[]>([])
+  const [managedUsers, setManagedUsers] = useState<ManagedUser[]>([])
   const [schedule, setSchedule] = useState<DispatchSchedule | null>(null)
   const [whatsApp, setWhatsApp] = useState('')
   const [loading, setLoading] = useState(true)
   const [working, setWorking] = useState(false)
   const [availabilitySavingId, setAvailabilitySavingId] = useState<number | null>(null)
+  const [savingUserId, setSavingUserId] = useState<number | null>(null)
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState('')
 
@@ -65,6 +68,16 @@ function DispatchApp() {
   }, [])
 
   useEffect(() => {
+    if (!user?.permissions.can_admin) return
+
+    void getJson<{ users: ManagedUser[] }>('/users')
+      .then((payload) => setManagedUsers(payload.users))
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : 'Unable to load users')
+      })
+  }, [user?.permissions.can_admin])
+
+  useEffect(() => {
     const handleHashChange = () => setActiveSection(sectionFromHash())
     window.addEventListener('hashchange', handleHashChange)
     window.addEventListener('popstate', handleHashChange)
@@ -82,6 +95,20 @@ function DispatchApp() {
   async function refreshWhatsApp(scheduleId: number) {
     const exportJson = await getJson<{ message: string }>(`/dispatch_schedules/${scheduleId}/whatsapp_export`)
     setWhatsApp(exportJson.message)
+  }
+
+  async function updateUserRole(userId: number, role: ManagedUser['role']) {
+    setSavingUserId(userId)
+    setError('')
+    try {
+      const payload = await patchJson<{ user: ManagedUser }>(`/users/${userId}`, { role })
+      setManagedUsers((currentUsers) => currentUsers.map((candidate) => candidate.id === userId ? payload.user : candidate))
+      if (user?.id === userId) await refreshUser()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to update user role')
+    } finally {
+      setSavingUserId(null)
+    }
   }
 
   async function suggestSchedule() {
@@ -173,6 +200,7 @@ function DispatchApp() {
     }
   }
 
+  const currentSection = activeSection === 'users' && !user?.permissions.can_admin ? 'overview' : activeSection
   const sections: Array<{ id: ActiveSection; label: string; description: string; icon: ReactNode; count?: number }> = [
     { id: 'overview', label: 'Dashboard', description: 'Start here', icon: <LayoutDashboard size={18} /> },
     { id: 'dispatch', label: 'Today\'s Dispatch', description: 'Build and edit the plan', icon: <ClipboardList size={18} />, count: schedule?.items.length },
@@ -180,6 +208,7 @@ function DispatchApp() {
     { id: 'teams', label: 'Crews', description: 'Drivers and call-outs', icon: <Users size={18} />, count: teams.length },
     { id: 'pm-tasks', label: 'PM Tasks', description: 'Preventive work', icon: <CalendarDays size={18} />, count: pmTasks.length },
     { id: 'whatsapp', label: 'WhatsApp', description: 'Copy send-ready text', icon: <MessageSquareText size={18} /> },
+    ...(user?.permissions.can_admin ? [{ id: 'users' as const, label: 'Users', description: 'Roles and access', icon: <UserCog size={18} />, count: managedUsers.length }] : []),
   ]
 
   if (authLoading || loading) {
@@ -226,7 +255,7 @@ function DispatchApp() {
 
         <nav aria-label="Dispatch Scheduler sections" className="soft-reveal-delay sticky top-3 z-10 grid gap-2 rounded-[1.4rem] border border-[rgba(16,35,42,0.1)] bg-[#fffdf7]/92 p-2 shadow-[0_14px_40px_rgba(16,35,42,0.1)] backdrop-blur md:grid-cols-3 xl:grid-cols-6">
           {sections.map((section) => {
-            const isActive = activeSection === section.id
+            const isActive = currentSection === section.id
             return <button
               key={section.id}
               type="button"
@@ -249,7 +278,7 @@ function DispatchApp() {
 
         {error && <div className="rounded-[1.4rem] border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-800">{error}</div>}
 
-        {activeSection === 'overview' && <>
+        {currentSection === 'overview' && <>
           <DashboardMetrics dashboard={dashboard} workOrders={workOrders} />
           <div className="grid gap-4 lg:grid-cols-4">
             <button type="button" onClick={() => goToSection('work-orders')} className="rounded-[1.25rem] border border-[rgba(16,35,42,0.1)] bg-white/80 p-5 text-left shadow-[0_10px_28px_rgba(16,35,42,0.05)] transition hover:-translate-y-0.5 hover:border-cyan-200">
@@ -275,15 +304,17 @@ function DispatchApp() {
           </div>
         </>}
 
-        {activeSection === 'work-orders' && <WorkOrdersPanel workOrders={workOrders} />}
+        {currentSection === 'work-orders' && <WorkOrdersPanel workOrders={workOrders} />}
 
-        {activeSection === 'teams' && <TeamsPanel teams={teams} canEdit={canEditDispatch} savingTechnicianId={availabilitySavingId} onToggleAvailability={toggleAvailability} />}
+        {currentSection === 'teams' && <TeamsPanel teams={teams} canEdit={canEditDispatch} savingTechnicianId={availabilitySavingId} onToggleAvailability={toggleAvailability} />}
 
-        {activeSection === 'dispatch' && <DispatchBuilder schedule={schedule} teams={teams} working={working} canEdit={canEditDispatch} onSuggest={suggestSchedule} onUpdate={updateDispatchItem} />}
+        {currentSection === 'dispatch' && <DispatchBuilder schedule={schedule} teams={teams} working={working} canEdit={canEditDispatch} onSuggest={suggestSchedule} onUpdate={updateDispatchItem} />}
 
-        {activeSection === 'pm-tasks' && <PmTasksPanel pmTasks={pmTasks} />}
+        {currentSection === 'pm-tasks' && <PmTasksPanel pmTasks={pmTasks} />}
 
-        {activeSection === 'whatsapp' && <WhatsAppExport message={whatsApp} copied={copied} onCopy={copyWhatsApp} />}
+        {currentSection === 'whatsapp' && <WhatsAppExport message={whatsApp} copied={copied} onCopy={copyWhatsApp} />}
+
+        {currentSection === 'users' && user?.permissions.can_admin && <UserManagementPanel users={managedUsers} currentUserId={user.id} savingUserId={savingUserId} onRoleChange={updateUserRole} />}
       </div>
     </main>
   )

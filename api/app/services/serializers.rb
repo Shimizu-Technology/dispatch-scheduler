@@ -81,6 +81,22 @@ module Serializers
     }
   end
 
+  def user(user)
+    {
+      id: user.id,
+      clerk_id: user.clerk_id,
+      email: user.email,
+      name: user.display_name,
+      role: user.role,
+      auth_mode: user.auth_mode,
+      last_seen_at: user.respond_to?(:last_seen_at) ? user.last_seen_at&.iso8601 : nil,
+      permissions: {
+        can_edit_dispatch: user.can_edit_dispatch?,
+        can_admin: user.admin?
+      }
+    }
+  end
+
   def technician(technician, date: Date.current)
     availability = technician.technician_availabilities.find_by(date: date)
     {

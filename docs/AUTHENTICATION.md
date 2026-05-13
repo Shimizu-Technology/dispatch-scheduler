@@ -70,18 +70,21 @@ Supported roles:
 - `dispatcher`: can create/regenerate schedules, edit dispatch items, and update availability.
 - `viewer`: can read dashboard/work-order/team/PM data but cannot change dispatch data.
 
-Role assignment is refreshed from comma-separated env vars on every verified sign-in:
+Roles are managed in the app by admins from the `Users` section. Clerk creates the identity, Rails stores the application role.
+
+New approved Clerk users are created as `viewer` by default unless their email is listed in the bootstrap admin env var:
 
 ```bash
-CLERK_ADMIN_EMAILS=admin@example.com
-CLERK_DISPATCHER_EMAILS=john@example.com,dispatcher@example.com
+CLERK_BOOTSTRAP_ADMIN_EMAILS=leon@example.com
 ```
 
-Anyone not listed there is created as `viewer`.
+`CLERK_BOOTSTRAP_ADMIN_EMAILS` is for first-admin setup and emergency recovery only. Any matching user is promoted to `admin` on sign-in. Everyone else should be promoted or demoted from the in-app user management screen.
 
-This env-driven role mapping is a bootstrap mechanism for the current app. It lets us safely create the first admin/dispatcher accounts before a user-management screen exists. Long term, the app should keep a small bootstrap admin env var and let admins promote/demote users inside the product instead of changing deployment env vars for every staff change.
+For backward compatibility, `CLERK_ADMIN_EMAILS` is still treated as a bootstrap admin list, but new deployments should use `CLERK_BOOTSTRAP_ADMIN_EMAILS`.
 
-For the first real Clerk test, set `CLERK_ADMIN_EMAILS` to Leon's or the primary owner email so at least one person can edit dispatch data. Add John's email to `CLERK_DISPATCHER_EMAILS` if he should build schedules without full admin permissions.
+For the first real Clerk test, set `CLERK_BOOTSTRAP_ADMIN_EMAILS` to Leon's or the primary owner email so at least one person can open the `Users` section and assign John or other staff to `dispatcher`.
+
+Only admins can open `GET /api/v1/users` or update roles with `PATCH /api/v1/users/:id`. The API prevents removing the last admin.
 
 ## Approved Access
 

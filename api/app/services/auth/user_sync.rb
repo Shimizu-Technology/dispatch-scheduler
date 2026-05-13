@@ -37,7 +37,7 @@ module Auth
         user.email = email
         user.name = name if name.present?
         resolved_role = RoleResolver.role_for(email)
-        user.role = resolved_role if user.new_record? || user.role.blank? || user.role != resolved_role
+        user.role = resolved_role if user.new_record? || user.role.blank? || resolved_role == "admin"
         user.last_seen_at = Time.current
         user.save!
         user

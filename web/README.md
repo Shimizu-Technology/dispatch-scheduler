@@ -8,6 +8,7 @@ React + Vite + TypeScript frontend for the JMI dispatch scheduler proof of conce
 - Wrap the app with Clerk when `VITE_CLERK_PUBLISHABLE_KEY` is set.
 - Use a local dev auth provider when Clerk is not configured.
 - Hide or disable mutating controls for `viewer` users.
+- Provide an admin-only user management section for assigning `admin`, `dispatcher`, and `viewer` roles.
 - Attach Clerk bearer tokens to API requests through `src/lib/api.ts`.
 
 ## Local Setup

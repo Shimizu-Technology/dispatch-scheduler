@@ -37,6 +37,8 @@ bundle exec bundle-audit check --update
 ## Key Endpoints
 
 - `GET /api/v1/me`
+- `GET /api/v1/users`
+- `PATCH /api/v1/users/:id`
 - `GET /api/v1/dashboard?date=YYYY-MM-DD`
 - `GET /api/v1/work_orders`
 - `POST /api/v1/work_orders`

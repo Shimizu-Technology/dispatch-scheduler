@@ -17,6 +17,7 @@ Implemented in the POC:
 - Regenerate confirmation and idempotent draft rebuilding for a schedule date.
 - CI, Rails request/service tests, importer tests, frontend lint/build, Brakeman, and bundler-audit.
 - Clerk auth with Rails JWT verification, Clerk token-claim setup docs, local dev/test bypass, `admin`/`dispatcher`/`viewer` roles, role refresh on sign-in, and viewer-only UI/API mode.
+- Admin-only user management for changing persisted roles in the app, with `CLERK_BOOTSTRAP_ADMIN_EMAILS` reserved for first-admin setup and recovery.
 
 Not implemented yet:
 

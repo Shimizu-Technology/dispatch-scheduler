@@ -3,10 +3,10 @@ import { RefreshCw } from 'lucide-react'
 import { useAuthContext } from '../../contexts/useAuthContext'
 
 function LoadingScreen({ message = 'Verifying access...' }: { message?: string }) {
-  return <main className="grid min-h-screen place-items-center bg-slate-50 text-slate-600">
-    <div className="text-center">
-      <RefreshCw className="mx-auto mb-3 animate-spin" />
-      <p className="font-semibold">{message}</p>
+  return <main className="grid min-h-screen place-items-center px-6 text-[#51636a]">
+    <div className="rounded-[2rem] border border-[rgba(16,35,42,0.12)] bg-[#fffdf7]/85 p-8 text-center shadow-[0_24px_80px_rgba(16,35,42,0.12)]">
+      <RefreshCw className="mx-auto mb-3 animate-spin text-cyan-700" />
+      <p className="font-display font-bold">{message}</p>
     </div>
   </main>
 }
@@ -20,10 +20,10 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   if (!user) {
     const isAccessPending = authError?.toLowerCase().includes('email is not approved')
 
-    return <main className="grid min-h-screen place-items-center bg-slate-50 px-4 text-slate-700">
-      <section className="max-w-md rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-        <h1 className="text-2xl font-black text-slate-950">{isAccessPending ? 'Access pending' : 'Unable to verify access'}</h1>
-        <p className="mt-3 text-sm text-slate-600">
+    return <main className="grid min-h-screen place-items-center px-4 text-[#405157]">
+      <section className="max-w-md rounded-[2rem] border border-[rgba(16,35,42,0.12)] bg-[#fffdf7]/90 p-8 text-center shadow-[0_24px_80px_rgba(16,35,42,0.12)]">
+        <h1 className="font-display text-2xl font-extrabold tracking-tight text-[#10232a]">{isAccessPending ? 'Access pending' : 'Unable to verify access'}</h1>
+        <p className="mt-3 text-sm leading-6 text-[#5c6b70]">
           {isAccessPending
             ? 'Your Clerk sign-in worked, but this app could not verify your JMI dispatch role yet. Ask an admin to approve your email.'
             : 'Your Clerk sign-in worked, but the dispatch API could not confirm your role. Refresh in a moment, or contact support if this keeps happening.'}

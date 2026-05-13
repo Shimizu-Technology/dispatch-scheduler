@@ -69,7 +69,8 @@ Goal: uploaded PDFs/images/text can become draft work orders with human review.
 
 Tasks:
 
-- Enable Active Storage or equivalent upload handling in Rails.
+- Implement private S3-backed upload storage using the plan in `docs/UPLOAD_STORAGE_PLAN.md`.
+- Add Rails endpoints for presigned browser uploads and upload-complete registration.
 - Add upload endpoints for PDF/image/text artifacts.
 - Add an OpenRouter extraction service for OCR/vision-capable model calls.
 - Extract structured fields into an intake draft, not directly into live work orders.
@@ -143,7 +144,7 @@ Acceptance criteria:
 ## Recommended Next PR Order
 
 1. Work-order create/edit/search improvements.
-2. Upload storage plus intake draft model.
+2. Private S3 upload storage plus intake draft model.
 3. OpenRouter extraction service and review UI.
 4. Schedule finalize/audit trail.
 5. Daily team composition management.

@@ -6,9 +6,18 @@ This audit applies the starter-app frontend design guide to the dispatch schedul
 
 ## Design Direction
 
-Chosen direction: Guam operations command board.
+Chosen direction: professional Guam operations workspace.
 
 The app should feel calm, field-ready, and managerial rather than like a generic SaaS dashboard. The user is JMI dispatch leadership, so the page needs to make morning decisions easier: what is urgent, who is available, which teams have drivers, what PM work competes with reactive work, and what message is ready to send.
+
+The second design pass intentionally reduced the landing-page feel. Professional scheduling and operations products usually keep persistent navigation, summary metrics, and task-specific pages/sections visible without forcing every workflow onto one giant scroll.
+
+External references reviewed during this pass:
+
+- Datapad dashboard guidance: operational dashboards should emphasize status, alerts, resource utilization, drill-downs, and quick action buttons.
+- Holistics dashboard guidance: put high-priority information first, then support deeper detail through drill-through/detail pages.
+- Sisense dashboard guidance: keep dashboards focused, avoid excessive widgets, group related data, keep essential information visible, and use consistent visual systems.
+- Scheduling dashboard case study by Riley Knowles: scheduling tools work better when information architecture mirrors the user's workflow and central actions are easy to find.
 
 ## Audit Findings
 
@@ -20,6 +29,7 @@ Before this pass:
 - Inputs and buttons were usable, but they lacked a coherent interaction language.
 - The interface communicated "POC" more than "operations tool."
 - The first design pass put too much workflow on one page, which made the app feel busy for less technical users.
+- The first design pass had a strong visual style but leaned too casual for a professional operations app.
 
 ## Improvements Applied
 
@@ -27,8 +37,8 @@ Before this pass:
 - Replaced the flat background with a warm paper-and-grid operations surface.
 - Introduced a navy, reef-cyan, and amber palette tied to dispatch context instead of generic blue/purple defaults.
 - Renamed the product-facing UI to `Dispatch Scheduler` and removed one-person/POC labels from the application shell.
-- Added section navigation so dashboard, dispatch planning, work orders, crews, PMs, and WhatsApp export are easier to understand one at a time.
-- Added a stronger hero section that states the purpose of the app and anchors the primary schedule action.
+- Added hash-backed section navigation so dashboard, dispatch planning, work orders, crews, PMs, and WhatsApp export can be used one at a time with browser back/forward support.
+- Reduced the hero area and removed demo/pilot chips so the screen feels more like a production app than a demo page.
 - Added shared panel headers for consistent hierarchy across work orders, teams, dispatch, PMs, and WhatsApp.
 - Restyled dispatch cards, schedule summary, editable fields, and team availability chips for clearer scanability.
 - Changed crew availability updates so a single technician save does not trigger the full-page loading state.

@@ -20,7 +20,7 @@ export function TeamsPanel({ teams, canEdit, savingTechnicianId, onToggleAvailab
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
             {team.technicians.map((tech) => (
-              <button key={tech.id} disabled={!canEdit || savingTechnicianId === tech.id} onClick={() => onToggleAvailability(tech)} className={`rounded-full border px-3 py-1.5 text-xs font-extrabold transition disabled:cursor-not-allowed ${tech.availability === 'unavailable' ? 'border-red-200 bg-red-50 text-red-700 line-through' : 'border-[#dce7e5] bg-[#f7fbf8] text-[#335057] hover:-translate-y-0.5 hover:border-cyan-200 hover:bg-cyan-50'}`}>
+              <button key={tech.id} disabled={!canEdit || savingTechnicianId !== null} onClick={() => onToggleAvailability(tech)} className={`rounded-full border px-3 py-1.5 text-xs font-extrabold transition disabled:cursor-not-allowed ${tech.availability === 'unavailable' ? 'border-red-200 bg-red-50 text-red-700 line-through' : 'border-[#dce7e5] bg-[#f7fbf8] text-[#335057] hover:-translate-y-0.5 hover:border-cyan-200 hover:bg-cyan-50'}`}>
                 {savingTechnicianId === tech.id ? 'Saving...' : `${tech.name}${tech.is_driver ? ' (driver)' : ''}`}
               </button>
             ))}

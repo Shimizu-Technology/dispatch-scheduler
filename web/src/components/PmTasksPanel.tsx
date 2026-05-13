@@ -5,7 +5,7 @@ export function PmTasksPanel({ pmTasks }: { pmTasks: PmTask[] }) {
   return <Card className="overflow-hidden">
     <PanelHeader
       eyebrow="Preventive maintenance"
-      title="PMs Due on Demo Date"
+      title="PMs Due Today"
       description="Preventive maintenance competes with reactive work and now uses real station names from the PM schedule."
     />
     <div className="grid gap-3 p-4 sm:grid-cols-2">

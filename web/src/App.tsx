@@ -17,9 +17,16 @@ import './index.css'
 
 type ActiveSection = 'overview' | 'dispatch' | 'work-orders' | 'teams' | 'pm-tasks' | 'whatsapp'
 
+const SECTION_IDS: ActiveSection[] = ['overview', 'dispatch', 'work-orders', 'teams', 'pm-tasks', 'whatsapp']
+
+function sectionFromHash(): ActiveSection {
+  const value = window.location.hash.replace('#', '')
+  return SECTION_IDS.includes(value as ActiveSection) ? value as ActiveSection : 'overview'
+}
+
 function DispatchApp() {
   const { isClerkEnabled, isLoading: authLoading, user, canEditDispatch } = useAuthContext()
-  const [activeSection, setActiveSection] = useState<ActiveSection>('overview')
+  const [activeSection, setActiveSection] = useState<ActiveSection>(sectionFromHash)
   const [dashboard, setDashboard] = useState<Dashboard | null>(null)
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([])
   const [teams, setTeams] = useState<Team[]>([])
@@ -57,6 +64,21 @@ function DispatchApp() {
     })
   }, [])
 
+  useEffect(() => {
+    const handleHashChange = () => setActiveSection(sectionFromHash())
+    window.addEventListener('hashchange', handleHashChange)
+    window.addEventListener('popstate', handleHashChange)
+    return () => {
+      window.removeEventListener('hashchange', handleHashChange)
+      window.removeEventListener('popstate', handleHashChange)
+    }
+  }, [])
+
+  function goToSection(section: ActiveSection) {
+    setActiveSection(section)
+    window.history.pushState(null, '', `#${section}`)
+  }
+
   async function refreshWhatsApp(scheduleId: number) {
     const exportJson = await getJson<{ message: string }>(`/dispatch_schedules/${scheduleId}/whatsapp_export`)
     setWhatsApp(exportJson.message)
@@ -76,6 +98,7 @@ function DispatchApp() {
     try {
       const created = await postJson<DispatchSchedule>('/dispatch_schedules/suggest', { date: DEMO_DATE })
       setSchedule(created)
+      goToSection('dispatch')
       await refreshWhatsApp(created.id)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to suggest schedule')
@@ -118,6 +141,7 @@ function DispatchApp() {
       setError('Viewer access cannot update daily availability.')
       return
     }
+    if (availabilitySavingId !== null) return
     const next = tech.availability === 'unavailable' ? 'available' : 'unavailable'
     setAvailabilitySavingId(tech.id)
     setError('')
@@ -171,14 +195,9 @@ function DispatchApp() {
           <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-cyan-200/70 to-transparent" />
           <div className="relative grid gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-end">
             <div>
-              <p className="font-display text-xs font-extrabold uppercase tracking-[0.34em] text-cyan-200">Daily facilities operations</p>
-              <h1 className="font-display mt-4 max-w-4xl text-4xl font-extrabold tracking-[-0.04em] sm:text-6xl lg:text-7xl">Dispatch Scheduler</h1>
-              <p className="mt-4 max-w-3xl text-lg leading-8 text-cyan-50/82">A simple place to review work orders, check crews, build today&apos;s dispatch plan, and copy a clean WhatsApp message.</p>
-              <div className="mt-6 flex flex-wrap gap-2 text-xs font-bold uppercase tracking-[0.12em] text-cyan-50/80">
-                <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1.5">Demo date {DEMO_DATE}</span>
-                <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1.5">Draft-first scheduling</span>
-                <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1.5">Manual override always</span>
-              </div>
+              <p className="font-display text-xs font-extrabold uppercase tracking-[0.3em] text-cyan-200">Daily facilities operations</p>
+              <h1 className="font-display mt-3 max-w-4xl text-4xl font-extrabold tracking-[-0.035em] sm:text-5xl lg:text-6xl">Dispatch Scheduler</h1>
+              <p className="mt-4 max-w-3xl text-lg leading-8 text-cyan-50/82">Review work, check crews, build today&apos;s schedule, and copy a clean WhatsApp message from one organized workspace.</p>
             </div>
             <div className="relative flex flex-col gap-3 lg:items-end">
               {user && <div className="w-full rounded-[1.5rem] border border-white/15 bg-white/10 p-4 text-sm text-cyan-50 shadow-2xl backdrop-blur lg:max-w-sm">
@@ -200,29 +219,22 @@ function DispatchApp() {
           </div>
         </header>
 
-        <section className="soft-reveal-delay grid gap-4 lg:grid-cols-[1.4fr_0.6fr]">
-          <div className="rounded-[1.7rem] border border-[rgba(16,35,42,0.12)] bg-[#fffdf7]/80 p-5 shadow-[0_18px_60px_rgba(16,35,42,0.08)] backdrop-blur">
-            <p className="font-display text-xs font-extrabold uppercase tracking-[0.24em] text-cyan-800">How to use it today</p>
-            <p className="mt-2 text-base leading-7 text-[#405157]">Start on the dashboard, check work and crew availability, generate a draft schedule, then adjust the plan before copying the WhatsApp message.</p>
-          </div>
-          <div className="rounded-[1.7rem] border border-amber-200/80 bg-amber-50/90 p-5 text-[#5c3c05] shadow-[0_18px_60px_rgba(120,79,6,0.08)]">
-            <p className="font-display text-xs font-extrabold uppercase tracking-[0.24em] text-amber-700">Plain-language workflow</p>
-            <p className="mt-2 text-sm leading-6">Large sections and clear buttons keep the app usable for dispatchers who do not live in software all day.</p>
-          </div>
-        </section>
-
-        <nav aria-label="Dispatch Scheduler sections" className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <nav aria-label="Dispatch Scheduler sections" className="soft-reveal-delay sticky top-3 z-10 grid gap-2 rounded-[1.4rem] border border-[rgba(16,35,42,0.1)] bg-[#fffdf7]/92 p-2 shadow-[0_14px_40px_rgba(16,35,42,0.1)] backdrop-blur md:grid-cols-3 xl:grid-cols-6">
           {sections.map((section) => {
             const isActive = activeSection === section.id
             return <button
               key={section.id}
               type="button"
-              onClick={() => setActiveSection(section.id)}
-              className={`group rounded-[1.35rem] border p-4 text-left shadow-[0_10px_28px_rgba(16,35,42,0.06)] transition hover:-translate-y-0.5 ${isActive ? 'border-[#0b4c57] bg-[#10232a] text-white' : 'border-[rgba(16,35,42,0.1)] bg-[#fffdf7]/86 text-[#10232a] hover:bg-white'}`}
+              onClick={() => goToSection(section.id)}
+              className={`group rounded-[1rem] border px-3 py-3 text-left transition ${isActive ? 'border-[#0b4c57] bg-[#10232a] text-white' : 'border-transparent text-[#10232a] hover:border-[rgba(16,35,42,0.1)] hover:bg-white'}`}
             >
-              <span className={`mb-3 inline-flex rounded-2xl p-2 ${isActive ? 'bg-cyan-200/15 text-cyan-100' : 'bg-cyan-50 text-cyan-800'}`}>{section.icon}</span>
-              <span className="font-display block text-base font-extrabold">{section.label}</span>
-              <span className={`mt-1 block text-sm ${isActive ? 'text-cyan-50/75' : 'text-[#647277]'}`}>{section.description}</span>
+              <span className="flex items-center gap-2">
+                <span className={`inline-flex rounded-xl p-1.5 ${isActive ? 'bg-cyan-200/15 text-cyan-100' : 'bg-cyan-50 text-cyan-800'}`}>{section.icon}</span>
+                <span>
+                  <span className="font-display block text-sm font-extrabold">{section.label}</span>
+                  <span className={`block text-xs ${isActive ? 'text-cyan-50/75' : 'text-[#647277]'}`}>{section.description}</span>
+                </span>
+              </span>
               {typeof section.count === 'number' && <span className={`mt-3 inline-flex rounded-full px-2.5 py-1 text-xs font-extrabold ${isActive ? 'bg-white/12 text-white' : 'bg-[#e7f6f5] text-[#0b4c57]'}`}>{section.count}</span>}
             </button>
           })}
@@ -235,22 +247,22 @@ function DispatchApp() {
         {activeSection === 'overview' && <>
           <DashboardMetrics dashboard={dashboard} workOrders={workOrders} />
           <div className="grid gap-4 lg:grid-cols-4">
-            <button type="button" onClick={() => setActiveSection('work-orders')} className="rounded-[1.5rem] border border-[rgba(16,35,42,0.1)] bg-white/80 p-5 text-left shadow-[0_14px_38px_rgba(16,35,42,0.07)] transition hover:-translate-y-0.5">
+            <button type="button" onClick={() => goToSection('work-orders')} className="rounded-[1.25rem] border border-[rgba(16,35,42,0.1)] bg-white/80 p-5 text-left shadow-[0_10px_28px_rgba(16,35,42,0.05)] transition hover:-translate-y-0.5 hover:border-cyan-200">
               <span className="font-display text-xs font-extrabold uppercase tracking-[0.2em] text-cyan-700">Step 1</span>
               <span className="font-display mt-2 block text-xl font-extrabold text-[#10232a]">Review open work</span>
               <span className="mt-2 block text-sm leading-6 text-[#5c6b70]">Look for urgent, blocked, waiting, and assessment items.</span>
             </button>
-            <button type="button" onClick={() => setActiveSection('teams')} className="rounded-[1.5rem] border border-[rgba(16,35,42,0.1)] bg-white/80 p-5 text-left shadow-[0_14px_38px_rgba(16,35,42,0.07)] transition hover:-translate-y-0.5">
+            <button type="button" onClick={() => goToSection('teams')} className="rounded-[1.25rem] border border-[rgba(16,35,42,0.1)] bg-white/80 p-5 text-left shadow-[0_10px_28px_rgba(16,35,42,0.05)] transition hover:-translate-y-0.5 hover:border-cyan-200">
               <span className="font-display text-xs font-extrabold uppercase tracking-[0.2em] text-cyan-700">Step 2</span>
               <span className="font-display mt-2 block text-xl font-extrabold text-[#10232a]">Check crews</span>
               <span className="mt-2 block text-sm leading-6 text-[#5c6b70]">Mark call-outs and confirm each crew has driver coverage.</span>
             </button>
-            <button type="button" onClick={() => setActiveSection('dispatch')} className="rounded-[1.5rem] border border-[rgba(16,35,42,0.1)] bg-white/80 p-5 text-left shadow-[0_14px_38px_rgba(16,35,42,0.07)] transition hover:-translate-y-0.5">
+            <button type="button" onClick={() => goToSection('dispatch')} className="rounded-[1.25rem] border border-[rgba(16,35,42,0.1)] bg-white/80 p-5 text-left shadow-[0_10px_28px_rgba(16,35,42,0.05)] transition hover:-translate-y-0.5 hover:border-cyan-200">
               <span className="font-display text-xs font-extrabold uppercase tracking-[0.2em] text-cyan-700">Step 3</span>
               <span className="font-display mt-2 block text-xl font-extrabold text-[#10232a]">Build schedule</span>
               <span className="mt-2 block text-sm leading-6 text-[#5c6b70]">Generate a draft and adjust crew, time, order, or notes.</span>
             </button>
-            <button type="button" onClick={() => setActiveSection('whatsapp')} className="rounded-[1.5rem] border border-[rgba(16,35,42,0.1)] bg-white/80 p-5 text-left shadow-[0_14px_38px_rgba(16,35,42,0.07)] transition hover:-translate-y-0.5">
+            <button type="button" onClick={() => goToSection('whatsapp')} className="rounded-[1.25rem] border border-[rgba(16,35,42,0.1)] bg-white/80 p-5 text-left shadow-[0_10px_28px_rgba(16,35,42,0.05)] transition hover:-translate-y-0.5 hover:border-cyan-200">
               <span className="font-display text-xs font-extrabold uppercase tracking-[0.2em] text-cyan-700">Step 4</span>
               <span className="font-display mt-2 block text-xl font-extrabold text-[#10232a]">Copy WhatsApp</span>
               <span className="mt-2 block text-sm leading-6 text-[#5c6b70]">Send the clean dispatch message after the plan is right.</span>

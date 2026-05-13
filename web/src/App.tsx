@@ -155,12 +155,17 @@ function DispatchApp() {
           has_driver: technicians.some((candidate) => candidate.is_driver && candidate.availability !== 'unavailable'),
         }
       }))
-      const [dash, teamData] = await Promise.all([
-        getJson<Dashboard>(`/dashboard?date=${DEMO_DATE}`),
-        getJson<Team[]>(`/teams?date=${DEMO_DATE}`),
-      ])
-      setDashboard(dash)
-      setTeams(teamData)
+
+      try {
+        const [dash, teamData] = await Promise.all([
+          getJson<Dashboard>(`/dashboard?date=${DEMO_DATE}`),
+          getJson<Team[]>(`/teams?date=${DEMO_DATE}`),
+        ])
+        setDashboard(dash)
+        setTeams(teamData)
+      } catch (err) {
+        setError(err instanceof Error ? `Availability saved, but fresh dashboard data did not load: ${err.message}` : 'Availability saved, but fresh dashboard data did not load')
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to update technician availability')
     } finally {

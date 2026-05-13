@@ -77,6 +77,7 @@ Tasks:
 - Show confidence/status per extracted field.
 - Add an approve/edit/reject review screen.
 - Keep original files linked to the created work order.
+- Add transactional email only when invitations, schedule notifications, or intake/OCR alerts exist. Resend is the likely default provider; document `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, and `APP_URL` when that work starts.
 
 Acceptance criteria:
 

@@ -79,6 +79,10 @@ CLERK_DISPATCHER_EMAILS=john@example.com,dispatcher@example.com
 
 Anyone not listed there is created as `viewer`.
 
+This env-driven role mapping is a bootstrap mechanism for the current app. It lets us safely create the first admin/dispatcher accounts before a user-management screen exists. Long term, the app should keep a small bootstrap admin env var and let admins promote/demote users inside the product instead of changing deployment env vars for every staff change.
+
+For the first real Clerk test, set `CLERK_ADMIN_EMAILS` to Leon's or the primary owner email so at least one person can edit dispatch data. Add John's email to `CLERK_DISPATCHER_EMAILS` if he should build schedules without full admin permissions.
+
 ## Approved Access
 
 To restrict who can read dispatch data, configure at least one allowlist variable:
@@ -89,6 +93,35 @@ CLERK_ALLOWED_DOMAINS=jmiguam.com,shimizutechnology.com
 ```
 
 If neither allowlist variable is set, any signed-in Clerk user can enter as a viewer. That is convenient for early setup, but production should use an allowlist.
+
+`CLERK_ALLOWED_DOMAINS` is for email domains only, not browser origins. Use values like `jmiguam.com`, not `http://localhost:5175`.
+
+## Frontend And Backend URLs
+
+Local development does not need separate frontend/backend URL env vars right now:
+
+- Vite serves the frontend on `http://127.0.0.1:5175` or `http://localhost:5175`.
+- `web/vite.config.ts` proxies `/api` to Rails at `http://localhost:3005`.
+- `web/src/lib/api.ts` calls Rails through relative paths like `/api/v1/dashboard`.
+
+For production, the simplest deployment is same-origin routing where the public app domain proxies `/api` to Rails. If the frontend and Rails API are deployed on different domains, add this as a future hardening step:
+
+- `VITE_API_BASE_URL=https://api.your-domain.com` for the frontend API client.
+- `FRONTEND_ORIGINS=https://app.your-domain.com` for Rails CORS allowlisting.
+
+Rails currently sets permissive CORS headers in the API controller so local and early hosted testing stay unblocked. Before production with split domains, replace that with explicit allowed origins.
+
+## Future Email Delivery
+
+No email provider is required for the current dispatch board. Clerk handles sign-in email flows inside Clerk itself.
+
+When the app adds invitations, admin notifications, schedule-send emails, or intake/OCR alerts, use Resend or an equivalent transactional email provider. Expected future env vars:
+
+```bash
+RESEND_API_KEY=...
+RESEND_FROM_EMAIL=Dispatch Scheduler <dispatch@your-domain.com>
+APP_URL=https://dispatch.your-domain.com
+```
 
 ## API Protection
 

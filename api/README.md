@@ -17,9 +17,9 @@ From the repo root:
 ```bash
 ./scripts/import_sample_data.py
 cd api
-~/.rbenv/shims/bundle install
-~/.rbenv/shims/bundle exec rails db:setup
-~/.rbenv/shims/bundle exec rails server -p 3005
+bundle install
+bundle exec rails db:setup
+bundle exec rails server -p 3005
 ```
 
 Without Clerk env vars, development uses the local auth bypass documented in
@@ -28,10 +28,10 @@ Without Clerk env vars, development uses the local auth bypass documented in
 ## Verification
 
 ```bash
-~/.rbenv/shims/bundle exec rails test
-~/.rbenv/shims/bundle exec rubocop
-~/.rbenv/shims/bundle exec brakeman --no-pager
-~/.rbenv/shims/bundle exec bundle-audit check --update
+bundle exec rails test
+bundle exec rubocop
+bundle exec brakeman --no-pager
+bundle exec bundle-audit check --update
 ```
 
 ## Key Endpoints

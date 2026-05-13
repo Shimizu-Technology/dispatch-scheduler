@@ -8,9 +8,9 @@
 
 # API
 cd api
-~/.rbenv/shims/bundle install
-~/.rbenv/shims/bundle exec rails db:setup
-~/.rbenv/shims/bundle exec rails server -p 3005
+bundle install
+bundle exec rails db:setup
+bundle exec rails server -p 3005
 
 # Web
 cd ../web
@@ -39,9 +39,9 @@ python3 -m unittest discover -s scripts -p "*_test.py"
 
 # API
 cd api
-~/.rbenv/shims/bundle exec rails test
-~/.rbenv/shims/bundle exec rubocop
-~/.rbenv/shims/bundle exec rails runner 's=DispatchSuggestionService.new(date: "2026-05-01").call; puts WhatsAppExportService.new(s).call.lines.first'
+bundle exec rails test
+bundle exec rubocop
+bundle exec rails runner 's=DispatchSuggestionService.new(date: "2026-05-01").call; puts WhatsAppExportService.new(s).call.lines.first'
 
 # Web
 cd ../web

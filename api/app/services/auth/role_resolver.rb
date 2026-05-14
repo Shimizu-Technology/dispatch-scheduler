@@ -5,9 +5,13 @@ module Auth
     class << self
       def role_for(email)
         normalized = email.to_s.downcase.strip
-        return "admin" if bootstrap_admin_emails.include?(normalized)
+        return "admin" if bootstrap_admin?(normalized)
 
         DEFAULT_ROLE
+      end
+
+      def bootstrap_admin?(email)
+        bootstrap_admin_emails.include?(email.to_s.downcase.strip)
       end
 
       private

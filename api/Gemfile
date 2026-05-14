@@ -27,6 +27,9 @@ gem "thruster", require: false
 gem "rack-cors"
 
 group :development, :test do
+  # Load api/.env locally so Clerk/CORS settings match the documented setup.
+  gem "dotenv", require: false
+
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem
   gem "debug", platforms: %i[ mri windows ], require: "debug/prelude"
 

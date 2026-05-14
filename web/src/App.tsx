@@ -278,16 +278,16 @@ function DispatchApp() {
               key={section.id}
               type="button"
               onClick={() => goToSection(section.id)}
-              className={`group rounded-[1rem] border px-3 py-3 text-left transition ${isActive ? 'border-[#0b4c57] bg-[#10232a] text-white' : 'border-transparent text-[#10232a] hover:border-[rgba(16,35,42,0.1)] hover:bg-white'}`}
+              className={`group grid min-h-[5.75rem] grid-cols-[auto_1fr_auto] items-center gap-3 rounded-[1rem] border px-3 py-3 text-left transition ${isActive ? 'border-[#0b4c57] bg-[#10232a] text-white' : 'border-transparent text-[#10232a] hover:border-[rgba(16,35,42,0.1)] hover:bg-white'}`}
             >
-              <span className="flex items-center gap-2">
-                <span className={`inline-flex rounded-xl p-1.5 ${isActive ? 'bg-cyan-200/15 text-cyan-100' : 'bg-cyan-50 text-cyan-800'}`}>{section.icon}</span>
-                <span>
-                  <span className="font-display block text-sm font-extrabold">{section.label}</span>
-                  <span className={`block text-xs ${isActive ? 'text-cyan-50/75' : 'text-[#647277]'}`}>{section.description}</span>
-                </span>
+              <span className={`inline-flex rounded-xl p-1.5 ${isActive ? 'bg-cyan-200/15 text-cyan-100' : 'bg-cyan-50 text-cyan-800'}`}>{section.icon}</span>
+              <span className="min-w-0">
+                <span className="font-display block text-sm font-extrabold">{section.label}</span>
+                <span className={`block text-xs ${isActive ? 'text-cyan-50/75' : 'text-[#647277]'}`}>{section.description}</span>
               </span>
-              {typeof section.count === 'number' && <span className={`mt-3 inline-flex rounded-full px-2.5 py-1 text-xs font-extrabold ${isActive ? 'bg-white/12 text-white' : 'bg-[#e7f6f5] text-[#0b4c57]'}`}>{section.count}</span>}
+              {typeof section.count === 'number'
+                ? <span className={`inline-flex min-w-8 justify-center rounded-full px-2.5 py-1 text-xs font-extrabold ${isActive ? 'bg-white/12 text-white' : 'bg-[#e7f6f5] text-[#0b4c57]'}`}>{section.count}</span>
+                : <span aria-hidden="true" className="hidden min-w-8 xl:block" />}
             </button>
           })}
         </nav>

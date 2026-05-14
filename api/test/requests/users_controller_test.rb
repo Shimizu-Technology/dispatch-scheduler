@@ -49,15 +49,34 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "cannot demote a bootstrap admin" do
+    with_auth_env("CLERK_BOOTSTRAP_ADMIN_EMAILS" => "bootstrap@example.com") do
+      admin = User.create!(clerk_id: "admin_123", email: "admin@example.com", role: "admin")
+      bootstrap_admin = User.create!(clerk_id: "bootstrap_123", email: "bootstrap@example.com", role: "admin")
+
+      patch "/api/v1/users/#{bootstrap_admin.id}", params: { role: "viewer" }, headers: auth_headers(admin)
+
+      assert_response :unprocessable_entity
+      assert_equal "admin", bootstrap_admin.reload.role
+      assert_equal [ "This user is a bootstrap admin. Remove their email from CLERK_BOOTSTRAP_ADMIN_EMAILS before changing their role." ], JSON.parse(response.body).fetch("errors")
+    end
+  end
+
   private
 
-  def with_auth_env
-    previous = ENV["CLERK_JWKS_URL"]
+  def with_auth_env(values = {})
+    previous = AUTH_ENV_KEYS.to_h { |key| [ key, ENV[key] ] }
+    AUTH_ENV_KEYS.each { |key| ENV.delete(key) }
     ENV["CLERK_JWKS_URL"] = "https://clerk.example.test/.well-known/jwks.json"
+    values.each { |key, value| ENV[key] = value }
     yield
   ensure
-    previous.nil? ? ENV.delete("CLERK_JWKS_URL") : ENV["CLERK_JWKS_URL"] = previous
+    previous.each do |key, value|
+      value.nil? ? ENV.delete(key) : ENV[key] = value
+    end
   end
+
+  AUTH_ENV_KEYS = %w[CLERK_JWKS_URL CLERK_DOMAIN CLERK_BOOTSTRAP_ADMIN_EMAILS].freeze
 
   def auth_headers(user)
     { "Authorization" => "Bearer test_token:#{user.clerk_id}:#{user.email}" }

@@ -36,6 +36,9 @@ CLERK_JWKS_URL=https://your-clerk-domain/.well-known/jwks.json
 CLERK_BOOTSTRAP_ADMIN_EMAILS=you@example.com
 ```
 
+Rails loads `api/.env` automatically in development and test. Restart `rails server`
+after changing Clerk or CORS values so the process sees the new environment.
+
 The bootstrap admin email is only for first sign-in and recovery. After that,
 manage admins, dispatchers, and viewers from the in-app `Users` section. See
 `docs/AUTHENTICATION.md`.

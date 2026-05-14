@@ -22,8 +22,10 @@ bundle exec rails db:setup
 bundle exec rails server -p 3000
 ```
 
-Clerk env vars are required for local app testing. See `../docs/AUTHENTICATION.md`
-for the mandatory frontend/backend env variables and bootstrap-admin setup.
+Clerk env vars are required for local app testing, including the Clerk secret key
+used to fetch profile email when the browser token omits it. See
+`../docs/AUTHENTICATION.md` for the mandatory frontend/backend env variables and
+bootstrap-admin setup.
 Rails loads `api/.env` automatically in development and test; restart the server
 after changing those values.
 

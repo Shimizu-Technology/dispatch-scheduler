@@ -93,7 +93,7 @@ class AuthenticationTest < ActionDispatch::IntegrationTest
 
   private
 
-  AUTH_ENV_KEYS = %w[CLERK_JWKS_URL CLERK_DOMAIN CLERK_BOOTSTRAP_ADMIN_EMAILS].freeze
+  AUTH_ENV_KEYS = %w[CLERK_JWKS_URL CLERK_DOMAIN CLERK_SECRET_KEY CLERK_BOOTSTRAP_ADMIN_EMAILS].freeze
 
   def with_auth_env(values)
     previous = AUTH_ENV_KEYS.to_h { |key| [ key, ENV[key] ] }

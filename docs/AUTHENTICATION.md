@@ -16,10 +16,11 @@ Backend (`api/.env` or the Rails process environment):
 ```bash
 FRONTEND_URL=http://localhost:5173
 CLERK_JWKS_URL=https://your-clerk-domain/.well-known/jwks.json
+CLERK_SECRET_KEY=sk_test_...
 CLERK_BOOTSTRAP_ADMIN_EMAILS=leon@example.com
 ```
 
-You can use `CLERK_DOMAIN=your-clerk-domain` instead of `CLERK_JWKS_URL`; Rails will derive `https://<domain>/.well-known/jwks.json`.
+You can use `CLERK_DOMAIN=your-clerk-domain` instead of `CLERK_JWKS_URL`; Rails will derive `https://<domain>/.well-known/jwks.json`. `CLERK_SECRET_KEY` lets Rails fetch the Clerk user profile when the verified browser token does not include email claims, which is Clerk's default behavior.
 
 ## Optional Environment Variables
 
@@ -32,6 +33,9 @@ CORS_ORIGINS=http://127.0.0.1:5173,https://staging.example.com
 
 # Backend: JWKS HTTP open/read timeout. Defaults to 3 seconds.
 CLERK_JWKS_TIMEOUT_SECONDS=3
+
+# Backend: Clerk Backend API open/read timeout. Defaults to 3 seconds.
+CLERK_API_TIMEOUT_SECONDS=3
 ```
 
 Access is controlled by the Clerk application plus Dispatch Scheduler's in-app roles. Email/domain allowlist env vars and local auth-role bypass env vars are intentionally not supported.
@@ -54,12 +58,14 @@ FRONTEND_URL=http://localhost:5173
 
 In development and test, Rails also allows `localhost` and `127.0.0.1` on port `5173` so Vite remains easy to run locally. In non-development environments, set `FRONTEND_URL` or `CORS_ORIGINS` explicitly.
 
-## Clerk Token Claims
+## Clerk User Email
 
-Rails needs the Clerk token to include an email claim. Clerk's default session token does not include email/name by default, so configure one of these before testing with real Clerk credentials:
+Rails needs the signed-in user's email to create or find the local `users` row. The recommended setup is to provide `CLERK_SECRET_KEY`, so Rails can verify the JWT with JWKS and then fetch the Clerk user profile by `sub` when email is not present in the token.
 
-- Recommended: customize the Clerk session token claims and add the claims below.
-- Alternative: create a Clerk JWT template with the claims below and set `VITE_CLERK_JWT_TEMPLATE=<template-name>` in `web/.env.local` so the frontend requests that token template.
+If you do not want Rails to call the Clerk Backend API for profile data, configure one of these token-claim options instead:
+
+- Customize the Clerk session token claims and add the claims below.
+- Create a Clerk JWT template with the claims below and set `VITE_CLERK_JWT_TEMPLATE=<template-name>` in `web/.env.local` so the frontend requests that token template.
 
 Required/optional claims:
 
@@ -72,7 +78,7 @@ Required/optional claims:
 }
 ```
 
-`email` is required. The name fields are optional but make `/api/v1/me` display friendlier user information.
+`email` is required when `CLERK_SECRET_KEY` is not set. The name fields are optional but make `/api/v1/me` display friendlier user information.
 
 ## Roles And User Management
 

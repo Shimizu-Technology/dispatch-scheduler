@@ -33,6 +33,7 @@ VITE_API_URL=http://localhost:3000
 # api/.env or Rails shell
 FRONTEND_URL=http://localhost:5173
 CLERK_JWKS_URL=https://your-clerk-domain/.well-known/jwks.json
+CLERK_SECRET_KEY=sk_test_...
 CLERK_BOOTSTRAP_ADMIN_EMAILS=you@example.com
 ```
 

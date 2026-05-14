@@ -248,6 +248,14 @@ function DispatchApp() {
                     <span className="capitalize text-cyan-50/75">{user.role}</span>
                   </div>
                 </div>
+              </div> : isSignedIn ? <div className="w-full rounded-[1.5rem] border border-white/15 bg-white/10 p-4 text-sm text-cyan-50 shadow-2xl backdrop-blur lg:max-w-sm">
+                <div className="flex items-start gap-3">
+                  <span className="rounded-2xl bg-amber-200/15 p-2 text-amber-100"><LockKeyhole size={20} /></span>
+                  <div>
+                    <span className="font-display block font-extrabold text-white">Signed in, access needs setup</span>
+                    <span className="text-cyan-50/75">Clerk worked. The API still needs profile access.</span>
+                  </div>
+                </div>
               </div> : <div className="w-full rounded-[1.5rem] border border-white/15 bg-white/10 p-4 text-sm text-cyan-50 shadow-2xl backdrop-blur lg:max-w-sm">
                 <div className="flex items-start gap-3">
                   <span className="rounded-2xl bg-cyan-200/15 p-2 text-cyan-100"><LockKeyhole size={20} /></span>
@@ -258,7 +266,7 @@ function DispatchApp() {
                 </div>
               </div>}
               <div className="flex w-full flex-wrap gap-3 lg:max-w-sm lg:justify-end">
-                {user ? <UserButton /> : <SignInButton mode="modal">
+                {isSignedIn ? <UserButton /> : <SignInButton mode="modal">
                   <button className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3 font-display text-sm font-extrabold text-[#10232a] shadow-[0_16px_38px_rgba(255,255,255,0.18)] transition hover:-translate-y-0.5 hover:bg-cyan-50 sm:flex-none">
                     <LockKeyhole size={18} /> Sign In
                   </button>
@@ -296,7 +304,7 @@ function DispatchApp() {
 
         {isAuthBlocked && <div className="rounded-[1.4rem] border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-900">
           {needsTokenClaims
-            ? 'Your Clerk sign-in worked, but the API needs the JWT token to include an email claim. Check the Clerk JWT template or custom session claims.'
+            ? 'Your Clerk sign-in worked, but the API needs access to your email. Add CLERK_SECRET_KEY to api/.env, or configure Clerk token email claims.'
             : `Your Clerk sign-in worked, but the dispatch API could not confirm your role yet: ${authError || 'Unable to verify access'}`}
         </div>}
 

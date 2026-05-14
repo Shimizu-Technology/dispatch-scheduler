@@ -76,7 +76,7 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
-  AUTH_ENV_KEYS = %w[CLERK_JWKS_URL CLERK_DOMAIN CLERK_BOOTSTRAP_ADMIN_EMAILS].freeze
+  AUTH_ENV_KEYS = %w[CLERK_JWKS_URL CLERK_DOMAIN CLERK_SECRET_KEY CLERK_BOOTSTRAP_ADMIN_EMAILS].freeze
 
   def auth_headers(user)
     { "Authorization" => "Bearer test_token:#{user.clerk_id}:#{user.email}" }

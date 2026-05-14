@@ -21,11 +21,17 @@ module Auth
 
       def sync_user(payload)
         clerk_id = payload["sub"].to_s
+        clerk_profile = {}
         email = email_from(payload)
-        name = name_from(payload)
+        if email.blank? && clerk_id.present?
+          clerk_profile = ClerkUserProfile.fetch(clerk_id)
+          email = email_from(clerk_profile)
+        end
+
+        name = name_from(payload).presence || name_from(clerk_profile)
 
         raise AccessDenied, "Missing Clerk user id" if clerk_id.blank?
-        raise AccessDenied, "Missing Clerk email" if email.blank?
+        raise AccessDenied, "Missing Clerk email. Set CLERK_SECRET_KEY or configure Clerk token email claims." if email.blank?
 
         user = User.find_or_initialize_by(clerk_id: clerk_id)
         if user.new_record? && (existing = User.find_by(email: email.downcase))

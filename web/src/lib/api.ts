@@ -1,4 +1,4 @@
-const rawApiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:3005').replace(/\/$/, '')
+const rawApiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/$/, '')
 const API = rawApiUrl.endsWith('/api/v1') ? rawApiUrl : `${rawApiUrl}/api/v1`
 
 type ErrorBody = { errors?: string[] }

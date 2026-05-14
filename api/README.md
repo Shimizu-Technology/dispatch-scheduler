@@ -19,7 +19,7 @@ From the repo root:
 cd api
 bundle install
 bundle exec rails db:setup
-bundle exec rails server -p 3005
+bundle exec rails server -p 3000
 ```
 
 Clerk env vars are required for local app testing. See `../docs/AUTHENTICATION.md`

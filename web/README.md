@@ -17,10 +17,10 @@ From the repo root:
 ```bash
 cd web
 npm install
-npm run dev -- --port 5175
+npm run dev -- --port 5173
 ```
 
-Open http://127.0.0.1:5175.
+Open http://127.0.0.1:5173.
 
 Set `VITE_CLERK_PUBLISHABLE_KEY` and `VITE_API_URL` in `web/.env.local`, then
 follow `../docs/AUTHENTICATION.md`.

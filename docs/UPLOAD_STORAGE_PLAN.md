@@ -74,9 +74,7 @@ When upload intake is added, configure bucket CORS for the exact frontend origin
     "AllowedMethods": ["GET", "POST", "PUT", "HEAD"],
     "AllowedOrigins": [
       "http://localhost:5173",
-      "http://localhost:5175",
       "http://127.0.0.1:5173",
-      "http://127.0.0.1:5175",
       "https://your-production-domain.com"
     ],
     "ExposeHeaders": ["ETag"],

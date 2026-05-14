@@ -10,15 +10,15 @@
 cd api
 bundle install
 bundle exec rails db:setup
-bundle exec rails server -p 3005
+bundle exec rails server -p 3000
 
 # Web
 cd ../web
 npm install
-npm run dev -- --port 5175
+npm run dev -- --port 5173
 ```
 
-Open http://127.0.0.1:5175.
+Open http://127.0.0.1:5173.
 
 ## Authentication
 
@@ -28,10 +28,10 @@ production, plus local URLs for the frontend and backend:
 ```bash
 # web/.env.local
 VITE_CLERK_PUBLISHABLE_KEY=pk_test_...
-VITE_API_URL=http://localhost:3005
+VITE_API_URL=http://localhost:3000
 
 # api/.env or Rails shell
-FRONTEND_URL=http://localhost:5175
+FRONTEND_URL=http://localhost:5173
 CLERK_JWKS_URL=https://your-clerk-domain/.well-known/jwks.json
 CLERK_BOOTSTRAP_ADMIN_EMAILS=you@example.com
 ```

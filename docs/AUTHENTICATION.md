@@ -8,13 +8,13 @@ Frontend (`web/.env.local`):
 
 ```bash
 VITE_CLERK_PUBLISHABLE_KEY=pk_test_...
-VITE_API_URL=http://localhost:3005
+VITE_API_URL=http://localhost:3000
 ```
 
 Backend (`api/.env` or the Rails process environment):
 
 ```bash
-FRONTEND_URL=http://localhost:5175
+FRONTEND_URL=http://localhost:5173
 CLERK_JWKS_URL=https://your-clerk-domain/.well-known/jwks.json
 CLERK_BOOTSTRAP_ADMIN_EMAILS=leon@example.com
 ```
@@ -28,7 +28,7 @@ You can use `CLERK_DOMAIN=your-clerk-domain` instead of `CLERK_JWKS_URL`; Rails 
 VITE_CLERK_JWT_TEMPLATE=dispatch-scheduler
 
 # Backend: additional browser origins beyond FRONTEND_URL.
-CORS_ORIGINS=http://127.0.0.1:5175,https://staging.example.com
+CORS_ORIGINS=http://127.0.0.1:5173,https://staging.example.com
 
 # Backend: JWKS HTTP open/read timeout. Defaults to 3 seconds.
 CLERK_JWKS_TIMEOUT_SECONDS=3
@@ -41,7 +41,7 @@ Access is controlled by the Clerk application plus Dispatch Scheduler's in-app r
 The frontend uses `VITE_API_URL` as the Rails origin. In local development that should usually be:
 
 ```bash
-VITE_API_URL=http://localhost:3005
+VITE_API_URL=http://localhost:3000
 ```
 
 The API client appends `/api/v1`, so do not include a trailing API path unless you intentionally want to override it.
@@ -49,10 +49,10 @@ The API client appends `/api/v1`, so do not include a trailing API path unless y
 Rails uses `FRONTEND_URL` for CORS:
 
 ```bash
-FRONTEND_URL=http://localhost:5175
+FRONTEND_URL=http://localhost:5173
 ```
 
-In development and test, Rails also allows `localhost` and `127.0.0.1` on ports `5175` and `5173` so Vite remains easy to run locally. In non-development environments, set `FRONTEND_URL` or `CORS_ORIGINS` explicitly.
+In development and test, Rails also allows `localhost` and `127.0.0.1` on port `5173` so Vite remains easy to run locally. In non-development environments, set `FRONTEND_URL` or `CORS_ORIGINS` explicitly.
 
 ## Clerk Token Claims
 

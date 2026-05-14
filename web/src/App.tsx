@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { CalendarDays, ClipboardList, LayoutDashboard, MessageSquareText, RefreshCw, ShieldCheck, UserCog, Users, Wrench } from 'lucide-react'
-import { UserButton } from '@clerk/react'
-import { AuthGate } from './components/auth/AuthGate'
+import { CalendarDays, ClipboardList, LayoutDashboard, LockKeyhole, MessageSquareText, RefreshCw, ShieldCheck, UserCog, Users, Wrench } from 'lucide-react'
+import { SignInButton, UserButton } from '@clerk/react'
 import { DashboardMetrics } from './components/DashboardMetrics'
 import { DispatchBuilder } from './components/DispatchBuilder'
 import { PmTasksPanel } from './components/PmTasksPanel'
@@ -26,7 +25,7 @@ function sectionFromHash(): ActiveSection {
 }
 
 function DispatchApp() {
-  const { isLoading: authLoading, user, canEditDispatch, refreshUser } = useAuthContext()
+  const { isSignedIn, isLoading: authLoading, user, authError, canEditDispatch, refreshUser } = useAuthContext()
   const [activeSection, setActiveSection] = useState<ActiveSection>(sectionFromHash)
   const [dashboard, setDashboard] = useState<Dashboard | null>(null)
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([])
@@ -35,7 +34,7 @@ function DispatchApp() {
   const [managedUsers, setManagedUsers] = useState<ManagedUser[]>([])
   const [schedule, setSchedule] = useState<DispatchSchedule | null>(null)
   const [whatsApp, setWhatsApp] = useState('')
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [working, setWorking] = useState(false)
   const [availabilitySavingId, setAvailabilitySavingId] = useState<number | null>(null)
   const [savingUserId, setSavingUserId] = useState<number | null>(null)
@@ -59,13 +58,17 @@ function DispatchApp() {
   }
 
   useEffect(() => {
-    // The initial dashboard load is the app's external data subscription point.
+    if (authLoading) return
+
+    if (!user) return
+
+    // The signed-in dashboard load is the app's external data subscription point.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadInitialData().catch((err) => {
       setError(err.message)
       setLoading(false)
     })
-  }, [])
+  }, [authLoading, user])
 
   useEffect(() => {
     if (!user?.permissions.can_admin) return
@@ -211,7 +214,10 @@ function DispatchApp() {
     ...(user?.permissions.can_admin ? [{ id: 'users' as const, label: 'Users', description: 'Roles and access', icon: <UserCog size={18} />, count: managedUsers.length }] : []),
   ]
 
-  if (authLoading || loading) {
+  const needsTokenClaims = authError?.toLowerCase().includes('missing clerk email')
+  const isAuthBlocked = isSignedIn && !user && !authLoading
+
+  if (authLoading || (user && loading)) {
     return <main className="grid min-h-screen place-items-center px-6 text-[#51636a]">
       <div className="rounded-[2rem] border border-[rgba(16,35,42,0.12)] bg-[#fffdf7]/85 p-8 text-center shadow-[0_24px_80px_rgba(16,35,42,0.12)]">
         <RefreshCw className="mx-auto mb-3 animate-spin text-cyan-700" />
@@ -234,7 +240,7 @@ function DispatchApp() {
               <p className="mt-4 max-w-3xl text-lg leading-8 text-cyan-50/82">Review work, check crews, build today&apos;s schedule, and copy a clean WhatsApp message from one organized workspace.</p>
             </div>
             <div className="relative flex flex-col gap-3 lg:items-end">
-              {user && <div className="w-full rounded-[1.5rem] border border-white/15 bg-white/10 p-4 text-sm text-cyan-50 shadow-2xl backdrop-blur lg:max-w-sm">
+              {user ? <div className="w-full rounded-[1.5rem] border border-white/15 bg-white/10 p-4 text-sm text-cyan-50 shadow-2xl backdrop-blur lg:max-w-sm">
                 <div className="flex items-start gap-3">
                   <span className="rounded-2xl bg-cyan-200/15 p-2 text-cyan-100"><ShieldCheck size={20} /></span>
                   <div>
@@ -242,9 +248,21 @@ function DispatchApp() {
                     <span className="capitalize text-cyan-50/75">{user.role}</span>
                   </div>
                 </div>
+              </div> : <div className="w-full rounded-[1.5rem] border border-white/15 bg-white/10 p-4 text-sm text-cyan-50 shadow-2xl backdrop-blur lg:max-w-sm">
+                <div className="flex items-start gap-3">
+                  <span className="rounded-2xl bg-cyan-200/15 p-2 text-cyan-100"><LockKeyhole size={20} /></span>
+                  <div>
+                    <span className="font-display block font-extrabold text-white">Sign in to work the schedule</span>
+                    <span className="text-cyan-50/75">The overview is visible. Live data and actions require Clerk.</span>
+                  </div>
+                </div>
               </div>}
               <div className="flex w-full flex-wrap gap-3 lg:max-w-sm lg:justify-end">
-                <UserButton />
+                {user ? <UserButton /> : <SignInButton mode="modal">
+                  <button className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3 font-display text-sm font-extrabold text-[#10232a] shadow-[0_16px_38px_rgba(255,255,255,0.18)] transition hover:-translate-y-0.5 hover:bg-cyan-50 sm:flex-none">
+                    <LockKeyhole size={18} /> Sign In
+                  </button>
+                </SignInButton>}
                 {canEditDispatch && <button disabled={working} onClick={suggestSchedule} className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[#f2a51f] px-5 py-3 font-display text-sm font-extrabold text-[#10232a] shadow-[0_16px_38px_rgba(242,165,31,0.28)] transition hover:-translate-y-0.5 hover:bg-[#ffc453] disabled:cursor-wait disabled:opacity-60 sm:flex-none">
                   <ClipboardList size={18} /> {working ? 'Working...' : "Suggest Today's Schedule"}
                 </button>}
@@ -274,7 +292,15 @@ function DispatchApp() {
           })}
         </nav>
 
-        {!canEditDispatch && <div className="rounded-[1.4rem] border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-900">Viewer mode: you can inspect dashboard, work orders, teams, PMs, and generated schedules, but editing controls are hidden.</div>}
+        {!user && !authError && <SignInRequiredPanel />}
+
+        {isAuthBlocked && <div className="rounded-[1.4rem] border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-900">
+          {needsTokenClaims
+            ? 'Your Clerk sign-in worked, but the API needs the JWT token to include an email claim. Check the Clerk JWT template or custom session claims.'
+            : `Your Clerk sign-in worked, but the dispatch API could not confirm your role yet: ${authError || 'Unable to verify access'}`}
+        </div>}
+
+        {user && !canEditDispatch && <div className="rounded-[1.4rem] border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-900">Viewer mode: you can inspect dashboard, work orders, teams, PMs, and generated schedules, but editing controls are hidden.</div>}
 
         {error && <div className="rounded-[1.4rem] border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-800">{error}</div>}
 
@@ -304,15 +330,15 @@ function DispatchApp() {
           </div>
         </>}
 
-        {currentSection === 'work-orders' && <WorkOrdersPanel workOrders={workOrders} />}
+        {currentSection === 'work-orders' && (user ? <WorkOrdersPanel workOrders={workOrders} /> : <SignInRequiredPanel title="Sign in to review work orders" />)}
 
-        {currentSection === 'teams' && <TeamsPanel teams={teams} canEdit={canEditDispatch} savingTechnicianId={availabilitySavingId} onToggleAvailability={toggleAvailability} />}
+        {currentSection === 'teams' && (user ? <TeamsPanel teams={teams} canEdit={canEditDispatch} savingTechnicianId={availabilitySavingId} onToggleAvailability={toggleAvailability} /> : <SignInRequiredPanel title="Sign in to check crews" />)}
 
-        {currentSection === 'dispatch' && <DispatchBuilder schedule={schedule} teams={teams} working={working} canEdit={canEditDispatch} onSuggest={suggestSchedule} onUpdate={updateDispatchItem} />}
+        {currentSection === 'dispatch' && (user ? <DispatchBuilder schedule={schedule} teams={teams} working={working} canEdit={canEditDispatch} onSuggest={suggestSchedule} onUpdate={updateDispatchItem} /> : <SignInRequiredPanel title="Sign in to build today's dispatch" />)}
 
-        {currentSection === 'pm-tasks' && <PmTasksPanel pmTasks={pmTasks} />}
+        {currentSection === 'pm-tasks' && (user ? <PmTasksPanel pmTasks={pmTasks} /> : <SignInRequiredPanel title="Sign in to review PM tasks" />)}
 
-        {currentSection === 'whatsapp' && <WhatsAppExport message={whatsApp} copied={copied} onCopy={copyWhatsApp} />}
+        {currentSection === 'whatsapp' && (user ? <WhatsAppExport message={whatsApp} copied={copied} onCopy={copyWhatsApp} /> : <SignInRequiredPanel title="Sign in to copy WhatsApp output" />)}
 
         {currentSection === 'users' && user?.permissions.can_admin && <UserManagementPanel users={managedUsers} currentUserId={user.id} savingUserId={savingUserId} onRoleChange={updateUserRole} />}
       </div>
@@ -320,8 +346,23 @@ function DispatchApp() {
   )
 }
 
+function SignInRequiredPanel({ title = 'Sign in to load live dispatch data' }: { title?: string }) {
+  return <section className="rounded-[1.7rem] border border-[rgba(16,35,42,0.12)] bg-[#fffdf7]/88 p-6 shadow-[0_18px_60px_rgba(20,36,40,0.09)]">
+    <div className="max-w-2xl">
+      <p className="font-display text-[0.68rem] font-extrabold uppercase tracking-[0.24em] text-cyan-700">Secure workspace</p>
+      <h2 className="font-display mt-1 text-2xl font-extrabold tracking-tight text-[#10232a]">{title}</h2>
+      <p className="mt-2 text-sm leading-6 text-[#5c6b70]">The app shell is available so the page does not feel broken while Clerk is loading or before sign-in. Live JMI data and editing actions load after you sign in.</p>
+      <SignInButton mode="modal">
+        <button className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-[#10232a] px-5 py-3 font-display text-sm font-extrabold text-white shadow-[0_16px_38px_rgba(16,35,42,0.18)] transition hover:-translate-y-0.5 hover:bg-[#0b4c57]">
+          <LockKeyhole size={18} /> Sign In With Clerk
+        </button>
+      </SignInButton>
+    </div>
+  </section>
+}
+
 function App() {
-  return <AuthGate><DispatchApp /></AuthGate>
+  return <DispatchApp />
 }
 
 export default App

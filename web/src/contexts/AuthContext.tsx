@@ -46,7 +46,8 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
 
   return <AuthContext.Provider value={{
     isSignedIn: Boolean(isSignedIn),
-    isLoading: !isLoaded || isCheckingApi,
+    isLoading: !isLoaded,
+    isVerifyingApi: isCheckingApi,
     user,
     authError,
     canEditDispatch: Boolean(user?.permissions.can_edit_dispatch),

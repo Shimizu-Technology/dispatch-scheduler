@@ -25,7 +25,7 @@ function sectionFromHash(): ActiveSection {
 }
 
 function DispatchApp() {
-  const { isSignedIn, isLoading: authLoading, user, authError, canEditDispatch, refreshUser } = useAuthContext()
+  const { isSignedIn, isLoading: authLoading, isVerifyingApi, user, authError, canEditDispatch, refreshUser } = useAuthContext()
   const [activeSection, setActiveSection] = useState<ActiveSection>(sectionFromHash)
   const [dashboard, setDashboard] = useState<Dashboard | null>(null)
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([])
@@ -213,7 +213,7 @@ function DispatchApp() {
   ]
 
   const needsTokenClaims = authError?.toLowerCase().includes('missing clerk email')
-  const isAuthBlocked = isSignedIn && !user && !authLoading
+  const isAuthBlocked = isSignedIn && !user && !authLoading && !isVerifyingApi
 
   if (authLoading) {
     return <main className="grid min-h-screen place-items-center px-6 text-[#51636a]">
@@ -240,13 +240,13 @@ function DispatchApp() {
             <div className="relative flex flex-col gap-3 lg:items-end">
               {!user && isSignedIn ? <div className="w-full rounded-[1.5rem] border border-white/15 bg-white/10 p-4 text-sm text-cyan-50 shadow-2xl backdrop-blur lg:max-w-sm">
                 <div className="flex items-start gap-3">
-                  <span className="rounded-2xl bg-amber-200/15 p-2 text-amber-100"><LockKeyhole size={20} /></span>
+                  <span className="rounded-2xl bg-amber-200/15 p-2 text-amber-100">{isVerifyingApi ? <RefreshCw className="animate-spin" size={20} /> : <LockKeyhole size={20} />}</span>
                   <div>
-                    <span className="font-display block font-extrabold text-white">Signed in, access needs setup</span>
-                    <span className="text-cyan-50/75">Clerk worked. The API still needs profile access.</span>
+                    <span className="font-display block font-extrabold text-white">{isVerifyingApi ? 'Verifying your access' : 'Signed in, access needs setup'}</span>
+                    <span className="text-cyan-50/75">{isVerifyingApi ? 'Checking your Dispatch Scheduler role...' : 'Clerk worked. The API still needs profile access.'}</span>
                   </div>
                 </div>
-              </div> : <div className="w-full rounded-[1.5rem] border border-white/15 bg-white/10 p-4 text-sm text-cyan-50 shadow-2xl backdrop-blur lg:max-w-sm">
+              </div> : !user ? <div className="w-full rounded-[1.5rem] border border-white/15 bg-white/10 p-4 text-sm text-cyan-50 shadow-2xl backdrop-blur lg:max-w-sm">
                 <div className="flex items-start gap-3">
                   <span className="rounded-2xl bg-cyan-200/15 p-2 text-cyan-100"><LockKeyhole size={20} /></span>
                   <div>
@@ -254,7 +254,7 @@ function DispatchApp() {
                     <span className="text-cyan-50/75">The overview is visible. Live data and actions require Clerk.</span>
                   </div>
                 </div>
-              </div>}
+              </div> : null}
               <div className="flex w-full flex-wrap items-center gap-3 lg:justify-end">
                 {user && <div className="inline-flex items-center gap-3 rounded-2xl border border-white/15 bg-white/10 px-3 py-2 text-sm text-cyan-50 shadow-[0_12px_32px_rgba(0,0,0,0.12)] backdrop-blur">
                   <UserButton />
@@ -297,7 +297,13 @@ function DispatchApp() {
           })}
         </nav>
 
-        {!user && !authError && <SignInRequiredPanel />}
+        {!user && !authError && !isVerifyingApi && <SignInRequiredPanel />}
+
+        {isVerifyingApi && !user && <section className="rounded-[1.7rem] border border-[rgba(16,35,42,0.12)] bg-[#fffdf7]/88 p-6 shadow-[0_18px_60px_rgba(20,36,40,0.09)]">
+          <div className="inline-flex items-center gap-3 text-sm font-bold text-[#0b4c57]">
+            <RefreshCw size={18} className="animate-spin" /> Verifying your Clerk session with the dispatch API...
+          </div>
+        </section>}
 
         {user && loading && <div className="inline-flex w-fit items-center gap-2 rounded-2xl border border-cyan-100 bg-cyan-50/80 px-4 py-2 text-sm font-bold text-cyan-900">
           <RefreshCw size={16} className="animate-spin" /> Loading live dispatch data...

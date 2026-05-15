@@ -2,6 +2,8 @@ require "test_helper"
 
 module Auth
   class UserSyncTest < ActiveSupport::TestCase
+    include ActiveSupport::Testing::TimeHelpers
+
     test "constraint retry stops after the configured retry limit" do
       calls = 0
 
@@ -34,6 +36,25 @@ module Auth
       assert_equal "admin", user.role
     ensure
       previous.nil? ? ENV.delete("CLERK_BOOTSTRAP_ADMIN_EMAILS") : ENV["CLERK_BOOTSTRAP_ADMIN_EMAILS"] = previous
+    end
+
+    test "recently seen users are not touched on every authenticated request" do
+      now = Time.zone.parse("2026-05-15 09:00:00")
+      travel_to now do
+        UserSync.call({ "sub" => "viewer_123", "email" => "viewer@example.com", "name" => "Viewer User" })
+      end
+
+      user = User.find_by!(clerk_id: "viewer_123")
+      original_last_seen_at = user.last_seen_at
+      original_updated_at = user.updated_at
+
+      travel_to now + 1.minute do
+        UserSync.call({ "sub" => "viewer_123", "email" => "viewer@example.com", "name" => "Viewer User" })
+      end
+
+      user.reload
+      assert_equal original_last_seen_at, user.last_seen_at
+      assert_equal original_updated_at, user.updated_at
     end
 
     test "falls back to Clerk profile when token omits email" do

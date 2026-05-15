@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { CalendarDays, ClipboardList, LayoutDashboard, LockKeyhole, MessageSquareText, RefreshCw, ShieldCheck, UserCog, Users, Wrench } from 'lucide-react'
+import { CalendarDays, ClipboardList, LayoutDashboard, LockKeyhole, MessageSquareText, RefreshCw, UserCog, Users, Wrench } from 'lucide-react'
 import { SignInButton, UserButton } from '@clerk/react'
 import { DashboardMetrics } from './components/DashboardMetrics'
 import { DispatchBuilder } from './components/DispatchBuilder'
@@ -58,9 +58,7 @@ function DispatchApp() {
   }
 
   useEffect(() => {
-    if (authLoading) return
-
-    if (!user) return
+    if (authLoading || !user?.id) return
 
     // The signed-in dashboard load is the app's external data subscription point.
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -68,7 +66,7 @@ function DispatchApp() {
       setError(err.message)
       setLoading(false)
     })
-  }, [authLoading, user])
+  }, [authLoading, user?.id])
 
   useEffect(() => {
     if (!user?.permissions.can_admin) return
@@ -217,7 +215,7 @@ function DispatchApp() {
   const needsTokenClaims = authError?.toLowerCase().includes('missing clerk email')
   const isAuthBlocked = isSignedIn && !user && !authLoading
 
-  if (authLoading || (user && loading)) {
+  if (authLoading) {
     return <main className="grid min-h-screen place-items-center px-6 text-[#51636a]">
       <div className="rounded-[2rem] border border-[rgba(16,35,42,0.12)] bg-[#fffdf7]/85 p-8 text-center shadow-[0_24px_80px_rgba(16,35,42,0.12)]">
         <RefreshCw className="mx-auto mb-3 animate-spin text-cyan-700" />
@@ -240,15 +238,7 @@ function DispatchApp() {
               <p className="mt-4 max-w-3xl text-lg leading-8 text-cyan-50/82">Review work, check crews, build today&apos;s schedule, and copy a clean WhatsApp message from one organized workspace.</p>
             </div>
             <div className="relative flex flex-col gap-3 lg:items-end">
-              {user ? <div className="w-full rounded-[1.5rem] border border-white/15 bg-white/10 p-4 text-sm text-cyan-50 shadow-2xl backdrop-blur lg:max-w-sm">
-                <div className="flex items-start gap-3">
-                  <span className="rounded-2xl bg-cyan-200/15 p-2 text-cyan-100"><ShieldCheck size={20} /></span>
-                  <div>
-                    <span className="font-display block font-extrabold text-white">{user.name}</span>
-                    <span className="capitalize text-cyan-50/75">{user.role}</span>
-                  </div>
-                </div>
-              </div> : isSignedIn ? <div className="w-full rounded-[1.5rem] border border-white/15 bg-white/10 p-4 text-sm text-cyan-50 shadow-2xl backdrop-blur lg:max-w-sm">
+              {!user && isSignedIn ? <div className="w-full rounded-[1.5rem] border border-white/15 bg-white/10 p-4 text-sm text-cyan-50 shadow-2xl backdrop-blur lg:max-w-sm">
                 <div className="flex items-start gap-3">
                   <span className="rounded-2xl bg-amber-200/15 p-2 text-amber-100"><LockKeyhole size={20} /></span>
                   <div>
@@ -265,8 +255,15 @@ function DispatchApp() {
                   </div>
                 </div>
               </div>}
-              <div className="flex w-full flex-wrap gap-3 lg:max-w-sm lg:justify-end">
-                {isSignedIn ? <UserButton /> : <SignInButton mode="modal">
+              <div className="flex w-full flex-wrap items-center gap-3 lg:justify-end">
+                {user && <div className="inline-flex items-center gap-3 rounded-2xl border border-white/15 bg-white/10 px-3 py-2 text-sm text-cyan-50 shadow-[0_12px_32px_rgba(0,0,0,0.12)] backdrop-blur">
+                  <UserButton />
+                  <span className="leading-tight">
+                    <span className="font-display block font-extrabold text-white">{user.name}</span>
+                    <span className="text-xs capitalize text-cyan-50/70">{user.role}</span>
+                  </span>
+                </div>}
+                {!isSignedIn && <SignInButton mode="modal">
                   <button className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3 font-display text-sm font-extrabold text-[#10232a] shadow-[0_16px_38px_rgba(255,255,255,0.18)] transition hover:-translate-y-0.5 hover:bg-cyan-50 sm:flex-none">
                     <LockKeyhole size={18} /> Sign In
                   </button>
@@ -279,7 +276,7 @@ function DispatchApp() {
           </div>
         </header>
 
-        <nav aria-label="Dispatch Scheduler sections" className="soft-reveal-delay sticky top-3 z-10 grid gap-2 rounded-[1.4rem] border border-[rgba(16,35,42,0.1)] bg-[#fffdf7]/92 p-2 shadow-[0_14px_40px_rgba(16,35,42,0.1)] backdrop-blur md:grid-cols-3 xl:grid-cols-6">
+        <nav aria-label="Dispatch Scheduler sections" className="soft-reveal-delay sticky top-3 z-10 grid gap-2 rounded-[1.4rem] border border-[rgba(16,35,42,0.1)] bg-[#fffdf7]/92 p-2 shadow-[0_14px_40px_rgba(16,35,42,0.1)] backdrop-blur md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
           {sections.map((section) => {
             const isActive = currentSection === section.id
             return <button
@@ -301,6 +298,10 @@ function DispatchApp() {
         </nav>
 
         {!user && !authError && <SignInRequiredPanel />}
+
+        {user && loading && <div className="inline-flex w-fit items-center gap-2 rounded-2xl border border-cyan-100 bg-cyan-50/80 px-4 py-2 text-sm font-bold text-cyan-900">
+          <RefreshCw size={16} className="animate-spin" /> Loading live dispatch data...
+        </div>}
 
         {isAuthBlocked && <div className="rounded-[1.4rem] border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-900">
           {needsTokenClaims

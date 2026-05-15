@@ -2,6 +2,7 @@ module Auth
   class UserSync
     class AccessDenied < StandardError; end
     MAX_RETRIES = 1
+    LAST_SEEN_TOUCH_INTERVAL = 5.minutes
 
     class << self
       def call(payload)
@@ -43,9 +44,13 @@ module Auth
         user.name = name if name.present?
         resolved_role = RoleResolver.role_for(email)
         user.role = resolved_role if user.new_record? || user.role.blank? || resolved_role == "admin"
-        user.last_seen_at = Time.current
-        user.save!
+        user.last_seen_at = Time.current if touch_last_seen?(user)
+        user.save! if user.changed?
         user
+      end
+
+      def touch_last_seen?(user)
+        user.new_record? || user.last_seen_at.blank? || user.last_seen_at < LAST_SEEN_TOUCH_INTERVAL.ago
       end
 
       def email_from(payload)

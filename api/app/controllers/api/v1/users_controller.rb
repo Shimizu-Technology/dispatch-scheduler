@@ -9,7 +9,12 @@ module Api
 
       def update
         user = User.find(params[:id])
-        user.role = params[:role]
+        role = params[:role].to_s
+        unless User::ROLES.include?(role)
+          return render json: { errors: [ "Role must be one of: #{User::ROLES.join(', ')}" ] }, status: :unprocessable_entity
+        end
+
+        user.role = role
 
         if removing_last_admin?(user)
           return render json: { errors: [ "At least one admin is required" ] }, status: :unprocessable_entity

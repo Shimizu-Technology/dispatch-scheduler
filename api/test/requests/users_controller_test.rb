@@ -62,6 +62,19 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "invalid roles are rejected before model persistence" do
+    with_auth_env do
+      admin = User.create!(clerk_id: "admin_123", email: "admin@example.com", role: "admin")
+      viewer = User.create!(clerk_id: "viewer_123", email: "viewer@example.com", role: "viewer")
+
+      patch "/api/v1/users/#{viewer.id}", params: { role: "superadmin" }, headers: auth_headers(admin)
+
+      assert_response :unprocessable_entity
+      assert_equal "viewer", viewer.reload.role
+      assert_equal [ "Role must be one of: admin, dispatcher, viewer" ], JSON.parse(response.body).fetch("errors")
+    end
+  end
+
   private
 
   def with_auth_env(values = {})

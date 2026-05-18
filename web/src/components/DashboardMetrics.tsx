@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { ArrowRight, CalendarDays, ClipboardList, Clock3, ListChecks, MessageSquareText, Radio, ShieldCheck, Users, Wrench } from 'lucide-react'
+import { ArrowRight, CalendarDays, ClipboardList, Clock3, ListChecks, Radio, ShieldCheck, Users, Wrench } from 'lucide-react'
 import { Card, PanelHeader } from './ui'
 import type { AuditEvent, Dashboard, DispatchSchedule, PmTask, Team, Technician, WorkOrder } from '../types'
 
@@ -92,21 +92,20 @@ export function DashboardMetrics({ dashboard, workOrders, teams, technicians, pm
 
   return <section className="soft-reveal-delay space-y-4">
     <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-      <Card className="overflow-hidden border-[#244393]/16 bg-[#172b63] text-white shadow-[0_24px_70px_rgba(23,43,99,0.18)]">
+      <Card className="overflow-hidden border-[#244393]/14 bg-white text-[#172033] shadow-[0_18px_46px_rgba(23,32,51,0.08)]">
         <div className="relative p-5 sm:p-6">
           <div className="absolute inset-y-0 left-0 w-1.5 bg-[#d84332]" />
-          <div className="absolute right-0 top-0 h-full w-2/3 bg-[linear-gradient(135deg,rgba(255,255,255,0.12),transparent_52%)]" />
           <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="font-display text-xs font-extrabold uppercase tracking-[0.24em] text-blue-100/80">Today&apos;s command decision</p>
-              <h2 className="font-display mt-2 text-3xl font-black tracking-[-0.03em] sm:text-4xl">{next.label}</h2>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-blue-50/82">{next.detail}</p>
+              <p className="font-display text-xs font-extrabold uppercase tracking-[0.24em] text-[#244393]">Today&apos;s command decision</p>
+              <h2 className="font-display mt-2 text-3xl font-black tracking-[-0.03em] text-[#172033] sm:text-4xl">{next.label}</h2>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-[#526071]">{next.detail}</p>
             </div>
             <div className="flex flex-wrap gap-2">
               {!schedule && canEdit && driverIssues === 0 && <button type="button" disabled={working} onClick={onSuggest} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#d84332] px-4 py-3 font-display text-sm font-extrabold text-white shadow-[0_16px_38px_rgba(216,67,50,0.28)] transition hover:-translate-y-0.5 hover:bg-[#bf3228] disabled:cursor-not-allowed disabled:opacity-60">
                 <ClipboardList size={17} /> {working ? 'Working...' : 'Suggest schedule'}
               </button>}
-              <button type="button" onClick={() => onGoToSection(next.target)} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-4 py-3 font-display text-sm font-extrabold text-[#172033] shadow-[0_16px_38px_rgba(255,255,255,0.16)] transition hover:-translate-y-0.5 hover:bg-blue-50">
+              <button type="button" onClick={() => onGoToSection(next.target)} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[#244393]/15 bg-[#e8eefc] px-4 py-3 font-display text-sm font-extrabold text-[#244393] transition hover:-translate-y-0.5 hover:bg-[#dfe8ff]">
                 {next.cta} <ArrowRight size={17} />
               </button>
             </div>
@@ -131,26 +130,7 @@ export function DashboardMetrics({ dashboard, workOrders, teams, technicians, pm
       <Metric icon={<Radio size={20} />} label="Call-outs" value={callOuts.length} detail={callOuts.slice(0, 2).map((tech) => tech.name).join(', ') || 'No call-outs marked'} tone={callOuts.length > 0 ? 'red' : 'green'} />
     </div>
 
-    <div className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
-      <Card className="overflow-hidden">
-        <PanelHeader eyebrow="Workflow" title="Work the day in order" description="A practical path for the dispatch team: intake, crew check, schedule, send." />
-        <div className="grid gap-3 p-4 sm:grid-cols-2">
-          {[
-            { step: '01', title: 'Add incoming work', detail: 'Capture WhatsApp, phone, email, or work-order requests.', target: 'work-orders' as const, icon: <Wrench size={17} /> },
-            { step: '02', title: 'Confirm crews', detail: 'Mark call-outs and adjust daily crew composition.', target: 'teams' as const, icon: <Users size={17} /> },
-            { step: '03', title: 'Build dispatch', detail: 'Generate, reorder, assign crews, and finalize.', target: 'dispatch' as const, icon: <ClipboardList size={17} /> },
-            { step: '04', title: 'Copy WhatsApp', detail: 'Send the polished crew assignment output.', target: 'whatsapp' as const, icon: <MessageSquareText size={17} /> },
-          ].map((item) => <button key={item.step} type="button" onClick={() => onGoToSection(item.target)} className="group rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white/88 p-4 text-left shadow-[0_10px_26px_rgba(23,32,51,0.05)] transition hover:-translate-y-0.5 hover:border-[#244393]/25 hover:bg-[#f8faff]">
-            <div className="flex items-center justify-between gap-3">
-              <span className="font-display text-xs font-extrabold uppercase tracking-[0.2em] text-[#d84332]">Step {item.step}</span>
-              <span className="rounded-xl bg-[#e8eefc] p-2 text-[#244393] transition group-hover:bg-[#244393] group-hover:text-white">{item.icon}</span>
-            </div>
-            <span className="font-display mt-2 block text-lg font-extrabold text-[#172033]">{item.title}</span>
-            <span className="mt-1 block text-sm leading-6 text-[#526071]">{item.detail}</span>
-          </button>)}
-        </div>
-      </Card>
-
+    <div>
       <Card className="overflow-hidden">
         <PanelHeader eyebrow="Recent changes" title="Activity snapshot" description="Latest audit entries so dispatchers can spot fresh edits before sending." action={<button type="button" onClick={() => onGoToSection('activity')} className="rounded-2xl border border-[#244393]/15 bg-[#e8eefc] px-4 py-2 font-display text-xs font-extrabold uppercase tracking-[0.14em] text-[#244393] transition hover:bg-[#dfe8ff]">View all</button>} />
         <div className="space-y-3 p-4">

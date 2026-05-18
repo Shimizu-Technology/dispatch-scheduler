@@ -400,8 +400,6 @@ function DispatchApp() {
       <div className="mx-auto flex max-w-[92rem] flex-col gap-6 px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
         <header className="soft-reveal relative overflow-hidden rounded-3xl border border-[#223f86]/20 bg-[#172b63] p-5 text-white shadow-[0_24px_70px_rgba(23,43,99,0.24)] sm:p-7 lg:p-8">
           <div className="absolute inset-y-0 left-0 w-1.5 bg-[#d84332]" />
-          <div className="absolute right-0 top-0 h-full w-1/2 bg-[linear-gradient(135deg,rgba(255,255,255,0.1),transparent_48%)]" />
-          <div className="absolute bottom-0 right-8 h-px w-2/3 bg-gradient-to-r from-transparent via-white/30 to-transparent" />
           <div className="relative grid gap-7 lg:grid-cols-[1.05fr_0.95fr] lg:items-end">
             <div>
               <div className="inline-flex items-center gap-3 rounded-2xl border border-white/15 bg-white/10 px-3 py-2 shadow-[0_12px_30px_rgba(0,0,0,0.12)] backdrop-blur">
@@ -468,23 +466,19 @@ function DispatchApp() {
           </div>
         </header>
 
-        <nav aria-label="JMI dispatch sections" className="soft-reveal-delay sticky top-3 z-10 grid gap-1.5 rounded-2xl border border-[rgba(23,32,51,0.12)] bg-white/94 p-1.5 shadow-[0_14px_36px_rgba(23,32,51,0.09)] backdrop-blur md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
+        <nav aria-label="JMI dispatch sections" className="soft-reveal-delay sticky top-3 z-10 flex gap-1 overflow-x-auto rounded-2xl border border-[rgba(23,32,51,0.12)] bg-white/94 p-1.5 shadow-[0_14px_36px_rgba(23,32,51,0.09)] backdrop-blur">
           {sections.map((section) => {
             const isActive = currentSection === section.id
             return <button
               key={section.id}
               type="button"
               onClick={() => goToSection(section.id)}
-              className={`group grid min-h-[4.5rem] grid-cols-[auto_1fr_auto] items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition ${isActive ? 'border-[#244393] bg-[#172b63] text-white shadow-[0_10px_24px_rgba(36,67,147,0.2)]' : 'border-transparent text-[#172033] hover:border-[rgba(36,67,147,0.18)] hover:bg-[#f4f7fb]'}`}
+              title={section.description}
+              className={`group flex h-14 min-w-[8.4rem] flex-1 items-center justify-center gap-2 rounded-xl border px-3 text-center transition ${isActive ? 'border-[#244393] bg-[#172b63] text-white shadow-[0_10px_24px_rgba(36,67,147,0.2)]' : 'border-transparent text-[#172033] hover:border-[rgba(36,67,147,0.18)] hover:bg-[#f4f7fb]'}`}
             >
-              <span className={`inline-flex rounded-lg p-1.5 ${isActive ? 'bg-white/12 text-blue-100' : 'bg-[#e8eefc] text-[#244393]'}`}>{section.icon}</span>
-              <span className="min-w-0">
-                <span className="font-display block text-sm font-extrabold">{section.label}</span>
-                <span className={`block text-xs ${isActive ? 'text-blue-50/75' : 'text-[#64748b]'}`}>{section.description}</span>
-              </span>
-              {typeof section.count === 'number'
-                ? <span className={`tabular inline-flex min-w-8 justify-center rounded-full px-2.5 py-1 text-xs font-extrabold ${isActive ? 'bg-white/12 text-white' : 'bg-[#eef2ff] text-[#244393]'}`}>{section.count}</span>
-                : <span aria-hidden="true" className="hidden min-w-8 xl:block" />}
+              <span className={`inline-flex shrink-0 rounded-lg p-1.5 ${isActive ? 'bg-white/12 text-blue-100' : 'bg-[#e8eefc] text-[#244393]'}`}>{section.icon}</span>
+              <span className="font-display truncate text-sm font-extrabold">{section.label}</span>
+              {typeof section.count === 'number' && <span className={`tabular inline-flex min-w-7 shrink-0 justify-center rounded-full px-2 py-0.5 text-xs font-extrabold ${isActive ? 'bg-white/12 text-white' : 'bg-[#eef2ff] text-[#244393]'}`}>{section.count}</span>}
             </button>
           })}
         </nav>

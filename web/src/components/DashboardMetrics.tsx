@@ -50,7 +50,7 @@ function statusLabel(schedule: DispatchSchedule | null) {
 function nextAction(schedule: DispatchSchedule | null, driverIssues: number, canEdit: boolean) {
   if (!canEdit) return { label: 'Review today', detail: 'Viewer mode is read-only. Inspect schedule status, crews, and activity.', target: 'dispatch' as const, cta: 'Open dispatch' }
   if (driverIssues > 0) return { label: 'Resolve crew coverage', detail: 'At least one crew is missing an available driver. Confirm call-outs or adjust daily crew composition first.', target: 'teams' as const, cta: 'Check crews' }
-  if (!schedule) return { label: 'Generate a draft', detail: 'Crews look ready enough to start a first-pass schedule suggestion for John to review.', target: 'dispatch' as const, cta: 'Build schedule' }
+  if (!schedule) return { label: 'Generate a draft', detail: 'Crews look ready enough to start a first-pass schedule suggestion for dispatch review.', target: 'dispatch' as const, cta: 'Build schedule' }
   if (schedule.status === 'draft') return { label: 'Review and finalize', detail: 'A draft exists. Check times, crew assignments, notes, then finalize when it is ready to send.', target: 'dispatch' as const, cta: 'Review draft' }
   if (schedule.status === 'finalized') return { label: 'Copy WhatsApp dispatch', detail: 'The schedule is locked and ready. Copy the crew message and mark it sent after delivery.', target: 'whatsapp' as const, cta: 'Open WhatsApp' }
   return { label: 'Monitor changes', detail: 'Dispatch has been sent. Watch activity for edits or reopen only if the day changes.', target: 'activity' as const, cta: 'View activity' }
@@ -60,11 +60,22 @@ function priorityCount(workOrders: WorkOrder[]) {
   return workOrders.filter((workOrder) => ['P1', 'P2'].includes(workOrder.normalized_priority || workOrder.priority)).length
 }
 
+function formatMetadataValue(value: AuditEvent['metadata'][string] | undefined) {
+  if (value === undefined || value === null || value === '') return null
+  if (Array.isArray(value)) return value.join(', ')
+  return String(value)
+}
+
 function eventSummary(event: AuditEvent) {
   const metadata = event.metadata || {}
   const action = event.action.replaceAll('_', ' ').replaceAll('.', ' ')
-  const target = metadata.title || metadata.item || metadata.team || metadata.technician || metadata.date
+  const target = formatMetadataValue(metadata.title) || formatMetadataValue(metadata.item) || formatMetadataValue(metadata.team) || formatMetadataValue(metadata.technician) || formatMetadataValue(metadata.date)
   return target ? `${action}: ${target}` : action
+}
+
+function eventTime(value: string | null) {
+  if (!value) return 'Unknown time'
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value))
 }
 
 export function DashboardMetrics({ dashboard, workOrders, teams, technicians, pmTasks, schedule, auditEvents, canEdit, working, onGoToSection, onSuggest }: DashboardMetricsProps) {
@@ -90,7 +101,7 @@ export function DashboardMetrics({ dashboard, workOrders, teams, technicians, pm
               <p className="mt-3 max-w-2xl text-sm leading-6 text-blue-50/82">{next.detail}</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              {!schedule && canEdit && <button disabled={working} onClick={onSuggest} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#d84332] px-4 py-3 font-display text-sm font-extrabold text-white shadow-[0_16px_38px_rgba(216,67,50,0.28)] transition hover:-translate-y-0.5 hover:bg-[#bf3228] disabled:cursor-not-allowed disabled:opacity-60">
+              {!schedule && canEdit && <button type="button" disabled={working} onClick={onSuggest} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#d84332] px-4 py-3 font-display text-sm font-extrabold text-white shadow-[0_16px_38px_rgba(216,67,50,0.28)] transition hover:-translate-y-0.5 hover:bg-[#bf3228] disabled:cursor-not-allowed disabled:opacity-60">
                 <ClipboardList size={17} /> {working ? 'Working...' : 'Suggest schedule'}
               </button>}
               <button type="button" onClick={() => onGoToSection(next.target)} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-4 py-3 font-display text-sm font-extrabold text-[#172033] shadow-[0_16px_38px_rgba(255,255,255,0.16)] transition hover:-translate-y-0.5 hover:bg-blue-50">
@@ -120,7 +131,7 @@ export function DashboardMetrics({ dashboard, workOrders, teams, technicians, pm
 
     <div className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
       <Card className="overflow-hidden">
-        <PanelHeader eyebrow="Workflow" title="Work the day in order" description="A practical path for John: intake, crew check, schedule, send." />
+        <PanelHeader eyebrow="Workflow" title="Work the day in order" description="A practical path for the dispatch team: intake, crew check, schedule, send." />
         <div className="grid gap-3 p-4 sm:grid-cols-2">
           {[
             { step: '01', title: 'Add incoming work', detail: 'Capture WhatsApp, phone, email, or work-order requests.', target: 'work-orders' as const, icon: <Wrench size={17} /> },
@@ -146,7 +157,7 @@ export function DashboardMetrics({ dashboard, workOrders, teams, technicians, pm
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="font-display text-sm font-extrabold capitalize text-[#172033]">{eventSummary(event)}</p>
-                <p className="mt-1 text-xs font-semibold text-[#64748b]">{event.user_name || 'System'}</p>
+                <p className="mt-1 text-xs font-semibold text-[#64748b]">{event.user_name || 'System'} • {eventTime(event.occurred_at)}</p>
               </div>
               <Clock3 className="shrink-0 text-[#244393]" size={16} />
             </div>

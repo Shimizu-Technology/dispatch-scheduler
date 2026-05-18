@@ -40,6 +40,15 @@ class DispatchSchedulesControllerTest < ActionDispatch::IntegrationTest
     assert payload.fetch("finalized_at")
     assert_equal "Test User", payload.fetch("finalized_by")
 
+    first_finalized_at = payload.fetch("finalized_at")
+
+    with_auth_env do
+      post "/api/v1/dispatch_schedules/#{schedule.id}/finalize", headers: auth_headers
+    end
+
+    assert_response :success
+    assert_equal first_finalized_at, JSON.parse(response.body).fetch("finalized_at")
+
     with_auth_env do
       post "/api/v1/dispatch_schedules/#{schedule.id}/mark_sent", headers: auth_headers
     end
@@ -49,6 +58,14 @@ class DispatchSchedulesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "sent", payload.fetch("status")
     assert payload.fetch("sent_at")
     assert_equal "Test User", payload.fetch("sent_by")
+    first_sent_at = payload.fetch("sent_at")
+
+    with_auth_env do
+      post "/api/v1/dispatch_schedules/#{schedule.id}/mark_sent", headers: auth_headers
+    end
+
+    assert_response :success
+    assert_equal first_sent_at, JSON.parse(response.body).fetch("sent_at")
 
     with_auth_env do
       post "/api/v1/dispatch_schedules/#{schedule.id}/reopen", headers: auth_headers

@@ -31,6 +31,7 @@ module Api
       def finalize
         schedule = DispatchSchedule.find(params[:id])
         return render json: { errors: [ "Sent schedules cannot be finalized again. Reopen first." ] }, status: :conflict if schedule.sent?
+        return render json: Serializers.schedule(schedule) if schedule.finalized?
 
         schedule.finalize!(current_user)
         render json: Serializers.schedule(schedule)
@@ -42,6 +43,8 @@ module Api
 
       def mark_sent
         schedule = DispatchSchedule.find(params[:id])
+        return render json: Serializers.schedule(schedule) if schedule.sent?
+
         schedule.mark_sent!(current_user)
         render json: Serializers.schedule(schedule)
       rescue ActiveRecord::RecordNotFound => e

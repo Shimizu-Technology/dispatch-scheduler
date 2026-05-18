@@ -19,7 +19,7 @@ function StatusNotice({ schedule }: { schedule: DispatchSchedule }) {
   }
 
   if (schedule.status === 'finalized') {
-    return <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm font-semibold text-blue-900">Finalized schedule: editing and regeneration are locked. Reopen if John needs to make changes before sending.</div>
+    return <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm font-semibold text-blue-900">Finalized schedule: editing and regeneration are locked. Reopen to make changes before sending.</div>
   }
 
   return <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-900">Sent schedule: this dispatch has been marked as sent to the crews.</div>

@@ -12,7 +12,7 @@ import { WorkOrdersPanel } from './components/WorkOrdersPanel'
 import { DEMO_DATE } from './constants'
 import { useAuthContext } from './contexts/useAuthContext'
 import { getJson, patchJson, postJson } from './lib/api'
-import type { Dashboard, DispatchSchedule, ManagedUser, PmTask, Team, Technician, WorkOrder } from './types'
+import type { Dashboard, DispatchSchedule, ManagedUser, PmTask, Team, Technician, WorkOrder, WorkOrderInput } from './types'
 import './index.css'
 
 type ActiveSection = 'overview' | 'dispatch' | 'work-orders' | 'teams' | 'pm-tasks' | 'whatsapp' | 'users'
@@ -38,6 +38,7 @@ function DispatchApp() {
   const [loading, setLoading] = useState(false)
   const [working, setWorking] = useState(false)
   const [availabilitySavingId, setAvailabilitySavingId] = useState<number | null>(null)
+  const [workOrderSaving, setWorkOrderSaving] = useState(false)
   const [savingUserId, setSavingUserId] = useState<number | null>(null)
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState('')
@@ -117,6 +118,66 @@ function DispatchApp() {
       setError(err instanceof Error ? err.message : 'Unable to update user role')
     } finally {
       setSavingUserId(null)
+    }
+  }
+
+  async function refreshWorkOrderContext() {
+    const [dash, orders] = await Promise.all([
+      getJson<Dashboard>(`/dashboard?date=${selectedDate}`),
+      getJson<WorkOrder[]>('/work_orders'),
+    ])
+    setDashboard(dash)
+    setWorkOrders(orders)
+  }
+
+  async function createWorkOrder(values: WorkOrderInput) {
+    if (!canEditDispatch) {
+      setError('Viewer access cannot add work orders.')
+      return
+    }
+
+    setWorkOrderSaving(true)
+    setError('')
+    try {
+      const created = await postJson<WorkOrder>('/work_orders', values)
+      setWorkOrders((current) => [created, ...current.filter((workOrder) => workOrder.id !== created.id)])
+      goToSection('work-orders')
+
+      try {
+        await refreshWorkOrderContext()
+      } catch (refreshError) {
+        setError(refreshError instanceof Error ? `Work order saved, but the dashboard did not refresh: ${refreshError.message}` : 'Work order saved, but the dashboard did not refresh.')
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to create work order')
+      throw err
+    } finally {
+      setWorkOrderSaving(false)
+    }
+  }
+
+  async function updateWorkOrder(workOrderId: number, values: WorkOrderInput) {
+    if (!canEditDispatch) {
+      setError('Viewer access cannot update work orders.')
+      return
+    }
+
+    setWorkOrderSaving(true)
+    setError('')
+    try {
+      const updated = await patchJson<WorkOrder>(`/work_orders/${workOrderId}`, values)
+      setWorkOrders((current) => current.map((workOrder) => workOrder.id === updated.id ? updated : workOrder))
+
+      try {
+        await refreshWorkOrderContext()
+      } catch (refreshError) {
+        setError(refreshError instanceof Error ? `Work order updated, but the dashboard did not refresh: ${refreshError.message}` : 'Work order updated, but the dashboard did not refresh.')
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to update work order')
+      throw err
+    } finally {
+      setWorkOrderSaving(false)
     }
   }
 
@@ -352,13 +413,13 @@ function DispatchApp() {
           <div className="grid gap-4 lg:grid-cols-4">
             <button type="button" onClick={() => goToSection('work-orders')} className="rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white/88 p-5 text-left shadow-[0_10px_26px_rgba(23,32,51,0.05)] transition hover:-translate-y-0.5 hover:border-blue-200">
               <span className="font-display text-xs font-extrabold uppercase tracking-[0.2em] text-[#d84332]">Step 1</span>
-              <span className="font-display mt-2 block text-xl font-extrabold text-[#172033]">Review open work</span>
-              <span className="mt-2 block text-sm leading-6 text-[#526071]">Look for urgent, blocked, waiting, and assessment items.</span>
+              <span className="font-display mt-2 block text-xl font-extrabold text-[#172033]">Add incoming work</span>
+              <span className="mt-2 block text-sm leading-6 text-[#526071]">Enter requests from WhatsApp, email, phone, or the work-order system.</span>
             </button>
             <button type="button" onClick={() => goToSection('teams')} className="rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white/88 p-5 text-left shadow-[0_10px_26px_rgba(23,32,51,0.05)] transition hover:-translate-y-0.5 hover:border-blue-200">
               <span className="font-display text-xs font-extrabold uppercase tracking-[0.2em] text-[#d84332]">Step 2</span>
-              <span className="font-display mt-2 block text-xl font-extrabold text-[#172033]">Check crews</span>
-              <span className="mt-2 block text-sm leading-6 text-[#526071]">Mark call-outs and confirm each crew has driver coverage.</span>
+              <span className="font-display mt-2 block text-xl font-extrabold text-[#172033]">Triage and check crews</span>
+              <span className="mt-2 block text-sm leading-6 text-[#526071]">Confirm ready work, mark call-outs, and check driver coverage.</span>
             </button>
             <button type="button" onClick={() => goToSection('dispatch')} className="rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white/88 p-5 text-left shadow-[0_10px_26px_rgba(23,32,51,0.05)] transition hover:-translate-y-0.5 hover:border-blue-200">
               <span className="font-display text-xs font-extrabold uppercase tracking-[0.2em] text-[#d84332]">Step 3</span>
@@ -373,7 +434,7 @@ function DispatchApp() {
           </div>
         </>}
 
-        {currentSection === 'work-orders' && (user ? <WorkOrdersPanel workOrders={workOrders} /> : <SignInRequiredPanel title="Sign in to review work orders" />)}
+        {currentSection === 'work-orders' && (user ? <WorkOrdersPanel workOrders={workOrders} canEdit={canEditDispatch} selectedDate={selectedDate} saving={workOrderSaving} onCreate={createWorkOrder} onUpdate={updateWorkOrder} /> : <SignInRequiredPanel title="Sign in to review work orders" />)}
 
         {currentSection === 'teams' && (user ? <TeamsPanel teams={teams} canEdit={canEditDispatch} savingTechnicianId={availabilitySavingId} onToggleAvailability={toggleAvailability} /> : <SignInRequiredPanel title="Sign in to check crews" />)}
 

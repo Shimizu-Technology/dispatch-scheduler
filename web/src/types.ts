@@ -24,6 +24,24 @@ export type WorkOrder = {
   notes: string | null
 }
 
+export type WorkOrderInput = {
+  client: string
+  location: string
+  region: string
+  external_id?: string
+  source: string
+  source_reference?: string
+  title?: string
+  description: string
+  priority: string
+  normalized_priority?: string
+  status: string
+  original_status_text?: string
+  trade_category: string
+  scheduled_date?: string
+  notes?: string
+}
+
 export type Technician = {
   id: number
   name: string

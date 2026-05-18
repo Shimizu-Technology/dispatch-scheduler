@@ -1,11 +1,56 @@
+import { useMemo, useState } from 'react'
+import type { FormEvent } from 'react'
+import { Edit3, Plus, Search, X } from 'lucide-react'
 import { Badge, Card, PanelHeader } from './ui'
-import type { WorkOrder } from '../types'
+import type { WorkOrder, WorkOrderInput } from '../types'
+
+const priorities = ['P1', 'P2', 'P3', 'P4']
+const statuses = ['new', 'needs_assessment', 'approved', 'scheduled', 'waiting_for_parts', 'waiting_for_approval']
+const trades = ['General', 'Plumbing', 'HVAC', 'Electrical', 'Carpentry', 'Painting', 'Landscaping', 'Masonry']
+const regions = ['North', 'Central', 'South', 'Islandwide', 'Unknown']
+const sources = ['whatsapp', 'phone', 'email', 'mywork', 'sodexo', 'manual']
 
 function statusLabel(status: string) {
   return status.replaceAll('_', ' ')
 }
 
-function WorkOrderRow({ workOrder }: { workOrder: WorkOrder }) {
+function emptyForm(scheduledDate?: string): WorkOrderInput {
+  return {
+    client: 'Mobil',
+    location: '',
+    region: 'Unknown',
+    external_id: '',
+    source: 'whatsapp',
+    title: '',
+    description: '',
+    priority: 'P3',
+    status: 'approved',
+    trade_category: 'General',
+    scheduled_date: scheduledDate || '',
+    notes: '',
+  }
+}
+
+function formFromWorkOrder(workOrder: WorkOrder): WorkOrderInput {
+  return {
+    client: workOrder.client,
+    location: workOrder.location,
+    region: workOrder.region,
+    external_id: workOrder.external_id || '',
+    source: workOrder.source || 'manual',
+    title: workOrder.title || '',
+    description: workOrder.description || '',
+    priority: workOrder.normalized_priority || workOrder.priority || 'P4',
+    normalized_priority: workOrder.normalized_priority || workOrder.priority || 'P4',
+    status: workOrder.status || 'new',
+    original_status_text: workOrder.original_status_text || workOrder.status || 'Manual entry',
+    trade_category: workOrder.trade_category || 'General',
+    scheduled_date: workOrder.scheduled_date || '',
+    notes: workOrder.notes || '',
+  }
+}
+
+function WorkOrderRow({ workOrder, canEdit, onEdit }: { workOrder: WorkOrder; canEdit: boolean; onEdit: (workOrder: WorkOrder) => void }) {
   return <article className="grid gap-3 rounded-xl border border-transparent p-4 transition hover:border-[rgba(36,67,147,0.16)] hover:bg-[#f8faff] sm:grid-cols-[1fr_auto]">
     <div>
       <div className="flex flex-wrap items-center gap-2">
@@ -20,23 +65,186 @@ function WorkOrderRow({ workOrder }: { workOrder: WorkOrder }) {
     <div className="flex flex-row gap-2 text-sm sm:flex-col sm:items-end">
       <span className="font-display rounded-full bg-[#e8eefc] px-3 py-1 text-xs font-extrabold uppercase tracking-[0.1em] text-[#244393]">{workOrder.trade_category}</span>
       <span className="font-semibold text-[#526071]">{workOrder.region}</span>
-      {workOrder.team_name && <span className="text-xs font-semibold text-[#7b8798]">{workOrder.team_name}</span>}
+      {canEdit && <button type="button" onClick={() => onEdit(workOrder)} className="inline-flex items-center gap-1 rounded-full border border-[rgba(36,67,147,0.18)] bg-white px-3 py-1 text-xs font-extrabold text-[#244393] transition hover:-translate-y-0.5 hover:bg-[#e8eefc]"><Edit3 size={13} /> Edit</button>}
     </div>
   </article>
 }
 
-export function WorkOrdersPanel({ workOrders }: { workOrders: WorkOrder[] }) {
+function WorkOrderForm({ initialValues, saving, onCancel, onSubmit }: { initialValues: WorkOrderInput; saving: boolean; onCancel: () => void; onSubmit: (values: WorkOrderInput) => Promise<void> }) {
+  const [values, setValues] = useState<WorkOrderInput>(initialValues)
+
+  function updateField<K extends keyof WorkOrderInput>(field: K, value: WorkOrderInput[K]) {
+    setValues((current) => ({ ...current, [field]: value }))
+  }
+
+  async function handleSubmit(event: FormEvent) {
+    event.preventDefault()
+    await onSubmit({
+      ...values,
+      normalized_priority: values.priority,
+      original_status_text: values.original_status_text || values.status,
+    })
+  }
+
+  return <form onSubmit={(event) => void handleSubmit(event)} className="border-b border-[rgba(23,32,51,0.1)] bg-[#f8faff] p-4">
+    <div className="grid gap-3 lg:grid-cols-4">
+      <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
+        Client
+        <input required value={values.client} onChange={(event) => updateField('client', event.target.value)} className="field-control mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]" />
+      </label>
+      <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
+        Location
+        <input required value={values.location} onChange={(event) => updateField('location', event.target.value)} placeholder="Station, site, or building" className="field-control mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]" />
+      </label>
+      <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
+        Region
+        <select value={values.region} onChange={(event) => updateField('region', event.target.value)} className="field-control mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]">
+          {regions.map((region) => <option key={region} value={region}>{region}</option>)}
+        </select>
+      </label>
+      <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
+        WO #
+        <input value={values.external_id || ''} onChange={(event) => updateField('external_id', event.target.value)} placeholder="Optional" className="field-control tabular mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]" />
+      </label>
+    </div>
+
+    <label className="mt-3 block text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
+      Description
+      <textarea required value={values.description} onChange={(event) => updateField('description', event.target.value)} placeholder="Paste or summarize the incoming request" className="field-control mt-1 min-h-24 w-full rounded-xl px-3 py-2 text-sm text-[#334155]" />
+    </label>
+
+    <div className="mt-3 grid gap-3 lg:grid-cols-5">
+      <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
+        Priority
+        <select value={values.priority} onChange={(event) => updateField('priority', event.target.value)} className="field-control mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]">
+          {priorities.map((priority) => <option key={priority} value={priority}>{priority}</option>)}
+        </select>
+      </label>
+      <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
+        Status
+        <select value={values.status} onChange={(event) => updateField('status', event.target.value)} className="field-control mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]">
+          {statuses.map((status) => <option key={status} value={status}>{statusLabel(status)}</option>)}
+        </select>
+      </label>
+      <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
+        Trade
+        <select value={values.trade_category} onChange={(event) => updateField('trade_category', event.target.value)} className="field-control mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]">
+          {trades.map((trade) => <option key={trade} value={trade}>{trade}</option>)}
+        </select>
+      </label>
+      <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
+        Source
+        <select value={values.source} onChange={(event) => updateField('source', event.target.value)} className="field-control mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]">
+          {sources.map((source) => <option key={source} value={source}>{source}</option>)}
+        </select>
+      </label>
+      <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
+        Schedule date
+        <input type="date" value={values.scheduled_date || ''} onChange={(event) => updateField('scheduled_date', event.target.value)} className="field-control tabular mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]" />
+      </label>
+    </div>
+
+    <label className="mt-3 block text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
+      Notes
+      <textarea value={values.notes || ''} onChange={(event) => updateField('notes', event.target.value)} placeholder="Gate code, requester, parts note, manager instructions, etc." className="field-control mt-1 min-h-16 w-full rounded-xl px-3 py-2 text-sm text-[#334155]" />
+    </label>
+
+    <div className="mt-4 flex flex-wrap gap-2">
+      <button disabled={saving} type="submit" className="inline-flex items-center gap-2 rounded-2xl bg-[#244393] px-4 py-2.5 font-display text-sm font-extrabold text-white shadow-[0_12px_26px_rgba(36,67,147,0.18)] transition hover:-translate-y-0.5 hover:bg-[#172b63] disabled:cursor-wait disabled:opacity-60">
+        {saving ? 'Saving...' : 'Save Work Order'}
+      </button>
+      <button disabled={saving} type="button" onClick={onCancel} className="rounded-2xl border border-[rgba(23,32,51,0.12)] bg-white px-4 py-2.5 font-display text-sm font-extrabold text-[#334155] transition hover:-translate-y-0.5 hover:bg-slate-50">
+        Cancel
+      </button>
+    </div>
+  </form>
+}
+
+export function WorkOrdersPanel({ workOrders, canEdit, selectedDate, saving, onCreate, onUpdate }: { workOrders: WorkOrder[]; canEdit: boolean; selectedDate: string; saving: boolean; onCreate: (values: WorkOrderInput) => Promise<void>; onUpdate: (id: number, values: WorkOrderInput) => Promise<void> }) {
+  const [showForm, setShowForm] = useState(false)
+  const [editing, setEditing] = useState<WorkOrder | null>(null)
+  const [query, setQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
+  const [priorityFilter, setPriorityFilter] = useState('')
+  const [regionFilter, setRegionFilter] = useState('')
+
+  const filteredWorkOrders = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase()
+    return workOrders.filter((workOrder) => {
+      const matchesQuery = !normalizedQuery || [workOrder.external_id, workOrder.client, workOrder.location, workOrder.title, workOrder.description, workOrder.notes].some((value) => value?.toLowerCase().includes(normalizedQuery))
+      return matchesQuery
+        && (!statusFilter || workOrder.status === statusFilter)
+        && (!priorityFilter || workOrder.normalized_priority === priorityFilter)
+        && (!regionFilter || workOrder.region === regionFilter)
+    })
+  }, [priorityFilter, query, regionFilter, statusFilter, workOrders])
+
+  const formInitialValues = editing ? formFromWorkOrder(editing) : emptyForm(selectedDate)
+
+  async function submitForm(values: WorkOrderInput) {
+    if (editing) {
+      await onUpdate(editing.id, values)
+    } else {
+      await onCreate(values)
+    }
+    setEditing(null)
+    setShowForm(false)
+  }
+
+  function startCreate() {
+    setEditing(null)
+    setShowForm(true)
+  }
+
+  function startEdit(workOrder: WorkOrder) {
+    setEditing(workOrder)
+    setShowForm(true)
+  }
+
   return <Card className="overflow-hidden">
     <PanelHeader
       eyebrow="Incoming work"
       title="Work Orders"
-      description="Mobil workbook, approved/material-prep examples, CBRE PDF sample, and Sodexo WhatsApp sample."
-      action={<span className="tabular rounded-full bg-[#172b63] px-3 py-1.5 font-display text-xs font-extrabold uppercase tracking-[0.14em] text-white">{workOrders.length} records</span>}
+      description="Add requests from WhatsApp, email, phone, or work-order systems. Approved and assessment work can be pulled into the dispatch draft."
+      action={canEdit ? <button onClick={startCreate} className="inline-flex items-center gap-2 rounded-2xl bg-[#d84332] px-4 py-2.5 font-display text-sm font-extrabold text-white shadow-[0_12px_26px_rgba(216,67,50,0.2)] transition hover:-translate-y-0.5 hover:bg-[#bf3228]"><Plus size={16} /> New Work Order</button> : <span className="tabular rounded-full bg-[#172b63] px-3 py-1.5 font-display text-xs font-extrabold uppercase tracking-[0.14em] text-white">{workOrders.length} records</span>}
     />
+
+    {showForm && <WorkOrderForm key={editing?.id || 'new'} initialValues={formInitialValues} saving={saving} onCancel={() => { setShowForm(false); setEditing(null) }} onSubmit={submitForm} />}
+
+    <div className="border-b border-[rgba(23,32,51,0.1)] bg-white p-4">
+      <div className="grid gap-3 lg:grid-cols-[1fr_160px_150px_160px]">
+        <label className="relative block">
+          <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#7b8798]" size={16} />
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search WO #, location, description, notes..." className="field-control w-full rounded-xl py-2 pl-9 pr-3 text-sm font-semibold text-[#172033]" />
+        </label>
+        <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="field-control rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]">
+          <option value="">All statuses</option>
+          {statuses.map((status) => <option key={status} value={status}>{statusLabel(status)}</option>)}
+        </select>
+        <select value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)} className="field-control rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]">
+          <option value="">All priority</option>
+          {priorities.map((priority) => <option key={priority} value={priority}>{priority}</option>)}
+        </select>
+        <select value={regionFilter} onChange={(event) => setRegionFilter(event.target.value)} className="field-control rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]">
+          <option value="">All regions</option>
+          {regions.map((region) => <option key={region} value={region}>{region}</option>)}
+        </select>
+      </div>
+    </div>
+
     <div className="space-y-2 p-3">
-      {workOrders.slice(0, 16).map((wo) => <WorkOrderRow key={wo.id} workOrder={wo} />)}
-      {workOrders.length === 0 && <p className="rounded-xl border border-dashed border-[rgba(23,32,51,0.18)] bg-[#f8faff] p-5 text-sm font-semibold text-[#526071]">No work orders loaded for this workspace yet.</p>}
-      {workOrders.length > 16 && <p className="px-3 pb-2 text-xs font-bold text-[#8a5b18]">Showing the first 16 records. Search and filtering are planned for the next intake phase.</p>}
+      {filteredWorkOrders.slice(0, 40).map((wo) => <WorkOrderRow key={wo.id} workOrder={wo} canEdit={canEdit} onEdit={startEdit} />)}
+      {workOrders.length === 0 && <div className="rounded-2xl border border-dashed border-[rgba(36,67,147,0.22)] bg-[#f8faff] p-6">
+        <p className="font-display text-lg font-extrabold text-[#172033]">No work orders yet.</p>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-[#526071]">Start by adding the first request John receives from WhatsApp, phone, email, or the work-order system. Once saved, it can be reviewed and scheduled.</p>
+        {canEdit && <button onClick={startCreate} className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-[#244393] px-4 py-2.5 font-display text-sm font-extrabold text-white transition hover:-translate-y-0.5 hover:bg-[#172b63]"><Plus size={16} /> Add First Work Order</button>}
+      </div>}
+      {workOrders.length > 0 && filteredWorkOrders.length === 0 && <p className="rounded-xl border border-dashed border-[rgba(23,32,51,0.18)] bg-[#f8faff] p-5 text-sm font-semibold text-[#526071]">No work orders match the current filters.</p>}
+      {filteredWorkOrders.length > 40 && <p className="px-3 pb-2 text-xs font-bold text-[#8a5b18]">Showing the first 40 matching records. Tighten search or filters to narrow the list.</p>}
+      {workOrders.length > 0 && <div className="flex items-center justify-between px-3 pb-2 text-xs font-bold uppercase tracking-[0.14em] text-[#7b8798]">
+        <span>{filteredWorkOrders.length} shown</span>
+        {(query || statusFilter || priorityFilter || regionFilter) && <button className="inline-flex items-center gap-1 text-[#244393]" onClick={() => { setQuery(''); setStatusFilter(''); setPriorityFilter(''); setRegionFilter('') }}><X size={13} /> Clear filters</button>}
+      </div>}
     </div>
   </Card>
 }

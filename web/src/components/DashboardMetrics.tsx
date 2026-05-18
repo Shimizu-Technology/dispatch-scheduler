@@ -103,7 +103,7 @@ export function DashboardMetrics({ dashboard, workOrders, teams, technicians, pm
               <p className="mt-3 max-w-2xl text-sm leading-6 text-blue-50/82">{next.detail}</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              {!schedule && canEdit && <button type="button" disabled={working} onClick={onSuggest} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#d84332] px-4 py-3 font-display text-sm font-extrabold text-white shadow-[0_16px_38px_rgba(216,67,50,0.28)] transition hover:-translate-y-0.5 hover:bg-[#bf3228] disabled:cursor-not-allowed disabled:opacity-60">
+              {!schedule && canEdit && driverIssues === 0 && <button type="button" disabled={working} onClick={onSuggest} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#d84332] px-4 py-3 font-display text-sm font-extrabold text-white shadow-[0_16px_38px_rgba(216,67,50,0.28)] transition hover:-translate-y-0.5 hover:bg-[#bf3228] disabled:cursor-not-allowed disabled:opacity-60">
                 <ClipboardList size={17} /> {working ? 'Working...' : 'Suggest schedule'}
               </button>}
               <button type="button" onClick={() => onGoToSection(next.target)} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-4 py-3 font-display text-sm font-extrabold text-[#172033] shadow-[0_16px_38px_rgba(255,255,255,0.16)] transition hover:-translate-y-0.5 hover:bg-blue-50">

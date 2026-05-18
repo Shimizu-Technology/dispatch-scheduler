@@ -29,6 +29,23 @@ class WorkOrdersControllerTest < ActionDispatch::IntegrationTest
     assert_equal DEFAULT_DATE.to_s, payload.fetch("scheduled_date")
   end
 
+  test "invalid scheduled date rolls back client and location writes" do
+    with_auth_env do
+      post "/api/v1/work_orders", params: {
+        client: "Rollback Client",
+        location: "Rollback Site",
+        region: "North",
+        description: "Bad date request",
+        scheduled_date: "not-a-date"
+      }, headers: auth_headers
+    end
+
+    assert_response :bad_request
+    assert_equal [ "Invalid scheduled date" ], JSON.parse(response.body).fetch("errors")
+    assert_nil Client.find_by(name: "Rollback Client")
+    assert_nil Location.find_by(name: "Rollback Site")
+  end
+
   test "dispatcher updates work order" do
     wo = work_order(title: "Old issue", status: "needs_assessment", trade: "General")
 

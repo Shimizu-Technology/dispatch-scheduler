@@ -24,7 +24,10 @@ module Api
           return render json: { errors: [ "A work order with this source and WO number already exists" ], duplicate: Serializers.work_order(duplicate) }, status: :conflict
         end
 
-        wo = WorkOrder.create!(work_order_record_attributes(attrs))
+        wo = nil
+        ApplicationRecord.transaction do
+          wo = WorkOrder.create!(work_order_record_attributes(attrs))
+        end
         render json: Serializers.work_order(wo), status: :created
       rescue ActiveRecord::RecordInvalid => e
         render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
@@ -38,7 +41,9 @@ module Api
           return render json: { errors: [ "A work order with this source and WO number already exists" ], duplicate: Serializers.work_order(duplicate) }, status: :conflict
         end
 
-        wo.update!(work_order_record_attributes(attrs, existing: wo))
+        ApplicationRecord.transaction do
+          wo.update!(work_order_record_attributes(attrs, existing: wo))
+        end
         render json: Serializers.work_order(wo)
       rescue ActiveRecord::RecordNotFound => e
         render json: { errors: [ e.message ] }, status: :not_found

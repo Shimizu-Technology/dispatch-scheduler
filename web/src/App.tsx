@@ -139,9 +139,15 @@ function DispatchApp() {
     setWorkOrderSaving(true)
     setError('')
     try {
-      await postJson<WorkOrder>('/work_orders', values)
-      await refreshWorkOrderContext()
+      const created = await postJson<WorkOrder>('/work_orders', values)
+      setWorkOrders((current) => [created, ...current.filter((workOrder) => workOrder.id !== created.id)])
       goToSection('work-orders')
+
+      try {
+        await refreshWorkOrderContext()
+      } catch (refreshError) {
+        setError(refreshError instanceof Error ? `Work order saved, but the dashboard did not refresh: ${refreshError.message}` : 'Work order saved, but the dashboard did not refresh.')
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to create work order')
       throw err
@@ -159,8 +165,14 @@ function DispatchApp() {
     setWorkOrderSaving(true)
     setError('')
     try {
-      await patchJson<WorkOrder>(`/work_orders/${workOrderId}`, values)
-      await refreshWorkOrderContext()
+      const updated = await patchJson<WorkOrder>(`/work_orders/${workOrderId}`, values)
+      setWorkOrders((current) => current.map((workOrder) => workOrder.id === updated.id ? updated : workOrder))
+
+      try {
+        await refreshWorkOrderContext()
+      } catch (refreshError) {
+        setError(refreshError instanceof Error ? `Work order updated, but the dashboard did not refresh: ${refreshError.message}` : 'Work order updated, but the dashboard did not refresh.')
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to update work order')
       throw err

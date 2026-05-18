@@ -301,6 +301,7 @@ function DispatchApp() {
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to update daily crew')
+      throw err
     } finally {
       setTeamSavingId(null)
     }

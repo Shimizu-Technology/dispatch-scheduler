@@ -5,7 +5,12 @@ module Api
 
       def index
         date = date_param
-        render json: Team.includes(technicians: [ :technician_skills, :technician_availabilities ]).order(:name).map { |team| Serializers.team(team, date: date) }
+        teams = Team.order(:name).to_a
+        team_ids = teams.map(&:id)
+        daily_memberships = memberships_for(team_ids, date)
+        default_memberships = memberships_for(team_ids, nil)
+
+        render json: teams.map { |team| Serializers.team(team, date: date, daily_memberships: daily_memberships[team.id] || [], default_memberships: default_memberships[team.id] || []) }
       end
 
       def daily_memberships
@@ -32,6 +37,15 @@ module Api
         render json: { errors: [ e.message ] }, status: :not_found
       rescue ActiveRecord::RecordInvalid => e
         render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
+      end
+
+      private
+
+      def memberships_for(team_ids, date)
+        TeamMembership
+          .where(team_id: team_ids, date: date)
+          .includes(technician: [ :technician_skills, :technician_availabilities ])
+          .group_by(&:team_id)
       end
     end
   end

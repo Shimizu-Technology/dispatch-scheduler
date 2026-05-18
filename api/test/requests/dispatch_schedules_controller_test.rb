@@ -78,6 +78,27 @@ class DispatchSchedulesControllerTest < ActionDispatch::IntegrationTest
     assert_nil payload.fetch("sent_at")
   end
 
+  test "schedule state rolls back when audit event cannot be recorded" do
+    crew = team(name: "Audit Failure Crew")
+    schedule = DispatchSchedule.create!(date: DEFAULT_DATE, status: "draft")
+    schedule.dispatch_items.create!(team: crew, work_order: work_order(title: "Audit failure work"), order_index: 0)
+
+    invalid_event = AuditEvent.new
+    original_record = AuditEvent.method(:record!)
+    begin
+      AuditEvent.define_singleton_method(:record!) { |**| raise ActiveRecord::RecordInvalid.new(invalid_event) }
+      with_auth_env do
+        post "/api/v1/dispatch_schedules/#{schedule.id}/finalize", headers: auth_headers
+      end
+    ensure
+      AuditEvent.define_singleton_method(:record!, original_record)
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal "draft", schedule.reload.status
+    assert_nil schedule.finalized_at
+  end
+
   test "suggestion is blocked for finalized schedule until reopened" do
     team(name: "Blocked Suggest Crew")
     work_order(title: "Blocked suggest work")

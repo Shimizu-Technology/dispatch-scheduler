@@ -15,14 +15,19 @@ module Api
         end
 
         service = DispatchSuggestionService.new(date: schedule_date)
-        schedule = service.call
-        AuditEvent.record!(action: "dispatch_schedule.generated", record: schedule, user: current_user, metadata: {
-          date: schedule.date,
-          scheduled_items: service.summary[:scheduled_items],
-          deferred_items: service.summary[:deferred_items],
-          blocked_work_orders: service.summary[:blocked_work_orders]
-        })
+        schedule = nil
+        ApplicationRecord.transaction do
+          schedule = service.call
+          AuditEvent.record!(action: "dispatch_schedule.generated", record: schedule, user: current_user, metadata: {
+            date: schedule.date,
+            scheduled_items: service.summary[:scheduled_items],
+            deferred_items: service.summary[:deferred_items],
+            blocked_work_orders: service.summary[:blocked_work_orders]
+          })
+        end
         render json: Serializers.schedule(schedule, summary: service.summary), status: :created
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
       end
 
       def show
@@ -39,8 +44,10 @@ module Api
         return render json: { errors: [ "Sent schedules cannot be finalized again. Reopen first." ] }, status: :conflict if schedule.sent?
         return render json: Serializers.schedule(schedule) if schedule.finalized?
 
-        schedule.finalize!(current_user)
-        AuditEvent.record!(action: "dispatch_schedule.finalized", record: schedule, user: current_user, metadata: { date: schedule.date, status: schedule.status })
+        ApplicationRecord.transaction do
+          schedule.finalize!(current_user)
+          AuditEvent.record!(action: "dispatch_schedule.finalized", record: schedule, user: current_user, metadata: { date: schedule.date, status: schedule.status })
+        end
         render json: Serializers.schedule(schedule)
       rescue ActiveRecord::RecordNotFound => e
         render json: { errors: [ e.message ] }, status: :not_found
@@ -52,8 +59,10 @@ module Api
         schedule = DispatchSchedule.find(params[:id])
         return render json: Serializers.schedule(schedule) if schedule.sent?
 
-        schedule.mark_sent!(current_user)
-        AuditEvent.record!(action: "dispatch_schedule.sent", record: schedule, user: current_user, metadata: { date: schedule.date, status: schedule.status })
+        ApplicationRecord.transaction do
+          schedule.mark_sent!(current_user)
+          AuditEvent.record!(action: "dispatch_schedule.sent", record: schedule, user: current_user, metadata: { date: schedule.date, status: schedule.status })
+        end
         render json: Serializers.schedule(schedule)
       rescue ActiveRecord::RecordNotFound => e
         render json: { errors: [ e.message ] }, status: :not_found
@@ -64,8 +73,10 @@ module Api
       def reopen
         schedule = DispatchSchedule.find(params[:id])
         previous_status = schedule.status
-        schedule.reopen!
-        AuditEvent.record!(action: "dispatch_schedule.reopened", record: schedule, user: current_user, metadata: { date: schedule.date, previous_status: previous_status })
+        ApplicationRecord.transaction do
+          schedule.reopen!
+          AuditEvent.record!(action: "dispatch_schedule.reopened", record: schedule, user: current_user, metadata: { date: schedule.date, previous_status: previous_status })
+        end
         render json: Serializers.schedule(schedule)
       rescue ActiveRecord::RecordNotFound => e
         render json: { errors: [ e.message ] }, status: :not_found

@@ -376,7 +376,7 @@ function DispatchApp() {
     { id: 'teams', label: 'Crews', description: 'Drivers and call-outs', icon: <Users size={18} />, count: teams.length },
     { id: 'pm-tasks', label: 'PM Tasks', description: 'Preventive work', icon: <CalendarDays size={18} />, count: pmTasks.length },
     { id: 'whatsapp', label: 'WhatsApp', description: 'Copy send-ready text', icon: <MessageSquareText size={18} /> },
-    { id: 'activity', label: 'Activity', description: 'Audit history', icon: <Activity size={18} />, count: auditEvents.length },
+    { id: 'activity', label: 'Activity', description: 'Audit history', icon: <Activity size={18} /> },
     ...(user?.permissions.can_admin ? [{ id: 'users' as const, label: 'Users', description: 'Roles and access', icon: <UserCog size={18} />, count: managedUsers.length }] : []),
   ]
 

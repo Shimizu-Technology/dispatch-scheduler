@@ -45,7 +45,7 @@ module Api
         changes = nil
         ApplicationRecord.transaction do
           wo.update!(work_order_record_attributes(attrs, existing: wo))
-          changes = wo.previous_changes.except("updated_at")
+          changes = wo.previous_changes.except("updated_at", "description", "notes")
           AuditEvent.record!(action: "work_order.updated", record: wo, user: current_user, metadata: work_order_audit_metadata(wo).merge(changes: changes))
         end
         render json: Serializers.work_order(wo)

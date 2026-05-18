@@ -22,6 +22,19 @@ class DispatchItemsControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ 1, 2 ], [ target_first.reload.order_index, target_second.reload.order_index ]
   end
 
+  test "does not update finalized schedule items" do
+    crew = team(name: "Locked Crew", skills: [ "General" ])
+    schedule = DispatchSchedule.create!(date: DEFAULT_DATE, status: "finalized")
+    item = schedule.dispatch_items.create!(team: crew, work_order: work_order(title: "Locked work"), order_index: 0, notes: "Original")
+
+    with_auth_env do
+      patch "/api/v1/dispatch_items/#{item.id}", params: { notes: "Changed" }, headers: auth_headers
+    end
+
+    assert_response :conflict
+    assert_equal "Original", item.reload.notes
+  end
+
   test "clears scheduled time when blank string is provided" do
     crew = team(name: "Time Crew", skills: [ "General" ])
     schedule = DispatchSchedule.create!(date: DEFAULT_DATE, status: "draft")

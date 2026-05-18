@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_12_052000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_18_090000) do
   create_table "clients", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "name"
@@ -36,8 +36,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_12_052000) do
   create_table "dispatch_schedules", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.date "date"
+    t.datetime "finalized_at"
+    t.integer "finalized_by_user_id"
+    t.datetime "sent_at"
+    t.integer "sent_by_user_id"
     t.string "status"
     t.datetime "updated_at", null: false
+    t.index ["date", "status"], name: "index_dispatch_schedules_on_date_and_status"
+    t.index ["finalized_by_user_id"], name: "index_dispatch_schedules_on_finalized_by_user_id"
+    t.index ["sent_by_user_id"], name: "index_dispatch_schedules_on_sent_by_user_id"
   end
 
   create_table "follow_ups", force: :cascade do |t|
@@ -165,6 +172,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_12_052000) do
   add_foreign_key "dispatch_items", "pm_tasks"
   add_foreign_key "dispatch_items", "teams"
   add_foreign_key "dispatch_items", "work_orders"
+  add_foreign_key "dispatch_schedules", "users", column: "finalized_by_user_id"
+  add_foreign_key "dispatch_schedules", "users", column: "sent_by_user_id"
   add_foreign_key "follow_ups", "work_orders"
   add_foreign_key "locations", "clients"
   add_foreign_key "pm_tasks", "clients"

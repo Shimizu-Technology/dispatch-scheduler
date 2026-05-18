@@ -96,7 +96,11 @@ export type DispatchSummary = {
 export type DispatchSchedule = {
   id: number
   date: string
-  status: string
+  status: 'draft' | 'finalized' | 'sent'
+  finalized_at: string | null
+  sent_at: string | null
+  finalized_by: string | null
+  sent_by: string | null
   summary: DispatchSummary
   items: DispatchItem[]
 }

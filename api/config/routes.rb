@@ -17,6 +17,9 @@ Rails.application.routes.draw do
         end
         member do
           get :whatsapp_export
+          post :finalize
+          post :mark_sent
+          post :reopen
         end
       end
     end

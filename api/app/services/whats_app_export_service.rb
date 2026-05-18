@@ -8,15 +8,18 @@ class WhatsAppExportService
   end
 
   def crews
-    grouped_items.map do |team, items|
+    @crews ||= grouped_items.map do |team, items|
       technicians = team.technicians_for_date(@schedule.date).includes(:technician_availabilities).order(:name).to_a
-      unavailable = technicians.select { |technician| availability_for(technician)&.status == "unavailable" }
+      unavailable = technicians.filter_map do |technician|
+        availability = availability_for(technician)
+        availability&.status == "unavailable" ? [ technician, availability ] : nil
+      end
       {
         team_id: team.id,
         team_name: team.name,
         technician_names: technicians.map(&:name),
         driver_names: technicians.select(&:is_driver).map(&:name),
-        call_outs: unavailable.map { |technician| { name: technician.name, reason: availability_for(technician)&.reason.presence || "Unavailable" } },
+        call_outs: unavailable.map { |technician, availability| { name: technician.name, reason: availability.reason.presence || "Unavailable" } },
         stops_count: items.size
       }
     end

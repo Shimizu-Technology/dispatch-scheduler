@@ -88,6 +88,39 @@ class WorkOrdersControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Sink leak", payload.first.fetch("title")
   end
 
+  test "filters by submitted scheduled date" do
+    today_order = work_order(title: "Today work", date: Date.current)
+    requested_date_order = work_order(title: "Requested date work", date: DEFAULT_DATE + 2.days)
+
+    with_auth_env do
+      get "/api/v1/work_orders", params: { scheduled_date: (DEFAULT_DATE + 2.days).to_s }, headers: auth_headers
+    end
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_equal [ requested_date_order.id ], payload.map { |item| item.fetch("id") }
+    refute_includes payload.map { |item| item.fetch("id") }, today_order.id
+  end
+
+  test "combines client region and search filters without duplicate rows" do
+    mobil = client("Mobil")
+    sodexo = client("Sodexo")
+    north = location(name: "Yigo", region: "North", client_record: mobil)
+    also_north = location(name: "Dededo", region: "North", client_record: mobil)
+    south = location(name: "Agat", region: "South", client_record: sodexo)
+    match = work_order(title: "Sink leak", trade: "Plumbing", location_record: north)
+    work_order(title: "Sink leak", trade: "Plumbing", location_record: also_north)
+    work_order(title: "Sink leak", trade: "Plumbing", location_record: south)
+
+    with_auth_env do
+      get "/api/v1/work_orders", params: { q: "Yigo", client: "Mobil", region: "North" }, headers: auth_headers
+    end
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_equal [ match.id ], payload.map { |item| item.fetch("id") }
+  end
+
   test "viewer cannot create work order" do
     with_auth_env do
       post "/api/v1/work_orders", params: { description: "New request" }, headers: auth_headers("viewer_work_orders_123", "viewer-work-orders@example.com")

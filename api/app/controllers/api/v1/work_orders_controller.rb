@@ -5,15 +5,16 @@ module Api
 
       def index
         scope = WorkOrder.includes(:client, :location, :team).order(:scheduled_date, :id)
+        scope = scope.left_joins(:client, :location) if joined_filter_params?
         scope = scope.where(status: params[:status]) if params[:status].present?
         scope = scope.where(normalized_priority: params[:priority]) if params[:priority].present?
         scope = scope.where(trade_category: params[:trade_category]) if params[:trade_category].present?
         scope = scope.where(source: params[:source]) if params[:source].present?
-        scope = scope.where(scheduled_date: date_param) if params[:scheduled_date].present?
-        scope = scope.joins(:client).where("clients.name LIKE ?", "%#{ActiveRecord::Base.sanitize_sql_like(params[:client])}%") if params[:client].present?
-        scope = scope.joins(:location).where(locations: { region: params[:region] }) if params[:region].present?
+        scope = scope.where(scheduled_date: scheduled_date_param) if params[:scheduled_date].present?
+        scope = scope.where("clients.name LIKE ?", "%#{ActiveRecord::Base.sanitize_sql_like(params[:client])}%") if params[:client].present?
+        scope = scope.where(locations: { region: params[:region] }) if params[:region].present?
         scope = apply_search(scope, params[:q]) if params[:q].present?
-        render json: scope.limit(200).map { |wo| Serializers.work_order(wo) }
+        render json: scope.distinct.limit(200).map { |wo| Serializers.work_order(wo) }
       end
 
       def create
@@ -47,12 +48,22 @@ module Api
 
       private
 
+      def joined_filter_params?
+        params[:client].present? || params[:region].present? || params[:q].present?
+      end
+
       def apply_search(scope, query)
         pattern = "%#{ActiveRecord::Base.sanitize_sql_like(query.to_s.strip)}%"
-        scope.left_joins(:client, :location).where(
+        scope.where(
           "work_orders.external_id LIKE :q OR work_orders.title LIKE :q OR work_orders.description LIKE :q OR work_orders.notes LIKE :q OR clients.name LIKE :q OR locations.name LIKE :q",
           q: pattern
         )
+      end
+
+      def scheduled_date_param
+        Date.parse(params[:scheduled_date].to_s)
+      rescue Date::Error
+        raise ActionController::BadRequest, "Invalid scheduled date"
       end
 
       def work_order_record_attributes(attrs, existing: nil)

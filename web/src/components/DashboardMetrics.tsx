@@ -57,7 +57,7 @@ function nextAction(schedule: DispatchSchedule | null, driverIssues: number, can
 }
 
 function priorityCount(workOrders: WorkOrder[]) {
-  return workOrders.filter((workOrder) => ['P1', 'P2'].includes(workOrder.normalized_priority || workOrder.priority)).length
+  return workOrders.filter((workOrder) => ['P1', 'P2'].includes(workOrder.normalized_priority || workOrder.priority || '')).length
 }
 
 function formatMetadataValue(value: AuditEvent['metadata'][string] | undefined) {

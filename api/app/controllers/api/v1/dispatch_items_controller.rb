@@ -9,7 +9,10 @@ module Api
           return render json: { errors: [ "This schedule is #{item.dispatch_schedule.status}. Reopen it before editing dispatch items." ] }, status: :conflict
         end
 
-        update_item(item, dispatch_item_params)
+        ApplicationRecord.transaction do
+          update_item(item, dispatch_item_params)
+          AuditEvent.record!(action: "dispatch_item.updated", record: item, user: current_user, metadata: dispatch_item_audit_metadata(item))
+        end
         render json: Serializers.schedule(item.dispatch_schedule)
       rescue ActiveRecord::RecordNotFound => e
         render json: { errors: [ e.message ] }, status: :not_found
@@ -22,6 +25,19 @@ module Api
       end
 
       private
+
+      def dispatch_item_audit_metadata(item)
+        schedulable = item.schedulable
+        {
+          schedule_date: item.dispatch_schedule.date,
+          team: item.team.name,
+          order_index: item.order_index,
+          scheduled_time: item.scheduled_time&.strftime("%H:%M"),
+          notes: item.notes,
+          item: item.work_order_id ? schedulable&.title : schedulable&.task_name,
+          kind: item.work_order_id ? "work_order" : "pm_task"
+        }
+      end
 
       def update_item(item, attrs)
         old_team_id = item.team_id

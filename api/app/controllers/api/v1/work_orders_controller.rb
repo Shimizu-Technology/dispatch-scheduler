@@ -27,6 +27,7 @@ module Api
         wo = nil
         ApplicationRecord.transaction do
           wo = WorkOrder.create!(work_order_record_attributes(attrs))
+          AuditEvent.record!(action: "work_order.created", record: wo, user: current_user, metadata: work_order_audit_metadata(wo))
         end
         render json: Serializers.work_order(wo), status: :created
       rescue ActiveRecord::RecordInvalid => e
@@ -43,6 +44,8 @@ module Api
 
         ApplicationRecord.transaction do
           wo.update!(work_order_record_attributes(attrs, existing: wo))
+          changes = wo.previous_changes.except("updated_at", "description", "notes")
+          AuditEvent.record!(action: "work_order.updated", record: wo, user: current_user, metadata: work_order_audit_metadata(wo).merge(changes: changes))
         end
         render json: Serializers.work_order(wo)
       rescue ActiveRecord::RecordNotFound => e
@@ -107,6 +110,18 @@ module Api
         }
       rescue Date::Error
         raise ActionController::BadRequest, "Invalid scheduled date"
+      end
+
+      def work_order_audit_metadata(work_order)
+        {
+          title: work_order.title,
+          external_id: work_order.external_id,
+          client: work_order.client.name,
+          location: work_order.location.name,
+          status: work_order.status,
+          priority: work_order.normalized_priority,
+          trade_category: work_order.trade_category
+        }
       end
 
       def duplicate_work_order(source, external_id, excluding_id: nil)

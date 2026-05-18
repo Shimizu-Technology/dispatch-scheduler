@@ -10,7 +10,22 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_18_093000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_18_100000) do
+  create_table "audit_events", force: :cascade do |t|
+    t.string "action", null: false
+    t.datetime "created_at", null: false
+    t.text "metadata"
+    t.datetime "occurred_at", null: false
+    t.integer "record_id"
+    t.string "record_type", null: false
+    t.datetime "updated_at", null: false
+    t.integer "user_id"
+    t.index ["action"], name: "index_audit_events_on_action"
+    t.index ["occurred_at"], name: "index_audit_events_on_occurred_at"
+    t.index ["record_type", "record_id"], name: "index_audit_events_on_record_type_and_record_id"
+    t.index ["user_id"], name: "index_audit_events_on_user_id"
+  end
+
   create_table "clients", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "name"
@@ -177,6 +192,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_18_093000) do
     t.index ["team_id"], name: "index_work_orders_on_team_id"
   end
 
+  add_foreign_key "audit_events", "users"
   add_foreign_key "dispatch_items", "dispatch_schedules"
   add_foreign_key "dispatch_items", "pm_tasks"
   add_foreign_key "dispatch_items", "teams"

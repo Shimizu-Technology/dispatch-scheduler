@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { CalendarDays, ClipboardList, LayoutDashboard, LockKeyhole, MessageSquareText, RefreshCw, UserCog, Users, Wrench } from 'lucide-react'
+import { Activity, CalendarDays, ClipboardList, LayoutDashboard, LockKeyhole, MessageSquareText, RefreshCw, UserCog, Users, Wrench } from 'lucide-react'
 import { SignInButton, UserButton } from '@clerk/react'
+import { ActivityPanel } from './components/ActivityPanel'
 import { DashboardMetrics } from './components/DashboardMetrics'
 import { DispatchBuilder } from './components/DispatchBuilder'
 import { PmTasksPanel } from './components/PmTasksPanel'
@@ -12,12 +13,12 @@ import { WorkOrdersPanel } from './components/WorkOrdersPanel'
 import { DEMO_DATE } from './constants'
 import { useAuthContext } from './contexts/useAuthContext'
 import { getJson, patchJson, postJson } from './lib/api'
-import type { Dashboard, DispatchSchedule, ManagedUser, PmTask, Team, Technician, WorkOrder, WorkOrderInput } from './types'
+import type { AuditEvent, Dashboard, DispatchSchedule, ManagedUser, PmTask, Team, Technician, WorkOrder, WorkOrderInput } from './types'
 import './index.css'
 
-type ActiveSection = 'overview' | 'dispatch' | 'work-orders' | 'teams' | 'pm-tasks' | 'whatsapp' | 'users'
+type ActiveSection = 'overview' | 'dispatch' | 'work-orders' | 'teams' | 'pm-tasks' | 'whatsapp' | 'activity' | 'users'
 
-const SECTION_IDS: ActiveSection[] = ['overview', 'dispatch', 'work-orders', 'teams', 'pm-tasks', 'whatsapp', 'users']
+const SECTION_IDS: ActiveSection[] = ['overview', 'dispatch', 'work-orders', 'teams', 'pm-tasks', 'whatsapp', 'activity', 'users']
 
 function sectionFromHash(): ActiveSection {
   const value = window.location.hash.replace('#', '')
@@ -34,6 +35,7 @@ function DispatchApp() {
   const [technicians, setTechnicians] = useState<Technician[]>([])
   const [pmTasks, setPmTasks] = useState<PmTask[]>([])
   const [managedUsers, setManagedUsers] = useState<ManagedUser[]>([])
+  const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([])
   const [schedule, setSchedule] = useState<DispatchSchedule | null>(null)
   const [whatsApp, setWhatsApp] = useState('')
   const [loading, setLoading] = useState(false)
@@ -48,6 +50,11 @@ function DispatchApp() {
   const refreshWhatsApp = useCallback(async (scheduleId: number) => {
     const exportJson = await getJson<{ message: string }>(`/dispatch_schedules/${scheduleId}/whatsapp_export`)
     setWhatsApp(exportJson.message)
+  }, [])
+
+  const refreshAuditEvents = useCallback(async () => {
+    const payload = await getJson<{ audit_events: AuditEvent[] }>('/audit_events?limit=50')
+    setAuditEvents(payload.audit_events)
   }, [])
 
   const loadInitialData = useCallback(async (date: string) => {
@@ -67,13 +74,14 @@ function DispatchApp() {
     setTechnicians(technicianData)
     setPmTasks(pms)
     setSchedule(schedulePayload.schedule)
+    void refreshAuditEvents()
     if (schedulePayload.schedule) {
       await refreshWhatsApp(schedulePayload.schedule.id)
     } else {
       setWhatsApp('')
     }
     setLoading(false)
-  }, [refreshWhatsApp])
+  }, [refreshAuditEvents, refreshWhatsApp])
 
   useEffect(() => {
     if (authLoading || !user?.id) return
@@ -111,6 +119,14 @@ function DispatchApp() {
     window.history.pushState(null, '', `#${section}`)
   }
 
+  async function afterAuditedChange() {
+    try {
+      await refreshAuditEvents()
+    } catch {
+      // Activity refresh failures should never block the main dispatch workflow.
+    }
+  }
+
   async function updateUserRole(userId: number, role: ManagedUser['role']) {
     setSavingUserId(userId)
     setError('')
@@ -146,6 +162,7 @@ function DispatchApp() {
       const created = await postJson<WorkOrder>('/work_orders', values)
       setWorkOrders((current) => [created, ...current.filter((workOrder) => workOrder.id !== created.id)])
       goToSection('work-orders')
+      await afterAuditedChange()
 
       try {
         await refreshWorkOrderContext()
@@ -171,6 +188,7 @@ function DispatchApp() {
     try {
       const updated = await patchJson<WorkOrder>(`/work_orders/${workOrderId}`, values)
       setWorkOrders((current) => current.map((workOrder) => workOrder.id === updated.id ? updated : workOrder))
+      await afterAuditedChange()
 
       try {
         await refreshWorkOrderContext()
@@ -198,6 +216,7 @@ function DispatchApp() {
       const updated = await postJson<DispatchSchedule>(`/dispatch_schedules/${schedule.id}/${path}`, {})
       setSchedule(updated)
       if (updated.items.length > 0) await refreshWhatsApp(updated.id)
+      await afterAuditedChange()
     } catch (err) {
       setError(err instanceof Error ? err.message : fallbackMessage)
     } finally {
@@ -238,6 +257,7 @@ function DispatchApp() {
       setSchedule(created)
       goToSection('dispatch')
       await refreshWhatsApp(created.id)
+      await afterAuditedChange()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to suggest schedule')
     } finally {
@@ -261,6 +281,7 @@ function DispatchApp() {
       } catch (err) {
         setError(err instanceof Error ? `Override saved, but WhatsApp preview did not refresh: ${err.message}` : 'Override saved, but WhatsApp preview did not refresh')
       }
+      await afterAuditedChange()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to update dispatch item')
     } finally {
@@ -288,6 +309,7 @@ function DispatchApp() {
         ? { date: selectedDate, use_default: true }
         : { date: selectedDate, technician_ids: technicianIds })
       setTeams((currentTeams) => currentTeams.map((team) => team.id === updatedTeam.id ? updatedTeam : team))
+      await afterAuditedChange()
 
       try {
         const [dash, teamData] = await Promise.all([
@@ -327,6 +349,7 @@ function DispatchApp() {
           has_driver: technicians.some((candidate) => candidate.is_driver && candidate.availability !== 'unavailable'),
         }
       }))
+      await afterAuditedChange()
 
       try {
         const [dash, teamData] = await Promise.all([
@@ -353,6 +376,7 @@ function DispatchApp() {
     { id: 'teams', label: 'Crews', description: 'Drivers and call-outs', icon: <Users size={18} />, count: teams.length },
     { id: 'pm-tasks', label: 'PM Tasks', description: 'Preventive work', icon: <CalendarDays size={18} />, count: pmTasks.length },
     { id: 'whatsapp', label: 'WhatsApp', description: 'Copy send-ready text', icon: <MessageSquareText size={18} /> },
+    { id: 'activity', label: 'Activity', description: 'Audit history', icon: <Activity size={18} /> },
     ...(user?.permissions.can_admin ? [{ id: 'users' as const, label: 'Users', description: 'Roles and access', icon: <UserCog size={18} />, count: managedUsers.length }] : []),
   ]
 
@@ -519,6 +543,8 @@ function DispatchApp() {
         {currentSection === 'pm-tasks' && (user ? <PmTasksPanel pmTasks={pmTasks} /> : <SignInRequiredPanel title="Sign in to review PM tasks" />)}
 
         {currentSection === 'whatsapp' && (user ? <WhatsAppExport schedule={schedule} message={whatsApp} copied={copied} working={working} canEdit={canEditDispatch} onCopy={copyWhatsApp} onMarkSent={markScheduleSent} /> : <SignInRequiredPanel title="Sign in to copy WhatsApp output" />)}
+
+        {currentSection === 'activity' && (user ? <ActivityPanel events={auditEvents} /> : <SignInRequiredPanel title="Sign in to review activity" />)}
 
         {currentSection === 'users' && user?.permissions.can_admin && <UserManagementPanel users={managedUsers} currentUserId={user.id} savingUserId={savingUserId} onRoleChange={updateUserRole} />}
       </div>

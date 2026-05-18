@@ -28,6 +28,10 @@ module Api
           return render json: { errors: [ "Technician(s) not found: #{missing_ids.join(', ')}" ] }, status: :unprocessable_entity
         end
 
+        previous_ids = team.technicians_for_date(date).pluck(:id)
+        default_ids = team.team_memberships.where(date: nil).pluck(:technician_id)
+        applied_ids = use_default ? default_ids : existing_ids
+
         TeamMembership.transaction do
           team.team_memberships.where(date: date).delete_all
           if use_default
@@ -38,6 +42,14 @@ module Api
               team.team_memberships.create!(date: date, technician_id: technician_id)
             end
           end
+          AuditEvent.record!(action: use_default ? "team.daily_crew.cleared" : "team.daily_crew.updated", record: team, user: current_user, metadata: {
+            team: team.name,
+            date: date,
+            technician_ids: applied_ids,
+            technician_names: technician_names(applied_ids),
+            previous_technician_ids: previous_ids,
+            previous_technician_names: technician_names(previous_ids)
+          })
         end
 
         render json: Serializers.team(team.reload, date: date)
@@ -48,6 +60,10 @@ module Api
       end
 
       private
+
+      def technician_names(technician_ids)
+        Technician.where(id: technician_ids).order(:name).pluck(:name)
+      end
 
       def memberships_for(team_ids, date)
         TeamMembership

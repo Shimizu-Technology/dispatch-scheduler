@@ -101,12 +101,12 @@ module Serializers
   end
 
   def technician(technician, date: Date.current)
-    availability = technician.technician_availabilities.find_by(date: date)
+    availability = availability_for(technician, date)
     {
       id: technician.id,
       name: technician.name,
       primary_trade: technician.primary_trade,
-      skills: technician.technician_skills.pluck(:skill),
+      skills: skills_for(technician),
       is_driver: technician.is_driver,
       active: technician.active,
       availability: availability&.status || "available",
@@ -114,16 +114,44 @@ module Serializers
     }
   end
 
-  def team(team, date: Date.current)
-    techs = team.technicians_for_date(date).includes(:technician_skills, :technician_availabilities)
+  def team(team, date: Date.current, daily_memberships: nil, default_memberships: nil, daily_override: nil)
+    daily_override = daily_override.nil? ? (daily_memberships.nil? ? team.daily_override?(date) : daily_memberships.any?) : daily_override
+    techs = if daily_memberships && default_memberships
+      memberships = daily_override ? daily_memberships : default_memberships
+      memberships.map(&:technician)
+    else
+      team.technicians_for_date(date).includes(:technician_skills, :technician_availabilities).to_a
+    end
+    available_techs = techs.select { |tech| available_for_date?(tech, date) }
     {
       id: team.id,
       name: team.name,
       region_preference: team.region_preference,
-      has_driver: team.has_driver?(date),
-      skills: team.skills(date),
+      has_driver: available_techs.any? { |tech| tech.is_driver && tech.active },
+      skills: available_techs.flat_map { |tech| skills_for(tech) }.uniq,
+      daily_override: daily_override,
       technicians: techs.map { |tech| technician(tech, date: date) }
     }
+  end
+
+  def availability_for(technician, date)
+    if technician.association(:technician_availabilities).loaded?
+      technician.technician_availabilities.find { |availability| availability.date == date }
+    else
+      technician.technician_availabilities.find_by(date: date)
+    end
+  end
+
+  def available_for_date?(technician, date)
+    technician.active && availability_for(technician, date)&.status != "unavailable"
+  end
+
+  def skills_for(technician)
+    if technician.association(:technician_skills).loaded?
+      technician.technician_skills.map(&:skill)
+    else
+      technician.technician_skills.pluck(:skill)
+    end
   end
 
   def pm_task(pm_task)

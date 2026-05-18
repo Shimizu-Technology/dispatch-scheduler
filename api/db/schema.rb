@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_18_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_18_093000) do
   create_table "clients", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "name"
@@ -81,6 +81,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_18_090000) do
     t.datetime "updated_at", null: false
     t.index ["client_id"], name: "index_pm_tasks_on_client_id"
     t.index ["location_id"], name: "index_pm_tasks_on_location_id"
+  end
+
+  create_table "team_daily_overrides", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.date "date", null: false
+    t.integer "team_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["team_id", "date"], name: "index_team_daily_overrides_on_team_id_and_date", unique: true
+    t.index ["team_id"], name: "index_team_daily_overrides_on_team_id"
   end
 
   create_table "team_memberships", force: :cascade do |t|
@@ -178,6 +187,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_18_090000) do
   add_foreign_key "locations", "clients"
   add_foreign_key "pm_tasks", "clients"
   add_foreign_key "pm_tasks", "locations"
+  add_foreign_key "team_daily_overrides", "teams"
   add_foreign_key "team_memberships", "teams"
   add_foreign_key "team_memberships", "technicians"
   add_foreign_key "technician_availabilities", "technicians"

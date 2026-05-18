@@ -28,6 +28,21 @@ class TeamsControllerTest < ActionDispatch::IntegrationTest
     assert_equal true, payload.fetch("has_driver")
   end
 
+  test "dispatcher can save an intentionally empty daily crew" do
+    crew = team(name: "Empty Override Crew", skills: [ "General" ], driver: true)
+
+    with_auth_env do
+      patch "/api/v1/teams/#{crew.id}/daily_memberships", params: { date: DEFAULT_DATE, technician_ids: [] }, headers: auth_headers
+    end
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_equal true, payload.fetch("daily_override")
+    assert_empty payload.fetch("technicians")
+    assert_equal false, payload.fetch("has_driver")
+    assert_empty crew.technicians_for_date(DEFAULT_DATE).pluck(:id)
+  end
+
   test "viewer cannot set daily crew composition" do
     crew = team(name: "Viewer Locked Crew")
 

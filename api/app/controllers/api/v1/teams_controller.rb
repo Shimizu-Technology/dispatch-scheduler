@@ -1,3 +1,5 @@
+require "set"
+
 module Api
   module V1
     class TeamsController < ApplicationController
@@ -9,8 +11,9 @@ module Api
         team_ids = teams.map(&:id)
         daily_memberships = memberships_for(team_ids, date)
         default_memberships = memberships_for(team_ids, nil)
+        daily_override_team_ids = TeamDailyOverride.where(team_id: team_ids, date: date).pluck(:team_id).to_set
 
-        render json: teams.map { |team| Serializers.team(team, date: date, daily_memberships: daily_memberships[team.id] || [], default_memberships: default_memberships[team.id] || []) }
+        render json: teams.map { |team| Serializers.team(team, date: date, daily_memberships: daily_memberships[team.id] || [], default_memberships: default_memberships[team.id] || [], daily_override: daily_override_team_ids.include?(team.id)) }
       end
 
       def daily_memberships
@@ -18,7 +21,7 @@ module Api
         date = date_param
 
         use_default = ActiveModel::Type::Boolean.new.cast(params[:use_default])
-        technician_ids = use_default ? [] : Array(params[:technician_ids]).map(&:to_i).uniq
+        technician_ids = use_default ? [] : Array(params[:technician_ids]).reject(&:blank?).map(&:to_i).uniq
         existing_ids = Technician.where(id: technician_ids).pluck(:id)
         missing_ids = technician_ids - existing_ids
         if missing_ids.any?
@@ -27,8 +30,13 @@ module Api
 
         TeamMembership.transaction do
           team.team_memberships.where(date: date).delete_all
-          existing_ids.each do |technician_id|
-            team.team_memberships.create!(date: date, technician_id: technician_id)
+          if use_default
+            team.team_daily_overrides.where(date: date).delete_all
+          else
+            team.team_daily_overrides.find_or_create_by!(date: date)
+            existing_ids.each do |technician_id|
+              team.team_memberships.create!(date: date, technician_id: technician_id)
+            end
           end
         end
 

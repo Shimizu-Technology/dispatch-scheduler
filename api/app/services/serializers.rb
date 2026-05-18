@@ -114,8 +114,8 @@ module Serializers
     }
   end
 
-  def team(team, date: Date.current, daily_memberships: nil, default_memberships: nil)
-    daily_override = daily_memberships.nil? ? team.daily_override?(date) : daily_memberships.any?
+  def team(team, date: Date.current, daily_memberships: nil, default_memberships: nil, daily_override: nil)
+    daily_override = daily_override.nil? ? (daily_memberships.nil? ? team.daily_override?(date) : daily_memberships.any?) : daily_override
     techs = if daily_memberships && default_memberships
       memberships = daily_override ? daily_memberships : default_memberships
       memberships.map(&:technician)

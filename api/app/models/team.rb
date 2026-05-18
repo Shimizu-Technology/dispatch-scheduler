@@ -1,5 +1,6 @@
 class Team < ApplicationRecord
   has_many :team_memberships, dependent: :destroy
+  has_many :team_daily_overrides, dependent: :destroy
   has_many :technicians, through: :team_memberships
   has_many :work_orders, dependent: :nullify
   has_many :dispatch_items, dependent: :nullify
@@ -10,7 +11,7 @@ class Team < ApplicationRecord
   end
 
   def daily_override?(date = Date.current)
-    team_memberships.where(date: date).exists?
+    team_daily_overrides.where(date: date).exists? || team_memberships.where(date: date).exists?
   end
 
   def available_technicians(date = Date.current)

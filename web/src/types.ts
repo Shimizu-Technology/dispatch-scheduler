@@ -94,6 +94,23 @@ export type DispatchSummary = {
   message: string
 }
 
+export type WhatsAppCrewExport = {
+  team_id: number
+  team_name: string
+  technician_names: string[]
+  driver_names: string[]
+  call_outs: Array<{ name: string; reason: string }>
+  stops_count: number
+}
+
+export type WhatsAppExportPayload = {
+  id: number
+  date: string
+  status: 'draft' | 'finalized' | 'sent'
+  message: string
+  crews: WhatsAppCrewExport[]
+}
+
 export type DispatchSchedule = {
   id: number
   date: string

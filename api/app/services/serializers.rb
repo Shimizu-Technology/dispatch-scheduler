@@ -122,6 +122,7 @@ module Serializers
       region_preference: team.region_preference,
       has_driver: team.has_driver?(date),
       skills: team.skills(date),
+      daily_override: team.daily_override?(date),
       technicians: techs.map { |tech| technician(tech, date: date) }
     }
   end

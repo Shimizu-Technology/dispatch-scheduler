@@ -31,6 +31,7 @@ function DispatchApp() {
   const [dashboard, setDashboard] = useState<Dashboard | null>(null)
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([])
   const [teams, setTeams] = useState<Team[]>([])
+  const [technicians, setTechnicians] = useState<Technician[]>([])
   const [pmTasks, setPmTasks] = useState<PmTask[]>([])
   const [managedUsers, setManagedUsers] = useState<ManagedUser[]>([])
   const [schedule, setSchedule] = useState<DispatchSchedule | null>(null)
@@ -38,6 +39,7 @@ function DispatchApp() {
   const [loading, setLoading] = useState(false)
   const [working, setWorking] = useState(false)
   const [availabilitySavingId, setAvailabilitySavingId] = useState<number | null>(null)
+  const [teamSavingId, setTeamSavingId] = useState<number | null>(null)
   const [workOrderSaving, setWorkOrderSaving] = useState(false)
   const [savingUserId, setSavingUserId] = useState<number | null>(null)
   const [copied, setCopied] = useState(false)
@@ -51,16 +53,18 @@ function DispatchApp() {
   const loadInitialData = useCallback(async (date: string) => {
     setLoading(true)
     setError('')
-    const [dash, orders, teamData, pms, schedulePayload] = await Promise.all([
+    const [dash, orders, teamData, technicianData, pms, schedulePayload] = await Promise.all([
       getJson<Dashboard>(`/dashboard?date=${date}`),
       getJson<WorkOrder[]>('/work_orders'),
       getJson<Team[]>(`/teams?date=${date}`),
+      getJson<Technician[]>(`/technicians?date=${date}`),
       getJson<PmTask[]>(`/pm_tasks?date=${date}`),
       getJson<{ schedule: DispatchSchedule | null }>(`/dispatch_schedules?date=${date}`),
     ])
     setDashboard(dash)
     setWorkOrders(orders)
     setTeams(teamData)
+    setTechnicians(technicianData)
     setPmTasks(pms)
     setSchedule(schedulePayload.schedule)
     if (schedulePayload.schedule) {
@@ -270,6 +274,38 @@ function DispatchApp() {
     setTimeout(() => setCopied(false), 1600)
   }
 
+  async function updateDailyCrew(teamId: number, technicianIds: number[] | null) {
+    if (!canEditDispatch) {
+      setError('Viewer access cannot update daily crew composition.')
+      return
+    }
+    if (teamSavingId !== null) return
+
+    setTeamSavingId(teamId)
+    setError('')
+    try {
+      const updatedTeam = await patchJson<Team>(`/teams/${teamId}/daily_memberships`, technicianIds === null
+        ? { date: selectedDate, use_default: true }
+        : { date: selectedDate, technician_ids: technicianIds })
+      setTeams((currentTeams) => currentTeams.map((team) => team.id === updatedTeam.id ? updatedTeam : team))
+
+      try {
+        const [dash, teamData] = await Promise.all([
+          getJson<Dashboard>(`/dashboard?date=${selectedDate}`),
+          getJson<Team[]>(`/teams?date=${selectedDate}`),
+        ])
+        setDashboard(dash)
+        setTeams(teamData)
+      } catch (err) {
+        setError(err instanceof Error ? `Daily crew saved, but fresh dashboard data did not load: ${err.message}` : 'Daily crew saved, but fresh dashboard data did not load')
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to update daily crew')
+    } finally {
+      setTeamSavingId(null)
+    }
+  }
+
   async function toggleAvailability(tech: Technician) {
     if (!canEditDispatch) {
       setError('Viewer access cannot update daily availability.')
@@ -281,6 +317,7 @@ function DispatchApp() {
     setError('')
     try {
       const updatedTech = await patchJson<Technician>(`/technicians/${tech.id}`, { date: selectedDate, availability: next, reason: next === 'unavailable' ? 'Call-out' : '' })
+      setTechnicians((currentTechnicians) => currentTechnicians.map((candidate) => candidate.id === updatedTech.id ? updatedTech : candidate))
       setTeams((currentTeams) => currentTeams.map((team) => {
         const technicians = team.technicians.map((candidate) => candidate.id === updatedTech.id ? updatedTech : candidate)
         return {
@@ -474,7 +511,7 @@ function DispatchApp() {
 
         {currentSection === 'work-orders' && (user ? <WorkOrdersPanel workOrders={workOrders} canEdit={canEditDispatch} selectedDate={selectedDate} saving={workOrderSaving} onCreate={createWorkOrder} onUpdate={updateWorkOrder} /> : <SignInRequiredPanel title="Sign in to review work orders" />)}
 
-        {currentSection === 'teams' && (user ? <TeamsPanel teams={teams} canEdit={canEditDispatch} savingTechnicianId={availabilitySavingId} onToggleAvailability={toggleAvailability} /> : <SignInRequiredPanel title="Sign in to check crews" />)}
+        {currentSection === 'teams' && (user ? <TeamsPanel teams={teams} technicians={technicians} canEdit={canEditDispatch} savingTechnicianId={availabilitySavingId} savingTeamId={teamSavingId} onToggleAvailability={toggleAvailability} onUpdateDailyCrew={updateDailyCrew} /> : <SignInRequiredPanel title="Sign in to check crews" />)}
 
         {currentSection === 'dispatch' && (user ? <DispatchBuilder schedule={schedule} teams={teams} working={working} canEdit={canEditDispatch} onSuggest={suggestSchedule} onUpdate={updateDispatchItem} onFinalize={finalizeSchedule} onReopen={reopenSchedule} /> : <SignInRequiredPanel title="Sign in to build today's dispatch" />)}
 

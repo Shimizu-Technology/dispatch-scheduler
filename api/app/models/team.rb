@@ -5,9 +5,12 @@ class Team < ApplicationRecord
   has_many :dispatch_items, dependent: :nullify
 
   def technicians_for_date(date = Date.current)
-    technicians
-      .where("team_memberships.date IS NULL OR team_memberships.date = ?", date)
-      .distinct
+    scope = daily_override?(date) ? team_memberships.where(date: date) : team_memberships.where(date: nil)
+    Technician.where(id: scope.select(:technician_id)).distinct
+  end
+
+  def daily_override?(date = Date.current)
+    team_memberships.where(date: date).exists?
   end
 
   def available_technicians(date = Date.current)

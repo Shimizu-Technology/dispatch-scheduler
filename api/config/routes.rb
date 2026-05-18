@@ -8,7 +8,11 @@ Rails.application.routes.draw do
       resources :users, only: [ :index, :update ]
       resources :work_orders, only: [ :index, :create, :update ]
       resources :technicians, only: [ :index, :update ]
-      resources :teams, only: [ :index ]
+      resources :teams, only: [ :index ] do
+        member do
+          patch :daily_memberships
+        end
+      end
       resources :pm_tasks, only: [ :index ]
       resources :dispatch_items, only: [ :update ]
       resources :dispatch_schedules, only: [ :index, :show ] do

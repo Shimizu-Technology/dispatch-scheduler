@@ -40,9 +40,23 @@ class DispatchSuggestionServiceTest < ActiveSupport::TestCase
 
     assert_equal 2, service.summary[:daily_item_limit]
     assert_equal 2, schedule.dispatch_items.count
-    assert_equal 2, service.summary[:eligible_work_orders]
-    assert_equal 0, service.summary[:deferred_items]
+    assert_equal 5, service.summary[:eligible_work_orders]
+    assert_equal 3, service.summary[:deferred_items]
   ensure
     ENV["DISPATCH_DAILY_ITEM_LIMIT"] = old_limit
+  end
+
+  test "skill matching only uses technicians available on the schedule date" do
+    hvac_team = team(name: "Unavailable HVAC", skills: [ "HVAC" ], driver: false, unavailable: true)
+    general_team = team(name: "Available General", skills: [ "General" ])
+    work_order(title: "AC repair", trade: "HVAC")
+
+    schedule = DispatchSuggestionService.new(date: DEFAULT_DATE).call
+    item = schedule.dispatch_items.first
+
+    assert_equal general_team.id, item.team_id
+    assert_includes item.notes, "Check skill match: HVAC"
+    refute hvac_team.has_driver?(DEFAULT_DATE)
+    assert_empty hvac_team.skills(DEFAULT_DATE)
   end
 end

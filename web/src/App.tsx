@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { CalendarDays, ClipboardList, LayoutDashboard, LockKeyhole, MessageSquareText, RefreshCw, UserCog, Users, Wrench } from 'lucide-react'
 import { SignInButton, UserButton } from '@clerk/react'
@@ -27,6 +27,7 @@ function sectionFromHash(): ActiveSection {
 function DispatchApp() {
   const { isSignedIn, isLoading: authLoading, isVerifyingApi, user, authError, canEditDispatch, refreshUser } = useAuthContext()
   const [activeSection, setActiveSection] = useState<ActiveSection>(sectionFromHash)
+  const [selectedDate, setSelectedDate] = useState(DEMO_DATE)
   const [dashboard, setDashboard] = useState<Dashboard | null>(null)
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([])
   const [teams, setTeams] = useState<Team[]>([])
@@ -41,32 +42,44 @@ function DispatchApp() {
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState('')
 
-  async function loadInitialData() {
+  const refreshWhatsApp = useCallback(async (scheduleId: number) => {
+    const exportJson = await getJson<{ message: string }>(`/dispatch_schedules/${scheduleId}/whatsapp_export`)
+    setWhatsApp(exportJson.message)
+  }, [])
+
+  const loadInitialData = useCallback(async (date: string) => {
     setLoading(true)
     setError('')
-    const [dash, orders, teamData, pms] = await Promise.all([
-      getJson<Dashboard>(`/dashboard?date=${DEMO_DATE}`),
+    const [dash, orders, teamData, pms, schedulePayload] = await Promise.all([
+      getJson<Dashboard>(`/dashboard?date=${date}`),
       getJson<WorkOrder[]>('/work_orders'),
-      getJson<Team[]>(`/teams?date=${DEMO_DATE}`),
-      getJson<PmTask[]>(`/pm_tasks?date=${DEMO_DATE}`),
+      getJson<Team[]>(`/teams?date=${date}`),
+      getJson<PmTask[]>(`/pm_tasks?date=${date}`),
+      getJson<{ schedule: DispatchSchedule | null }>(`/dispatch_schedules?date=${date}`),
     ])
     setDashboard(dash)
     setWorkOrders(orders)
     setTeams(teamData)
     setPmTasks(pms)
+    setSchedule(schedulePayload.schedule)
+    if (schedulePayload.schedule) {
+      await refreshWhatsApp(schedulePayload.schedule.id)
+    } else {
+      setWhatsApp('')
+    }
     setLoading(false)
-  }
+  }, [refreshWhatsApp])
 
   useEffect(() => {
     if (authLoading || !user?.id) return
 
     // The signed-in dashboard load is the app's external data subscription point.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    void loadInitialData().catch((err) => {
+    void loadInitialData(selectedDate).catch((err) => {
       setError(err.message)
       setLoading(false)
     })
-  }, [authLoading, user?.id])
+  }, [authLoading, loadInitialData, selectedDate, user?.id])
 
   useEffect(() => {
     if (!user?.permissions.can_admin) return
@@ -91,11 +104,6 @@ function DispatchApp() {
   function goToSection(section: ActiveSection) {
     setActiveSection(section)
     window.history.pushState(null, '', `#${section}`)
-  }
-
-  async function refreshWhatsApp(scheduleId: number) {
-    const exportJson = await getJson<{ message: string }>(`/dispatch_schedules/${scheduleId}/whatsapp_export`)
-    setWhatsApp(exportJson.message)
   }
 
   async function updateUserRole(userId: number, role: ManagedUser['role']) {
@@ -124,7 +132,7 @@ function DispatchApp() {
     setWorking(true)
     setError('')
     try {
-      const created = await postJson<DispatchSchedule>('/dispatch_schedules/suggest', { date: DEMO_DATE })
+      const created = await postJson<DispatchSchedule>('/dispatch_schedules/suggest', { date: selectedDate })
       setSchedule(created)
       goToSection('dispatch')
       await refreshWhatsApp(created.id)
@@ -174,7 +182,7 @@ function DispatchApp() {
     setAvailabilitySavingId(tech.id)
     setError('')
     try {
-      const updatedTech = await patchJson<Technician>(`/technicians/${tech.id}`, { date: DEMO_DATE, availability: next, reason: next === 'unavailable' ? 'Call-out' : '' })
+      const updatedTech = await patchJson<Technician>(`/technicians/${tech.id}`, { date: selectedDate, availability: next, reason: next === 'unavailable' ? 'Call-out' : '' })
       setTeams((currentTeams) => currentTeams.map((team) => {
         const technicians = team.technicians.map((candidate) => candidate.id === updatedTech.id ? updatedTech : candidate)
         return {
@@ -186,8 +194,8 @@ function DispatchApp() {
 
       try {
         const [dash, teamData] = await Promise.all([
-          getJson<Dashboard>(`/dashboard?date=${DEMO_DATE}`),
-          getJson<Team[]>(`/teams?date=${DEMO_DATE}`),
+          getJson<Dashboard>(`/dashboard?date=${selectedDate}`),
+          getJson<Team[]>(`/teams?date=${selectedDate}`),
         ])
         setDashboard(dash)
         setTeams(teamData)
@@ -256,6 +264,15 @@ function DispatchApp() {
                 </div>
               </div> : null}
               <div className="flex w-full flex-wrap items-center gap-3 lg:justify-end">
+                {user && <label className="inline-flex flex-1 items-center justify-between gap-3 rounded-2xl border border-white/15 bg-white/10 px-3 py-2 text-sm text-cyan-50 shadow-[0_12px_32px_rgba(0,0,0,0.12)] backdrop-blur sm:flex-none">
+                  <span className="font-display text-xs font-extrabold uppercase tracking-[0.16em] text-cyan-100">Schedule date</span>
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(event) => setSelectedDate(event.target.value)}
+                    className="rounded-xl border border-white/15 bg-white px-3 py-2 font-display text-sm font-extrabold text-[#10232a] outline-none transition focus:border-cyan-200 focus:ring-4 focus:ring-cyan-200/25"
+                  />
+                </label>}
                 {user && <div className="inline-flex items-center gap-3 rounded-2xl border border-white/15 bg-white/10 px-3 py-2 text-sm text-cyan-50 shadow-[0_12px_32px_rgba(0,0,0,0.12)] backdrop-blur">
                   <UserButton />
                   <span className="leading-tight">

@@ -1,5 +1,6 @@
 class ApplicationController < ActionController::API
   before_action :authenticate_request!
+  rescue_from ActionController::BadRequest, with: :render_bad_request
 
   attr_reader :current_user
 
@@ -42,8 +43,18 @@ class ApplicationController < ActionController::API
     render json: { errors: [ "Admin access required" ] }, status: :forbidden
   end
 
+  def date_param(default: Date.current)
+    Date.parse(params[:date].presence || default.to_s)
+  rescue Date::Error
+    raise ActionController::BadRequest, "Invalid date"
+  end
+
   def bearer_token
     header = request.authorization.to_s
     header[/\ABearer\s+(.+)\z/i, 1]
+  end
+
+  def render_bad_request(error)
+    render json: { errors: [ error.message ] }, status: :bad_request
   end
 end

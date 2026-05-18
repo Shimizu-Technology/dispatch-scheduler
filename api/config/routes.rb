@@ -11,7 +11,7 @@ Rails.application.routes.draw do
       resources :teams, only: [ :index ]
       resources :pm_tasks, only: [ :index ]
       resources :dispatch_items, only: [ :update ]
-      resources :dispatch_schedules, only: [ :show ] do
+      resources :dispatch_schedules, only: [ :index, :show ] do
         collection do
           post :suggest
         end

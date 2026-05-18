@@ -278,10 +278,10 @@ function DispatchApp() {
       setSchedule(updated)
       try {
         await refreshWhatsApp(updated.id)
-        await afterAuditedChange()
       } catch (err) {
         setError(err instanceof Error ? `Override saved, but WhatsApp preview did not refresh: ${err.message}` : 'Override saved, but WhatsApp preview did not refresh')
       }
+      await afterAuditedChange()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to update dispatch item')
     } finally {

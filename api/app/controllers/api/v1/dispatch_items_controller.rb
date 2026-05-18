@@ -9,8 +9,10 @@ module Api
           return render json: { errors: [ "This schedule is #{item.dispatch_schedule.status}. Reopen it before editing dispatch items." ] }, status: :conflict
         end
 
-        update_item(item, dispatch_item_params)
-        AuditEvent.record!(action: "dispatch_item.updated", record: item, user: current_user, metadata: dispatch_item_audit_metadata(item))
+        ApplicationRecord.transaction do
+          update_item(item, dispatch_item_params)
+          AuditEvent.record!(action: "dispatch_item.updated", record: item, user: current_user, metadata: dispatch_item_audit_metadata(item))
+        end
         render json: Serializers.schedule(item.dispatch_schedule)
       rescue ActiveRecord::RecordNotFound => e
         render json: { errors: [ e.message ] }, status: :not_found

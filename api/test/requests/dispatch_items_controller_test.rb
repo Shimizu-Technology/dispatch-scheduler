@@ -30,6 +30,26 @@ class DispatchItemsControllerTest < ActionDispatch::IntegrationTest
     assert_locked_schedule_item_is_not_updated("sent")
   end
 
+  test "rolls back item update when audit event cannot be recorded" do
+    crew = team(name: "Audit Item Crew", skills: [ "General" ])
+    schedule = DispatchSchedule.create!(date: DEFAULT_DATE, status: "draft")
+    item = schedule.dispatch_items.create!(team: crew, work_order: work_order(title: "Audit item work"), order_index: 0, notes: "Original")
+
+    invalid_event = AuditEvent.new
+    original_record = AuditEvent.method(:record!)
+    begin
+      AuditEvent.define_singleton_method(:record!) { |**| raise ActiveRecord::RecordInvalid.new(invalid_event) }
+      with_auth_env do
+        patch "/api/v1/dispatch_items/#{item.id}", params: { notes: "Changed" }, headers: auth_headers
+      end
+    ensure
+      AuditEvent.define_singleton_method(:record!, original_record)
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal "Original", item.reload.notes
+  end
+
   test "clears scheduled time when blank string is provided" do
     crew = team(name: "Time Crew", skills: [ "General" ])
     schedule = DispatchSchedule.create!(date: DEFAULT_DATE, status: "draft")

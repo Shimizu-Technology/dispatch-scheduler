@@ -14,14 +14,20 @@ module Api
         availability = technician.technician_availabilities.find_or_initialize_by(date: date)
         availability.status = params[:availability].presence || "available"
         availability.reason = params[:reason]
-        availability.save!
-        AuditEvent.record!(action: "technician_availability.updated", record: technician, user: current_user, metadata: {
-          technician: technician.name,
-          date: date,
-          availability: availability.status,
-          reason: availability.reason
-        })
+        ApplicationRecord.transaction do
+          availability.save!
+          AuditEvent.record!(action: "technician_availability.updated", record: technician, user: current_user, metadata: {
+            technician: technician.name,
+            date: date,
+            availability: availability.status,
+            reason: availability.reason
+          })
+        end
         render json: Serializers.technician(technician, date: date)
+      rescue ActiveRecord::RecordNotFound => e
+        render json: { errors: [ e.message ] }, status: :not_found
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
       end
     end
   end

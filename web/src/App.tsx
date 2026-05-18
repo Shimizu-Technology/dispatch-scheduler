@@ -224,10 +224,10 @@ function DispatchApp() {
   const isAuthBlocked = isSignedIn && !user && !authLoading && !isVerifyingApi
 
   if (authLoading) {
-    return <main className="grid min-h-screen place-items-center px-6 text-[#51636a]">
-      <div className="rounded-[2rem] border border-[rgba(16,35,42,0.12)] bg-[#fffdf7]/85 p-8 text-center shadow-[0_24px_80px_rgba(16,35,42,0.12)]">
-        <RefreshCw className="mx-auto mb-3 animate-spin text-cyan-700" />
-        <p className="font-display font-bold">Loading Dispatch Scheduler...</p>
+    return <main className="grid min-h-screen place-items-center px-6 text-[#526071]">
+      <div className="rounded-2xl border border-[rgba(23,32,51,0.12)] bg-white/90 p-8 text-center shadow-[0_24px_70px_rgba(23,32,51,0.12)]">
+        <RefreshCw className="mx-auto mb-3 animate-spin text-[#244393]" />
+        <p className="font-display font-bold">Loading JMI Dispatch...</p>
       </div>
     </main>
   }
@@ -235,57 +235,68 @@ function DispatchApp() {
   return (
     <main className="min-h-screen overflow-hidden">
       <div className="mx-auto flex max-w-[92rem] flex-col gap-6 px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
-        <header className="soft-reveal relative overflow-hidden rounded-[2.2rem] bg-[#082f38] p-6 text-white shadow-[0_28px_90px_rgba(8,47,56,0.28)] sm:p-8 lg:p-10">
-          <div className="absolute right-[-5rem] top-[-6rem] h-64 w-64 rounded-full bg-cyan-300/20 blur-3xl" />
-          <div className="absolute bottom-[-7rem] left-[38%] h-56 w-56 rounded-full bg-amber-300/20 blur-3xl" />
-          <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-cyan-200/70 to-transparent" />
-          <div className="relative grid gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-end">
+        <header className="soft-reveal relative overflow-hidden rounded-3xl border border-[#223f86]/20 bg-[#172b63] p-5 text-white shadow-[0_24px_70px_rgba(23,43,99,0.24)] sm:p-7 lg:p-8">
+          <div className="absolute inset-y-0 left-0 w-1.5 bg-[#d84332]" />
+          <div className="absolute right-0 top-0 h-full w-1/2 bg-[linear-gradient(135deg,rgba(255,255,255,0.1),transparent_48%)]" />
+          <div className="absolute bottom-0 right-8 h-px w-2/3 bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+          <div className="relative grid gap-7 lg:grid-cols-[1.05fr_0.95fr] lg:items-end">
             <div>
-              <p className="font-display text-xs font-extrabold uppercase tracking-[0.3em] text-cyan-200">Daily facilities operations</p>
-              <h1 className="font-display mt-3 max-w-4xl text-4xl font-extrabold tracking-[-0.035em] sm:text-5xl lg:text-6xl">Dispatch Scheduler</h1>
-              <p className="mt-4 max-w-3xl text-lg leading-8 text-cyan-50/82">Review work, check crews, build today&apos;s schedule, and copy a clean WhatsApp message from one organized workspace.</p>
+              <div className="inline-flex items-center gap-3 rounded-2xl border border-white/15 bg-white/10 px-3 py-2 shadow-[0_12px_30px_rgba(0,0,0,0.12)] backdrop-blur">
+                <span className="relative inline-flex h-9 w-12 items-center justify-center overflow-hidden rounded-xl bg-white">
+                  <span className="absolute left-2 h-7 w-1.5 -skew-x-[28deg] bg-[#244393]" />
+                  <span className="absolute left-5 h-7 w-1.5 -skew-x-[28deg] bg-[#d84332]" />
+                  <span className="absolute left-8 h-7 w-1.5 -skew-x-[28deg] bg-[#244393]" />
+                </span>
+                <span>
+                  <span className="font-display block text-sm font-extrabold tracking-tight text-white">JMI Guam</span>
+                  <span className="block text-[0.65rem] font-bold uppercase tracking-[0.22em] text-blue-100/80">Operations Command</span>
+                </span>
+              </div>
+              <p className="font-display mt-7 text-xs font-extrabold uppercase tracking-[0.28em] text-blue-100/85">Facilities dispatch board</p>
+              <h1 className="font-display mt-2 max-w-4xl text-4xl font-extrabold tracking-[-0.035em] sm:text-5xl lg:text-6xl">Daily Dispatch Command</h1>
+              <p className="mt-4 max-w-3xl text-lg leading-8 text-blue-50/82">Prioritize open work, confirm crew coverage, build the day&apos;s JMI schedule, and send a clean WhatsApp dispatch from one controlled workspace.</p>
             </div>
             <div className="relative flex flex-col gap-3 lg:items-end">
-              {!user && isSignedIn ? <div className="w-full rounded-[1.5rem] border border-white/15 bg-white/10 p-4 text-sm text-cyan-50 shadow-2xl backdrop-blur lg:max-w-sm">
+              {!user && isSignedIn ? <div className="w-full rounded-2xl border border-white/15 bg-white/10 p-4 text-sm text-blue-50 shadow-2xl backdrop-blur lg:max-w-sm">
                 <div className="flex items-start gap-3">
-                  <span className="rounded-2xl bg-amber-200/15 p-2 text-amber-100">{isVerifyingApi ? <RefreshCw className="animate-spin" size={20} /> : <LockKeyhole size={20} />}</span>
+                  <span className="rounded-xl bg-red-200/15 p-2 text-red-100">{isVerifyingApi ? <RefreshCw className="animate-spin" size={20} /> : <LockKeyhole size={20} />}</span>
                   <div>
                     <span className="font-display block font-extrabold text-white">{isVerifyingApi ? 'Verifying your access' : 'Signed in, access needs setup'}</span>
-                    <span className="text-cyan-50/75">{isVerifyingApi ? 'Checking your Dispatch Scheduler role...' : 'Clerk worked. The API still needs profile access.'}</span>
+                    <span className="text-blue-50/75">{isVerifyingApi ? 'Checking your JMI dispatch role...' : 'Clerk worked. The API still needs profile access.'}</span>
                   </div>
                 </div>
-              </div> : !user ? <div className="w-full rounded-[1.5rem] border border-white/15 bg-white/10 p-4 text-sm text-cyan-50 shadow-2xl backdrop-blur lg:max-w-sm">
+              </div> : !user ? <div className="w-full rounded-2xl border border-white/15 bg-white/10 p-4 text-sm text-blue-50 shadow-2xl backdrop-blur lg:max-w-sm">
                 <div className="flex items-start gap-3">
-                  <span className="rounded-2xl bg-cyan-200/15 p-2 text-cyan-100"><LockKeyhole size={20} /></span>
+                  <span className="rounded-xl bg-blue-200/15 p-2 text-blue-100"><LockKeyhole size={20} /></span>
                   <div>
                     <span className="font-display block font-extrabold text-white">Sign in to work the schedule</span>
-                    <span className="text-cyan-50/75">The overview is visible. Live data and actions require Clerk.</span>
+                    <span className="text-blue-50/75">The overview is visible. Live data and actions require Clerk.</span>
                   </div>
                 </div>
               </div> : null}
               <div className="flex w-full flex-wrap items-center gap-3 lg:justify-end">
-                {user && <label className="inline-flex flex-1 items-center justify-between gap-3 rounded-2xl border border-white/15 bg-white/10 px-3 py-2 text-sm text-cyan-50 shadow-[0_12px_32px_rgba(0,0,0,0.12)] backdrop-blur sm:flex-none">
-                  <span className="font-display text-xs font-extrabold uppercase tracking-[0.16em] text-cyan-100">Schedule date</span>
+                {user && <label className="inline-flex flex-1 items-center justify-between gap-3 rounded-2xl border border-white/15 bg-white/10 px-3 py-2 text-sm text-blue-50 shadow-[0_12px_32px_rgba(0,0,0,0.12)] backdrop-blur sm:flex-none">
+                  <span className="font-display text-xs font-extrabold uppercase tracking-[0.16em] text-blue-100">Schedule date</span>
                   <input
                     type="date"
                     value={selectedDate}
                     onChange={(event) => setSelectedDate(event.target.value)}
-                    className="rounded-xl border border-white/15 bg-white px-3 py-2 font-display text-sm font-extrabold text-[#10232a] outline-none transition focus:border-cyan-200 focus:ring-4 focus:ring-cyan-200/25"
+                    className="tabular rounded-xl border border-white/15 bg-white px-3 py-2 font-display text-sm font-extrabold text-[#172033] outline-none transition focus:border-blue-200 focus:ring-4 focus:ring-blue-200/25"
                   />
                 </label>}
-                {user && <div className="inline-flex items-center gap-3 rounded-2xl border border-white/15 bg-white/10 px-3 py-2 text-sm text-cyan-50 shadow-[0_12px_32px_rgba(0,0,0,0.12)] backdrop-blur">
+                {user && <div className="inline-flex items-center gap-3 rounded-2xl border border-white/15 bg-white/10 px-3 py-2 text-sm text-blue-50 shadow-[0_12px_32px_rgba(0,0,0,0.12)] backdrop-blur">
                   <UserButton />
                   <span className="leading-tight">
                     <span className="font-display block font-extrabold text-white">{user.name}</span>
-                    <span className="text-xs capitalize text-cyan-50/70">{user.role}</span>
+                    <span className="text-xs capitalize text-blue-50/70">{user.role}</span>
                   </span>
                 </div>}
                 {!isSignedIn && <SignInButton mode="modal">
-                  <button className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3 font-display text-sm font-extrabold text-[#10232a] shadow-[0_16px_38px_rgba(255,255,255,0.18)] transition hover:-translate-y-0.5 hover:bg-cyan-50 sm:flex-none">
+                  <button className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3 font-display text-sm font-extrabold text-[#172033] shadow-[0_16px_38px_rgba(255,255,255,0.18)] transition hover:-translate-y-0.5 hover:bg-blue-50 sm:flex-none">
                     <LockKeyhole size={18} /> Sign In
                   </button>
                 </SignInButton>}
-                {canEditDispatch && <button disabled={working} onClick={suggestSchedule} className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[#f2a51f] px-5 py-3 font-display text-sm font-extrabold text-[#10232a] shadow-[0_16px_38px_rgba(242,165,31,0.28)] transition hover:-translate-y-0.5 hover:bg-[#ffc453] disabled:cursor-wait disabled:opacity-60 sm:flex-none">
+                {canEditDispatch && <button disabled={working} onClick={suggestSchedule} className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[#d84332] px-5 py-3 font-display text-sm font-extrabold text-white shadow-[0_16px_38px_rgba(216,67,50,0.28)] transition hover:-translate-y-0.5 hover:bg-[#bf3228] disabled:cursor-wait disabled:opacity-60 sm:flex-none">
                   <ClipboardList size={18} /> {working ? 'Working...' : "Suggest Today's Schedule"}
                 </button>}
               </div>
@@ -293,22 +304,22 @@ function DispatchApp() {
           </div>
         </header>
 
-        <nav aria-label="Dispatch Scheduler sections" className="soft-reveal-delay sticky top-3 z-10 grid gap-2 rounded-[1.4rem] border border-[rgba(16,35,42,0.1)] bg-[#fffdf7]/92 p-2 shadow-[0_14px_40px_rgba(16,35,42,0.1)] backdrop-blur md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
+        <nav aria-label="JMI dispatch sections" className="soft-reveal-delay sticky top-3 z-10 grid gap-1.5 rounded-2xl border border-[rgba(23,32,51,0.12)] bg-white/94 p-1.5 shadow-[0_14px_36px_rgba(23,32,51,0.09)] backdrop-blur md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
           {sections.map((section) => {
             const isActive = currentSection === section.id
             return <button
               key={section.id}
               type="button"
               onClick={() => goToSection(section.id)}
-              className={`group grid min-h-[5.75rem] grid-cols-[auto_1fr_auto] items-center gap-3 rounded-[1rem] border px-3 py-3 text-left transition ${isActive ? 'border-[#0b4c57] bg-[#10232a] text-white' : 'border-transparent text-[#10232a] hover:border-[rgba(16,35,42,0.1)] hover:bg-white'}`}
+              className={`group grid min-h-[4.5rem] grid-cols-[auto_1fr_auto] items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition ${isActive ? 'border-[#244393] bg-[#172b63] text-white shadow-[0_10px_24px_rgba(36,67,147,0.2)]' : 'border-transparent text-[#172033] hover:border-[rgba(36,67,147,0.18)] hover:bg-[#f4f7fb]'}`}
             >
-              <span className={`inline-flex rounded-xl p-1.5 ${isActive ? 'bg-cyan-200/15 text-cyan-100' : 'bg-cyan-50 text-cyan-800'}`}>{section.icon}</span>
+              <span className={`inline-flex rounded-lg p-1.5 ${isActive ? 'bg-white/12 text-blue-100' : 'bg-[#e8eefc] text-[#244393]'}`}>{section.icon}</span>
               <span className="min-w-0">
                 <span className="font-display block text-sm font-extrabold">{section.label}</span>
-                <span className={`block text-xs ${isActive ? 'text-cyan-50/75' : 'text-[#647277]'}`}>{section.description}</span>
+                <span className={`block text-xs ${isActive ? 'text-blue-50/75' : 'text-[#64748b]'}`}>{section.description}</span>
               </span>
               {typeof section.count === 'number'
-                ? <span className={`inline-flex min-w-8 justify-center rounded-full px-2.5 py-1 text-xs font-extrabold ${isActive ? 'bg-white/12 text-white' : 'bg-[#e7f6f5] text-[#0b4c57]'}`}>{section.count}</span>
+                ? <span className={`tabular inline-flex min-w-8 justify-center rounded-full px-2.5 py-1 text-xs font-extrabold ${isActive ? 'bg-white/12 text-white' : 'bg-[#eef2ff] text-[#244393]'}`}>{section.count}</span>
                 : <span aria-hidden="true" className="hidden min-w-8 xl:block" />}
             </button>
           })}
@@ -316,48 +327,48 @@ function DispatchApp() {
 
         {!user && !authError && !isVerifyingApi && <SignInRequiredPanel />}
 
-        {isVerifyingApi && !user && <section className="rounded-[1.7rem] border border-[rgba(16,35,42,0.12)] bg-[#fffdf7]/88 p-6 shadow-[0_18px_60px_rgba(20,36,40,0.09)]">
-          <div className="inline-flex items-center gap-3 text-sm font-bold text-[#0b4c57]">
+        {isVerifyingApi && !user && <section className="rounded-2xl border border-[rgba(23,32,51,0.12)] bg-white/90 p-6 shadow-[0_18px_50px_rgba(23,32,51,0.08)]">
+          <div className="inline-flex items-center gap-3 text-sm font-bold text-[#244393]">
             <RefreshCw size={18} className="animate-spin" /> Verifying your Clerk session with the dispatch API...
           </div>
         </section>}
 
-        {user && loading && <div className="inline-flex w-fit items-center gap-2 rounded-2xl border border-cyan-100 bg-cyan-50/80 px-4 py-2 text-sm font-bold text-cyan-900">
+        {user && loading && <div className="inline-flex w-fit items-center gap-2 rounded-2xl border border-blue-100 bg-blue-50/90 px-4 py-2 text-sm font-bold text-blue-900">
           <RefreshCw size={16} className="animate-spin" /> Loading live dispatch data...
         </div>}
 
-        {isAuthBlocked && <div className="rounded-[1.4rem] border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-900">
+        {isAuthBlocked && <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-900">
           {needsTokenClaims
             ? 'Your Clerk sign-in worked, but the API needs access to your email. Add CLERK_SECRET_KEY to api/.env, or configure Clerk token email claims.'
             : `Your Clerk sign-in worked, but the dispatch API could not confirm your role yet: ${authError || 'Unable to verify access'}`}
         </div>}
 
-        {user && !canEditDispatch && <div className="rounded-[1.4rem] border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-900">Viewer mode: you can inspect dashboard, work orders, teams, PMs, and generated schedules, but editing controls are hidden.</div>}
+        {user && !canEditDispatch && <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-900">Viewer mode: you can inspect dashboard, work orders, teams, PMs, and generated schedules, but editing controls are hidden.</div>}
 
-        {error && <div className="rounded-[1.4rem] border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-800">{error}</div>}
+        {error && <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-800">{error}</div>}
 
         {currentSection === 'overview' && <>
           <DashboardMetrics dashboard={dashboard} workOrders={workOrders} />
           <div className="grid gap-4 lg:grid-cols-4">
-            <button type="button" onClick={() => goToSection('work-orders')} className="rounded-[1.25rem] border border-[rgba(16,35,42,0.1)] bg-white/80 p-5 text-left shadow-[0_10px_28px_rgba(16,35,42,0.05)] transition hover:-translate-y-0.5 hover:border-cyan-200">
-              <span className="font-display text-xs font-extrabold uppercase tracking-[0.2em] text-cyan-700">Step 1</span>
-              <span className="font-display mt-2 block text-xl font-extrabold text-[#10232a]">Review open work</span>
-              <span className="mt-2 block text-sm leading-6 text-[#5c6b70]">Look for urgent, blocked, waiting, and assessment items.</span>
+            <button type="button" onClick={() => goToSection('work-orders')} className="rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white/88 p-5 text-left shadow-[0_10px_26px_rgba(23,32,51,0.05)] transition hover:-translate-y-0.5 hover:border-blue-200">
+              <span className="font-display text-xs font-extrabold uppercase tracking-[0.2em] text-[#d84332]">Step 1</span>
+              <span className="font-display mt-2 block text-xl font-extrabold text-[#172033]">Review open work</span>
+              <span className="mt-2 block text-sm leading-6 text-[#526071]">Look for urgent, blocked, waiting, and assessment items.</span>
             </button>
-            <button type="button" onClick={() => goToSection('teams')} className="rounded-[1.25rem] border border-[rgba(16,35,42,0.1)] bg-white/80 p-5 text-left shadow-[0_10px_28px_rgba(16,35,42,0.05)] transition hover:-translate-y-0.5 hover:border-cyan-200">
-              <span className="font-display text-xs font-extrabold uppercase tracking-[0.2em] text-cyan-700">Step 2</span>
-              <span className="font-display mt-2 block text-xl font-extrabold text-[#10232a]">Check crews</span>
-              <span className="mt-2 block text-sm leading-6 text-[#5c6b70]">Mark call-outs and confirm each crew has driver coverage.</span>
+            <button type="button" onClick={() => goToSection('teams')} className="rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white/88 p-5 text-left shadow-[0_10px_26px_rgba(23,32,51,0.05)] transition hover:-translate-y-0.5 hover:border-blue-200">
+              <span className="font-display text-xs font-extrabold uppercase tracking-[0.2em] text-[#d84332]">Step 2</span>
+              <span className="font-display mt-2 block text-xl font-extrabold text-[#172033]">Check crews</span>
+              <span className="mt-2 block text-sm leading-6 text-[#526071]">Mark call-outs and confirm each crew has driver coverage.</span>
             </button>
-            <button type="button" onClick={() => goToSection('dispatch')} className="rounded-[1.25rem] border border-[rgba(16,35,42,0.1)] bg-white/80 p-5 text-left shadow-[0_10px_28px_rgba(16,35,42,0.05)] transition hover:-translate-y-0.5 hover:border-cyan-200">
-              <span className="font-display text-xs font-extrabold uppercase tracking-[0.2em] text-cyan-700">Step 3</span>
-              <span className="font-display mt-2 block text-xl font-extrabold text-[#10232a]">Build schedule</span>
-              <span className="mt-2 block text-sm leading-6 text-[#5c6b70]">Generate a draft and adjust crew, time, order, or notes.</span>
+            <button type="button" onClick={() => goToSection('dispatch')} className="rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white/88 p-5 text-left shadow-[0_10px_26px_rgba(23,32,51,0.05)] transition hover:-translate-y-0.5 hover:border-blue-200">
+              <span className="font-display text-xs font-extrabold uppercase tracking-[0.2em] text-[#d84332]">Step 3</span>
+              <span className="font-display mt-2 block text-xl font-extrabold text-[#172033]">Build schedule</span>
+              <span className="mt-2 block text-sm leading-6 text-[#526071]">Generate a draft and adjust crew, time, order, or notes.</span>
             </button>
-            <button type="button" onClick={() => goToSection('whatsapp')} className="rounded-[1.25rem] border border-[rgba(16,35,42,0.1)] bg-white/80 p-5 text-left shadow-[0_10px_28px_rgba(16,35,42,0.05)] transition hover:-translate-y-0.5 hover:border-cyan-200">
-              <span className="font-display text-xs font-extrabold uppercase tracking-[0.2em] text-cyan-700">Step 4</span>
-              <span className="font-display mt-2 block text-xl font-extrabold text-[#10232a]">Copy WhatsApp</span>
-              <span className="mt-2 block text-sm leading-6 text-[#5c6b70]">Send the clean dispatch message after the plan is right.</span>
+            <button type="button" onClick={() => goToSection('whatsapp')} className="rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white/88 p-5 text-left shadow-[0_10px_26px_rgba(23,32,51,0.05)] transition hover:-translate-y-0.5 hover:border-blue-200">
+              <span className="font-display text-xs font-extrabold uppercase tracking-[0.2em] text-[#d84332]">Step 4</span>
+              <span className="font-display mt-2 block text-xl font-extrabold text-[#172033]">Copy WhatsApp</span>
+              <span className="mt-2 block text-sm leading-6 text-[#526071]">Send the clean dispatch message after the plan is right.</span>
             </button>
           </div>
         </>}
@@ -379,13 +390,13 @@ function DispatchApp() {
 }
 
 function SignInRequiredPanel({ title = 'Sign in to load live dispatch data' }: { title?: string }) {
-  return <section className="rounded-[1.7rem] border border-[rgba(16,35,42,0.12)] bg-[#fffdf7]/88 p-6 shadow-[0_18px_60px_rgba(20,36,40,0.09)]">
+  return <section className="rounded-2xl border border-[rgba(23,32,51,0.12)] bg-white/90 p-6 shadow-[0_18px_50px_rgba(23,32,51,0.08)]">
     <div className="max-w-2xl">
-      <p className="font-display text-[0.68rem] font-extrabold uppercase tracking-[0.24em] text-cyan-700">Secure workspace</p>
-      <h2 className="font-display mt-1 text-2xl font-extrabold tracking-tight text-[#10232a]">{title}</h2>
-      <p className="mt-2 text-sm leading-6 text-[#5c6b70]">The app shell is available so the page does not feel broken while Clerk is loading or before sign-in. Live JMI data and editing actions load after you sign in.</p>
+      <p className="font-display text-[0.68rem] font-extrabold uppercase tracking-[0.24em] text-[#244393]">Secure JMI workspace</p>
+      <h2 className="font-display mt-1 text-2xl font-extrabold tracking-tight text-[#172033]">{title}</h2>
+      <p className="mt-2 text-sm leading-6 text-[#526071]">The app shell is available so the page does not feel broken while Clerk is loading or before sign-in. Live JMI data and editing actions load after you sign in.</p>
       <SignInButton mode="modal">
-        <button className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-[#10232a] px-5 py-3 font-display text-sm font-extrabold text-white shadow-[0_16px_38px_rgba(16,35,42,0.18)] transition hover:-translate-y-0.5 hover:bg-[#0b4c57]">
+        <button className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-[#244393] px-5 py-3 font-display text-sm font-extrabold text-white shadow-[0_16px_38px_rgba(36,67,147,0.2)] transition hover:-translate-y-0.5 hover:bg-[#172b63]">
           <LockKeyhole size={18} /> Sign In With Clerk
         </button>
       </SignInButton>

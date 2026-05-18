@@ -26,6 +26,13 @@ class TeamsControllerTest < ActionDispatch::IntegrationTest
     assert_equal false, payload.fetch("daily_override")
     assert_equal [ "#{source_team.name} Driver" ], payload.fetch("technicians").map { |tech| tech.fetch("name") }
     assert_equal true, payload.fetch("has_driver")
+
+    clear_metadata = AuditEvent.last.metadata_hash
+    assert_equal "team.daily_crew.cleared", AuditEvent.last.action
+    assert_equal [ borrowed_tech.id ], clear_metadata.fetch("previous_technician_ids")
+    assert_equal [ "Borrowed Helper" ], clear_metadata.fetch("previous_technician_names")
+    assert_equal [ source_team.technicians.first.id ], clear_metadata.fetch("technician_ids")
+    assert_equal [ "#{source_team.name} Driver" ], clear_metadata.fetch("technician_names")
   end
 
   test "dispatcher can save an intentionally empty daily crew" do

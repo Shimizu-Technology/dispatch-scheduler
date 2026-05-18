@@ -21,8 +21,7 @@ export function ActivityPanel({ events }: { events: AuditEvent[] }) {
     <PanelHeader
       eyebrow="Audit history"
       title="Activity"
-      description="A running record of work-order, crew, dispatch, and schedule status changes."
-      action={<span className="tabular rounded-full bg-[#172b63] px-3 py-1.5 font-display text-xs font-extrabold uppercase tracking-[0.14em] text-white">{events.length} events</span>}
+      description="Recent work-order, crew, dispatch, and schedule status changes."
     />
     <div className="space-y-3 p-4">
       {events.length === 0 && <p className="rounded-2xl border border-dashed border-[rgba(23,32,51,0.18)] bg-[#f8faff] p-5 text-sm font-semibold text-[#526071]">No activity has been recorded yet.</p>}

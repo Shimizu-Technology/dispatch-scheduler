@@ -42,7 +42,6 @@ module Api
           return render json: { errors: [ "A work order with this source and WO number already exists" ], duplicate: Serializers.work_order(duplicate) }, status: :conflict
         end
 
-        changes = nil
         ApplicationRecord.transaction do
           wo.update!(work_order_record_attributes(attrs, existing: wo))
           changes = wo.previous_changes.except("updated_at", "description", "notes")

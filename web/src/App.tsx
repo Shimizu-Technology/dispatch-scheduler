@@ -123,7 +123,7 @@ function DispatchApp() {
     try {
       await refreshAuditEvents()
     } catch {
-      // Activity refresh should never block the main dispatch workflow.
+      // Activity refresh failures should never block the main dispatch workflow.
     }
   }
 

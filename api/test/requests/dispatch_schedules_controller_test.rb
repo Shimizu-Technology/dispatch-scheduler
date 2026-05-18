@@ -78,6 +78,31 @@ class DispatchSchedulesControllerTest < ActionDispatch::IntegrationTest
     assert_nil payload.fetch("sent_at")
   end
 
+  test "exports WhatsApp-ready crew assignments with crew context" do
+    crew = team(name: "Export Crew", skills: [ "HVAC" ], unavailable: true)
+    schedule = DispatchSchedule.create!(date: DEFAULT_DATE, status: "finalized")
+    work = work_order(title: "Export work", priority: "P2", trade: "HVAC")
+    schedule.dispatch_items.create!(team: crew, work_order: work, order_index: 0, scheduled_time: "08:30", notes: "Bring ladder")
+
+    with_auth_env do
+      get "/api/v1/dispatch_schedules/#{schedule.id}/whatsapp_export", headers: auth_headers
+    end
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_equal "finalized", payload.fetch("status")
+    assert_includes payload.fetch("message"), "JMI Dispatch - Tuesday, May 5, 2026"
+    assert_includes payload.fetch("message"), "EXPORT CREW"
+    assert_includes payload.fetch("message"), "8:30 AM - Mobil / Yigo North"
+    assert_includes payload.fetch("message"), "WO: #{work.external_id} | P2 | HVAC"
+    assert_includes payload.fetch("message"), "Notes: Bring ladder"
+    crew_payload = payload.fetch("crews").first
+    assert_equal "Export Crew", crew_payload.fetch("team_name")
+    assert_equal 1, crew_payload.fetch("stops_count")
+    assert_equal [ "Export Crew Driver" ], crew_payload.fetch("driver_names")
+    assert_equal "Test call-out", crew_payload.fetch("call_outs").first.fetch("reason")
+  end
+
   test "schedule state rolls back when audit event cannot be recorded" do
     crew = team(name: "Audit Failure Crew")
     schedule = DispatchSchedule.create!(date: DEFAULT_DATE, status: "draft")

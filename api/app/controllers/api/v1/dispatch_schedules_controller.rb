@@ -36,7 +36,8 @@ module Api
 
       def whatsapp_export
         schedule = DispatchSchedule.includes(dispatch_items: [ :team, { work_order: [ :client, :location ] }, { pm_task: [ :client, :location ] } ]).find(params[:id])
-        render json: { id: schedule.id, date: schedule.date, message: WhatsAppExportService.new(schedule).call }
+        export = WhatsAppExportService.new(schedule)
+        render json: { id: schedule.id, date: schedule.date, status: schedule.status, message: export.call, crews: export.crews }
       end
 
       def finalize

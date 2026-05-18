@@ -13,7 +13,7 @@ import { WorkOrdersPanel } from './components/WorkOrdersPanel'
 import { DEMO_DATE } from './constants'
 import { useAuthContext } from './contexts/useAuthContext'
 import { getJson, patchJson, postJson } from './lib/api'
-import type { AuditEvent, Dashboard, DispatchSchedule, ManagedUser, PmTask, Team, Technician, WorkOrder, WorkOrderInput } from './types'
+import type { AuditEvent, Dashboard, DispatchSchedule, ManagedUser, PmTask, Team, Technician, WhatsAppCrewExport, WhatsAppExportPayload, WorkOrder, WorkOrderInput } from './types'
 import './index.css'
 
 type ActiveSection = 'overview' | 'dispatch' | 'work-orders' | 'teams' | 'pm-tasks' | 'whatsapp' | 'activity' | 'users'
@@ -38,6 +38,7 @@ function DispatchApp() {
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([])
   const [schedule, setSchedule] = useState<DispatchSchedule | null>(null)
   const [whatsApp, setWhatsApp] = useState('')
+  const [whatsAppCrews, setWhatsAppCrews] = useState<WhatsAppCrewExport[]>([])
   const [loading, setLoading] = useState(false)
   const [working, setWorking] = useState(false)
   const [availabilitySavingId, setAvailabilitySavingId] = useState<number | null>(null)
@@ -48,8 +49,9 @@ function DispatchApp() {
   const [error, setError] = useState('')
 
   const refreshWhatsApp = useCallback(async (scheduleId: number) => {
-    const exportJson = await getJson<{ message: string }>(`/dispatch_schedules/${scheduleId}/whatsapp_export`)
+    const exportJson = await getJson<WhatsAppExportPayload>(`/dispatch_schedules/${scheduleId}/whatsapp_export`)
     setWhatsApp(exportJson.message)
+    setWhatsAppCrews(exportJson.crews)
   }, [])
 
   const refreshAuditEvents = useCallback(async () => {
@@ -79,6 +81,7 @@ function DispatchApp() {
       await refreshWhatsApp(schedulePayload.schedule.id)
     } else {
       setWhatsApp('')
+      setWhatsAppCrews([])
     }
     setLoading(false)
   }, [refreshAuditEvents, refreshWhatsApp])
@@ -542,7 +545,7 @@ function DispatchApp() {
 
         {currentSection === 'pm-tasks' && (user ? <PmTasksPanel pmTasks={pmTasks} /> : <SignInRequiredPanel title="Sign in to review PM tasks" />)}
 
-        {currentSection === 'whatsapp' && (user ? <WhatsAppExport schedule={schedule} message={whatsApp} copied={copied} working={working} canEdit={canEditDispatch} onCopy={copyWhatsApp} onMarkSent={markScheduleSent} /> : <SignInRequiredPanel title="Sign in to copy WhatsApp output" />)}
+        {currentSection === 'whatsapp' && (user ? <WhatsAppExport schedule={schedule} message={whatsApp} crews={whatsAppCrews} copied={copied} working={working} canEdit={canEditDispatch} onCopy={copyWhatsApp} onMarkSent={markScheduleSent} /> : <SignInRequiredPanel title="Sign in to copy WhatsApp output" />)}
 
         {currentSection === 'activity' && (user ? <ActivityPanel events={auditEvents} /> : <SignInRequiredPanel title="Sign in to review activity" />)}
 

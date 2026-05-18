@@ -75,7 +75,9 @@ function eventSummary(event: AuditEvent) {
 
 function eventTime(value: string | null) {
   if (!value) return 'Unknown time'
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value))
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Unknown time'
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'short', timeStyle: 'short' }).format(date)
 }
 
 export function DashboardMetrics({ dashboard, workOrders, teams, technicians, pmTasks, schedule, auditEvents, canEdit, working, onGoToSection, onSuggest }: DashboardMetricsProps) {
@@ -117,7 +119,7 @@ export function DashboardMetrics({ dashboard, workOrders, teams, technicians, pm
         <div className="grid grid-cols-3 gap-3 p-4">
           <Metric icon={<ShieldCheck size={20} />} label="Status" value={statusLabel(schedule)} tone={statusTone(schedule)} />
           <Metric icon={<ListChecks size={20} />} label="Stops" value={scheduleItems} tone="blue" />
-          <Metric icon={<CalendarDays size={20} />} label="PM Due" value={pmTasks.length || dashboard?.counts.pm_due} tone="steel" />
+          <Metric icon={<CalendarDays size={20} />} label="PM Due" value={pmTasks.length} tone="steel" />
         </div>
       </Card>
     </div>

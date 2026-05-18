@@ -15,6 +15,12 @@ module Api
         availability.status = params[:availability].presence || "available"
         availability.reason = params[:reason]
         availability.save!
+        AuditEvent.record!(action: "technician_availability.updated", record: technician, user: current_user, metadata: {
+          technician: technician.name,
+          date: date,
+          availability: availability.status,
+          reason: availability.reason
+        })
         render json: Serializers.technician(technician, date: date)
       end
     end

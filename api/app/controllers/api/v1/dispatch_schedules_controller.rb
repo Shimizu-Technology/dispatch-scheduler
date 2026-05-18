@@ -16,6 +16,12 @@ module Api
 
         service = DispatchSuggestionService.new(date: schedule_date)
         schedule = service.call
+        AuditEvent.record!(action: "dispatch_schedule.generated", record: schedule, user: current_user, metadata: {
+          date: schedule.date,
+          scheduled_items: service.summary[:scheduled_items],
+          deferred_items: service.summary[:deferred_items],
+          blocked_work_orders: service.summary[:blocked_work_orders]
+        })
         render json: Serializers.schedule(schedule, summary: service.summary), status: :created
       end
 
@@ -34,6 +40,7 @@ module Api
         return render json: Serializers.schedule(schedule) if schedule.finalized?
 
         schedule.finalize!(current_user)
+        AuditEvent.record!(action: "dispatch_schedule.finalized", record: schedule, user: current_user, metadata: { date: schedule.date, status: schedule.status })
         render json: Serializers.schedule(schedule)
       rescue ActiveRecord::RecordNotFound => e
         render json: { errors: [ e.message ] }, status: :not_found
@@ -46,6 +53,7 @@ module Api
         return render json: Serializers.schedule(schedule) if schedule.sent?
 
         schedule.mark_sent!(current_user)
+        AuditEvent.record!(action: "dispatch_schedule.sent", record: schedule, user: current_user, metadata: { date: schedule.date, status: schedule.status })
         render json: Serializers.schedule(schedule)
       rescue ActiveRecord::RecordNotFound => e
         render json: { errors: [ e.message ] }, status: :not_found
@@ -55,7 +63,9 @@ module Api
 
       def reopen
         schedule = DispatchSchedule.find(params[:id])
+        previous_status = schedule.status
         schedule.reopen!
+        AuditEvent.record!(action: "dispatch_schedule.reopened", record: schedule, user: current_user, metadata: { date: schedule.date, previous_status: previous_status })
         render json: Serializers.schedule(schedule)
       rescue ActiveRecord::RecordNotFound => e
         render json: { errors: [ e.message ] }, status: :not_found

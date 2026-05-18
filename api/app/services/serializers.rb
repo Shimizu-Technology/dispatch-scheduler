@@ -168,6 +168,18 @@ module Serializers
     }
   end
 
+  def audit_event(event)
+    {
+      id: event.id,
+      action: event.action,
+      record_type: event.record_type,
+      record_id: event.record_id,
+      user_name: event.user&.display_name,
+      occurred_at: event.occurred_at&.iso8601,
+      metadata: event.metadata_hash
+    }
+  end
+
   def dispatch_item(item)
     schedulable = item.schedulable
     base = {

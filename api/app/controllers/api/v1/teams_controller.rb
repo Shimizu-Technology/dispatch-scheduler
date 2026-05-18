@@ -38,6 +38,12 @@ module Api
               team.team_memberships.create!(date: date, technician_id: technician_id)
             end
           end
+          AuditEvent.record!(action: use_default ? "team.daily_crew.cleared" : "team.daily_crew.updated", record: team, user: current_user, metadata: {
+            team: team.name,
+            date: date,
+            technician_ids: existing_ids,
+            technician_names: Technician.where(id: existing_ids).order(:name).pluck(:name)
+          })
         end
 
         render json: Serializers.team(team.reload, date: date)

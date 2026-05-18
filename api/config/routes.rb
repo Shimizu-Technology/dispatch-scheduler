@@ -6,6 +6,7 @@ Rails.application.routes.draw do
       get "me", to: "me#show"
       get "dashboard", to: "dashboard#index"
       resources :users, only: [ :index, :update ]
+      resources :audit_events, only: [ :index ]
       resources :work_orders, only: [ :index, :create, :update ]
       resources :technicians, only: [ :index, :update ]
       resources :teams, only: [ :index ] do

@@ -123,3 +123,13 @@ export type ManagedUser = CurrentUser & {
   id: number
   last_seen_at: string | null
 }
+
+export type AuditEvent = {
+  id: number
+  action: string
+  record_type: string
+  record_id: number | null
+  user_name: string | null
+  occurred_at: string | null
+  metadata: Record<string, string | number | boolean | null | string[] | number[]>
+}

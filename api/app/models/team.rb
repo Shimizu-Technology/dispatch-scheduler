@@ -11,7 +11,7 @@ class Team < ApplicationRecord
   end
 
   def daily_override?(date = Date.current)
-    team_daily_overrides.where(date: date).exists? || team_memberships.where(date: date).exists?
+    team_daily_overrides.where(date: date).exists?
   end
 
   def available_technicians(date = Date.current)

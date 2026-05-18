@@ -181,9 +181,46 @@ function DispatchApp() {
     }
   }
 
+  async function updateScheduleStatus(path: string, fallbackMessage: string) {
+    if (!schedule) return
+    if (!canEditDispatch) {
+      setError('Viewer access cannot update schedule status.')
+      return
+    }
+
+    setWorking(true)
+    setError('')
+    try {
+      const updated = await postJson<DispatchSchedule>(`/dispatch_schedules/${schedule.id}/${path}`, {})
+      setSchedule(updated)
+      if (updated.items.length > 0) await refreshWhatsApp(updated.id)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : fallbackMessage)
+    } finally {
+      setWorking(false)
+    }
+  }
+
+  async function finalizeSchedule() {
+    await updateScheduleStatus('finalize', 'Unable to finalize schedule')
+  }
+
+  async function markScheduleSent() {
+    await updateScheduleStatus('mark_sent', 'Unable to mark schedule sent')
+  }
+
+  async function reopenSchedule() {
+    if (schedule?.status === 'sent' && !window.confirm('Reopen this sent schedule? This will unlock editing and clear the sent marker.')) return
+    await updateScheduleStatus('reopen', 'Unable to reopen schedule')
+  }
+
   async function suggestSchedule() {
     if (!canEditDispatch) {
       setError('Viewer access cannot regenerate dispatch drafts.')
+      return
+    }
+    if (schedule && schedule.status !== 'draft') {
+      setError('This schedule is locked. Reopen it before regenerating.')
       return
     }
     if (schedule && !window.confirm('Regenerate this draft? Current manual overrides will be replaced with a fresh suggestion.')) {
@@ -357,8 +394,9 @@ function DispatchApp() {
                     <LockKeyhole size={18} /> Sign In
                   </button>
                 </SignInButton>}
-                {canEditDispatch && <button disabled={working} onClick={suggestSchedule} className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[#d84332] px-5 py-3 font-display text-sm font-extrabold text-white shadow-[0_16px_38px_rgba(216,67,50,0.28)] transition hover:-translate-y-0.5 hover:bg-[#bf3228] disabled:cursor-wait disabled:opacity-60 sm:flex-none">
-                  <ClipboardList size={18} /> {working ? 'Working...' : "Suggest Today's Schedule"}
+                {schedule && <span className={`inline-flex flex-1 items-center justify-center rounded-2xl border px-4 py-3 font-display text-xs font-extrabold uppercase tracking-[0.16em] sm:flex-none ${schedule.status === 'sent' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : schedule.status === 'finalized' ? 'border-blue-200 bg-blue-50 text-blue-900' : 'border-white/15 bg-white/10 text-blue-50'}`}>{schedule.status}</span>}
+                {canEditDispatch && <button disabled={working || Boolean(schedule && schedule.status !== 'draft')} onClick={suggestSchedule} className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[#d84332] px-5 py-3 font-display text-sm font-extrabold text-white shadow-[0_16px_38px_rgba(216,67,50,0.28)] transition hover:-translate-y-0.5 hover:bg-[#bf3228] disabled:cursor-not-allowed disabled:opacity-60 sm:flex-none">
+                  <ClipboardList size={18} /> {working ? 'Working...' : schedule?.status === 'draft' || !schedule ? "Suggest Today's Schedule" : 'Schedule Locked'}
                 </button>}
               </div>
             </div>
@@ -438,11 +476,11 @@ function DispatchApp() {
 
         {currentSection === 'teams' && (user ? <TeamsPanel teams={teams} canEdit={canEditDispatch} savingTechnicianId={availabilitySavingId} onToggleAvailability={toggleAvailability} /> : <SignInRequiredPanel title="Sign in to check crews" />)}
 
-        {currentSection === 'dispatch' && (user ? <DispatchBuilder schedule={schedule} teams={teams} working={working} canEdit={canEditDispatch} onSuggest={suggestSchedule} onUpdate={updateDispatchItem} /> : <SignInRequiredPanel title="Sign in to build today's dispatch" />)}
+        {currentSection === 'dispatch' && (user ? <DispatchBuilder schedule={schedule} teams={teams} working={working} canEdit={canEditDispatch} onSuggest={suggestSchedule} onUpdate={updateDispatchItem} onFinalize={finalizeSchedule} onReopen={reopenSchedule} /> : <SignInRequiredPanel title="Sign in to build today's dispatch" />)}
 
         {currentSection === 'pm-tasks' && (user ? <PmTasksPanel pmTasks={pmTasks} /> : <SignInRequiredPanel title="Sign in to review PM tasks" />)}
 
-        {currentSection === 'whatsapp' && (user ? <WhatsAppExport message={whatsApp} copied={copied} onCopy={copyWhatsApp} /> : <SignInRequiredPanel title="Sign in to copy WhatsApp output" />)}
+        {currentSection === 'whatsapp' && (user ? <WhatsAppExport schedule={schedule} message={whatsApp} copied={copied} working={working} canEdit={canEditDispatch} onCopy={copyWhatsApp} onMarkSent={markScheduleSent} /> : <SignInRequiredPanel title="Sign in to copy WhatsApp output" />)}
 
         {currentSection === 'users' && user?.permissions.can_admin && <UserManagementPanel users={managedUsers} currentUserId={user.id} savingUserId={savingUserId} onRoleChange={updateUserRole} />}
       </div>

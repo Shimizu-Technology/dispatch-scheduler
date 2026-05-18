@@ -7,6 +7,10 @@ module Serializers
       id: schedule.id,
       date: schedule.date,
       status: schedule.status,
+      finalized_at: schedule.finalized_at&.iso8601,
+      sent_at: schedule.sent_at&.iso8601,
+      finalized_by: schedule.finalized_by_user&.display_name,
+      sent_by: schedule.sent_by_user&.display_name,
       summary: summary || schedule_summary(schedule),
       items: schedule.dispatch_items.map { |item| dispatch_item(item) }
     }

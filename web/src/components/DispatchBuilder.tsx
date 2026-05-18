@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Save } from 'lucide-react'
+import { CheckCircle2, Save, Unlock } from 'lucide-react'
 import { Badge, Card, PanelHeader } from './ui'
 import type { DispatchItem, DispatchSchedule, DispatchSummary, Team } from '../types'
 
@@ -11,6 +11,18 @@ function ScheduleSummary({ summary }: { summary: DispatchSummary }) {
     <span className="font-semibold">{summary.deferred_items + summary.blocked_work_orders} held out</span>
     <p className="leading-6 text-[#526071] sm:col-span-4">{summary.message}</p>
   </div>
+}
+
+function StatusNotice({ schedule }: { schedule: DispatchSchedule }) {
+  if (schedule.status === 'draft') {
+    return <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">Draft schedule: adjust crew, time, order, and notes before finalizing.</div>
+  }
+
+  if (schedule.status === 'finalized') {
+    return <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm font-semibold text-blue-900">Finalized schedule: editing and regeneration are locked. Reopen to make changes before sending.</div>
+  }
+
+  return <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-900">Sent schedule: this dispatch has been marked as sent to the crews.</div>
 }
 
 function DispatchCard({ item, teams, disabled, canEdit, onUpdate }: { item: DispatchItem; teams: Team[]; disabled: boolean; canEdit: boolean; onUpdate: (itemId: number, changes: Record<string, unknown>) => Promise<void> }) {
@@ -68,7 +80,7 @@ function DispatchCard({ item, teams, disabled, canEdit, onUpdate }: { item: Disp
   </div>
 }
 
-export function DispatchBuilder({ schedule, teams, working, canEdit, onSuggest, onUpdate }: { schedule: DispatchSchedule | null; teams: Team[]; working: boolean; canEdit: boolean; onSuggest: () => Promise<void>; onUpdate: (itemId: number, changes: Record<string, unknown>) => Promise<void> }) {
+export function DispatchBuilder({ schedule, teams, working, canEdit, onSuggest, onUpdate, onFinalize, onReopen }: { schedule: DispatchSchedule | null; teams: Team[]; working: boolean; canEdit: boolean; onSuggest: () => Promise<void>; onUpdate: (itemId: number, changes: Record<string, unknown>) => Promise<void>; onFinalize: () => Promise<void>; onReopen: () => Promise<void> }) {
   const groupedSchedule = useMemo(() => {
     const groups: Record<string, DispatchItem[]> = {}
     schedule?.items.forEach((item) => {
@@ -78,24 +90,30 @@ export function DispatchBuilder({ schedule, teams, working, canEdit, onSuggest, 
     Object.values(groups).forEach((items) => items.sort((a, b) => a.order_index - b.order_index))
     return groups
   }, [schedule])
+  const canEditItems = canEdit && schedule?.status === 'draft'
 
   return <Card className="overflow-hidden">
     <PanelHeader
       eyebrow="Morning plan"
       title="Dispatch Builder"
-      description={canEdit ? 'Suggestions are a draft. Dispatchers can change crew, time, order, and notes before copying WhatsApp.' : 'Viewer access can inspect the draft, but cannot change crew, time, order, or notes.'}
-      action={canEdit && <button disabled={working} onClick={onSuggest} className="rounded-2xl bg-[#244393] px-4 py-2.5 font-display text-sm font-extrabold text-white shadow-[0_14px_30px_rgba(36,67,147,0.18)] transition hover:-translate-y-0.5 hover:bg-[#172b63] disabled:cursor-wait disabled:opacity-60">Regenerate Draft</button>}
+      description={canEditItems ? 'Suggestions are a draft. Dispatchers can change crew, time, order, and notes before copying WhatsApp.' : 'Finalized and sent schedules are locked until reopened.'}
+      action={canEdit && <div className="flex flex-wrap gap-2">
+        {schedule?.status === 'draft' && <button disabled={working || schedule.items.length === 0} onClick={onFinalize} className="inline-flex items-center gap-2 rounded-2xl bg-[#16835f] px-4 py-2.5 font-display text-sm font-extrabold text-white shadow-[0_14px_30px_rgba(22,131,95,0.16)] transition hover:-translate-y-0.5 hover:bg-[#106a4c] disabled:cursor-not-allowed disabled:opacity-60"><CheckCircle2 size={16} /> Finalize</button>}
+        {schedule && schedule.status !== 'draft' && <button disabled={working} onClick={onReopen} className="inline-flex items-center gap-2 rounded-2xl border border-[rgba(36,67,147,0.18)] bg-white px-4 py-2.5 font-display text-sm font-extrabold text-[#244393] transition hover:-translate-y-0.5 hover:bg-[#e8eefc] disabled:cursor-wait disabled:opacity-60"><Unlock size={16} /> Reopen</button>}
+        <button disabled={working || Boolean(schedule && schedule.status !== 'draft')} onClick={onSuggest} className="rounded-2xl bg-[#244393] px-4 py-2.5 font-display text-sm font-extrabold text-white shadow-[0_14px_30px_rgba(36,67,147,0.18)] transition hover:-translate-y-0.5 hover:bg-[#172b63] disabled:cursor-not-allowed disabled:opacity-60">Regenerate Draft</button>
+      </div>}
     />
     {!schedule ? (
       <div className="p-8 text-center text-[#526071]">{canEdit ? <>Click <strong>Suggest Today&apos;s Schedule</strong> to generate a draft dispatch plan.</> : 'No draft schedule is loaded yet.'}</div>
     ) : (
       <div className="space-y-4 p-4">
+        <StatusNotice schedule={schedule} />
         <ScheduleSummary summary={schedule.summary} />
         {Object.entries(groupedSchedule).map(([team, items]) => (
           <div key={team} className="rounded-2xl border border-[rgba(36,67,147,0.12)] bg-[#f8faff]/85 p-4">
             <h3 className="font-display font-extrabold tracking-tight text-[#172033]">{team}</h3>
             <div className="mt-3 space-y-3">
-              {items.map((item) => <DispatchCard key={`${item.id}-${item.team_id}-${item.scheduled_time}-${item.notes}`} item={item} teams={teams} disabled={working} canEdit={canEdit} onUpdate={onUpdate} />)}
+              {items.map((item) => <DispatchCard key={`${item.id}-${item.team_id}-${item.scheduled_time}-${item.notes}`} item={item} teams={teams} disabled={working} canEdit={canEditItems} onUpdate={onUpdate} />)}
             </div>
           </div>
         ))}

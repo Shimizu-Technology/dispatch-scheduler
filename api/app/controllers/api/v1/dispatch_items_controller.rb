@@ -5,6 +5,10 @@ module Api
 
       def update
         item = DispatchItem.includes(:dispatch_schedule).find(params[:id])
+        if item.dispatch_schedule.locked?
+          return render json: { errors: [ "This schedule is #{item.dispatch_schedule.status}. Reopen it before editing dispatch items." ] }, status: :conflict
+        end
+
         update_item(item, dispatch_item_params)
         render json: Serializers.schedule(item.dispatch_schedule)
       rescue ActiveRecord::RecordNotFound => e

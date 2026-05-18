@@ -219,7 +219,7 @@ function DispatchApp() {
       setError('Viewer access cannot regenerate dispatch drafts.')
       return
     }
-    if (schedule?.status !== 'draft') {
+    if (schedule && schedule.status !== 'draft') {
       setError('This schedule is locked. Reopen it before regenerating.')
       return
     }

@@ -142,7 +142,7 @@ Implemented as of May 12, 2026:
 - Idempotent draft regeneration by date with a configurable daily item cap.
 - Manual dispatch overrides for crew, scheduled time, order, and notes.
 - WhatsApp-ready schedule export.
-- Clerk auth with JWT verification, role refresh on sign-in, approved email/domain controls, and local dev/test bypass.
+- Clerk auth with JWT verification, `FRONTEND_URL` / `VITE_API_URL` wiring, bootstrap-admin setup, in-app user management, and role refresh on sign-in.
 - Viewer mode hides/disables mutating controls and Rails guards mutating endpoints.
 - CI for Rails tests/lint/security, frontend lint/build, and Python importer tests.
 
@@ -186,7 +186,7 @@ dispatch-scheduler/
 
 - Rails API
 - PostgreSQL in production direction; SQLite is acceptable for fastest local POC if desired, but Postgres keeps us aligned with deploy path
-- Active Storage later for attachments; not required for first demo unless we want uploaded work-order files
+- Private S3 presigned uploads later for intake attachments; not required for the current dispatch board because upload intake is not implemented yet
 - Simple seed/import scripts from XLSX → normalized seed JSON/database rows
 
 ### Frontend
@@ -204,6 +204,7 @@ Phase 1 POC:
 - Demonstrate "paste text → suggested fields → human review".
 
 Later:
+- Private S3 upload storage for source files
 - OCR for images/PDFs
 - LLM field extraction
 - Confidence indicators

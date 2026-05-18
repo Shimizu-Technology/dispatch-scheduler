@@ -18,7 +18,7 @@ class DispatchSuggestionService
 
       teams = Team.includes(technicians: :technician_skills).order(:name).to_a
       counters = Hash.new(0)
-      team_skills = teams.to_h { |team| [ team.id, team.skills ] }
+      team_skills = teams.to_h { |team| [ team.id, team.skills(@date) ] }
       team_driver_status = teams.to_h { |team| [ team.id, team.has_driver?(@date) ] }
       candidate_items = schedulables
       items = candidate_items.first(daily_item_limit)
@@ -39,7 +39,7 @@ class DispatchSuggestionService
         )
       end
 
-      @summary = build_summary(items, schedule)
+      @summary = build_summary(candidate_items, schedule)
     end
 
     schedule
@@ -85,13 +85,13 @@ class DispatchSuggestionService
     warnings.join(" | ")
   end
 
-  def build_summary(items, schedule)
+  def build_summary(candidate_items, schedule)
     blocked = blocked_work_orders.count
-    deferred = [ items.size - schedule.dispatch_items.count, 0 ].max
+    deferred = [ candidate_items.size - schedule.dispatch_items.count, 0 ].max
     {
       scheduled_items: schedule.dispatch_items.count,
-      eligible_work_orders: items.count { |item| item.is_a?(WorkOrder) },
-      eligible_pm_tasks: items.count { |item| item.is_a?(PmTask) },
+      eligible_work_orders: candidate_items.count { |item| item.is_a?(WorkOrder) },
+      eligible_pm_tasks: candidate_items.count { |item| item.is_a?(PmTask) },
       deferred_items: deferred,
       daily_item_limit: daily_item_limit,
       blocked_work_orders: blocked,

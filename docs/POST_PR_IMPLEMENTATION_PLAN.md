@@ -16,7 +16,8 @@ Implemented in the POC:
 - Manual dispatch item overrides for crew, time, order, and notes.
 - Regenerate confirmation and idempotent draft rebuilding for a schedule date.
 - CI, Rails request/service tests, importer tests, frontend lint/build, Brakeman, and bundler-audit.
-- Clerk auth with Rails JWT verification, Clerk token-claim setup docs, local dev/test bypass, `admin`/`dispatcher`/`viewer` roles, role refresh on sign-in, and viewer-only UI/API mode.
+- Clerk auth with Rails JWT verification, Clerk token-claim setup docs, `admin`/`dispatcher`/`viewer` roles, bootstrap-admin setup, in-app user management, role refresh on sign-in, and viewer-only UI/API mode.
+- Admin-only user management for changing persisted roles in the app, with `CLERK_BOOTSTRAP_ADMIN_EMAILS` reserved for first-admin setup and recovery.
 
 Not implemented yet:
 
@@ -37,12 +38,12 @@ Completed:
 
 - Clerk added to the React app.
 - Rails verifies Clerk JWTs against JWKS.
-- All API endpoints are protected when Clerk is configured, except health/CORS paths.
+- All API endpoints are protected by Clerk, except health/CORS paths.
 - Mutating dispatch endpoints require `admin` or `dispatcher`.
 - Roles implemented: `admin`, `dispatcher`, `viewer`.
 - Viewer users can inspect but cannot edit dispatch data.
-- Local dev/test bypass keeps setup and CI unblocked before real Clerk credentials are added.
-- Auth docs cover Clerk token claims, allowlists, role env vars, and local bypass variables.
+- Frontend/backend URL env vars are documented through `VITE_API_URL` and `FRONTEND_URL`.
+- Auth docs cover Clerk token claims, bootstrap-admin setup, in-app role management, and required env vars.
 
 ## Phase 2 - Real Intake Foundation
 
@@ -69,13 +70,15 @@ Goal: uploaded PDFs/images/text can become draft work orders with human review.
 
 Tasks:
 
-- Enable Active Storage or equivalent upload handling in Rails.
+- Implement private S3-backed upload storage using the plan in `docs/UPLOAD_STORAGE_PLAN.md`.
+- Add Rails endpoints for presigned browser uploads and upload-complete registration.
 - Add upload endpoints for PDF/image/text artifacts.
 - Add an OpenRouter extraction service for OCR/vision-capable model calls.
 - Extract structured fields into an intake draft, not directly into live work orders.
 - Show confidence/status per extracted field.
 - Add an approve/edit/reject review screen.
 - Keep original files linked to the created work order.
+- Add transactional email only when invitations, schedule notifications, or intake/OCR alerts exist. Resend is the likely default provider; document `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, and `APP_URL` when that work starts.
 
 Acceptance criteria:
 
@@ -131,7 +134,7 @@ Tasks:
 - Add error monitoring and structured logs.
 - Add backup/restore plan.
 - Expand request/model tests around intake approval, audit history, and schedule finalization.
-- Confirm production Clerk allowlists and role env vars with JMI/Shimizu stakeholders.
+- Confirm production Clerk project settings, bootstrap admin email, frontend URL, and backend URL with JMI/Shimizu stakeholders.
 
 Acceptance criteria:
 
@@ -143,7 +146,7 @@ Acceptance criteria:
 ## Recommended Next PR Order
 
 1. Work-order create/edit/search improvements.
-2. Upload storage plus intake draft model.
+2. Private S3 upload storage plus intake draft model.
 3. OpenRouter extraction service and review UI.
 4. Schedule finalize/audit trail.
 5. Daily team composition management.
@@ -153,7 +156,7 @@ Acceptance criteria:
 
 The app is ready for a limited pilot when:
 
-- Auth is enabled with real Clerk credentials and production allowlists.
+- Auth is enabled with real Clerk credentials, a bootstrap admin, and in-app role assignments for JMI/Shimizu users.
 - John/admin can create/edit work orders without developer help.
 - OCR-created records require human approval.
 - Dispatch suggestions can be manually edited and finalized.

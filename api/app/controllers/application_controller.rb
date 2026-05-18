@@ -1,26 +1,18 @@
 class ApplicationController < ActionController::API
-  before_action :set_cors_headers
   before_action :authenticate_request!
+  rescue_from ActionController::BadRequest, with: :render_bad_request
 
   attr_reader :current_user
 
   private
 
   def authenticate_request!
-    if Auth::ClerkTokenVerifier.enabled?
-      authenticate_with_clerk!
-    elsif Rails.env.development? || Rails.env.test?
-      @current_user = Auth::UserContext.new(
-        id: nil,
-        clerk_id: "dev_user",
-        email: "dev-dispatcher@example.com",
-        name: "Dev Dispatcher",
-        role: ENV.fetch("DEV_AUTH_ROLE", "admin"),
-        auth_mode: "development_bypass"
-      )
-    else
+    unless Auth::ClerkTokenVerifier.enabled?
       render json: { errors: [ "Clerk authentication is not configured" ] }, status: :service_unavailable
+      return
     end
+
+    authenticate_with_clerk!
   end
 
   def authenticate_with_clerk!
@@ -51,14 +43,18 @@ class ApplicationController < ActionController::API
     render json: { errors: [ "Admin access required" ] }, status: :forbidden
   end
 
+  def date_param(default: Date.current)
+    Date.parse(params[:date].presence || default.to_s)
+  rescue Date::Error
+    raise ActionController::BadRequest, "Invalid date"
+  end
+
   def bearer_token
     header = request.authorization.to_s
     header[/\ABearer\s+(.+)\z/i, 1]
   end
 
-  def set_cors_headers
-    response.set_header("Access-Control-Allow-Origin", "*")
-    response.set_header("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS")
-    response.set_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+  def render_bad_request(error)
+    render json: { errors: [ error.message ] }, status: :bad_request
   end
 end

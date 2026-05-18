@@ -2,7 +2,7 @@ module Api
   module V1
     class DashboardController < ApplicationController
       def index
-        date = Date.parse(params[:date].presence || Date.new(2026, 5, 1).to_s)
+        date = date_param
         teams = Team.includes(:technicians)
         render json: {
           date: date,

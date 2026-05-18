@@ -9,7 +9,9 @@ class DispatchItemsControllerTest < ActionDispatch::IntegrationTest
     target_first = schedule.dispatch_items.create!(team: target_team, work_order: work_order(title: "Target first"), order_index: 0)
     target_second = schedule.dispatch_items.create!(team: target_team, work_order: work_order(title: "Target second"), order_index: 1)
 
-    patch "/api/v1/dispatch_items/#{source_item.id}", params: { team_id: target_team.id, order_index: 0 }
+    with_auth_env do
+      patch "/api/v1/dispatch_items/#{source_item.id}", params: { team_id: target_team.id, order_index: 0 }, headers: auth_headers
+    end
 
     assert_response :success
     payload = JSON.parse(response.body)
@@ -25,9 +27,29 @@ class DispatchItemsControllerTest < ActionDispatch::IntegrationTest
     schedule = DispatchSchedule.create!(date: DEFAULT_DATE, status: "draft")
     item = schedule.dispatch_items.create!(team: crew, work_order: work_order(title: "Timed work"), order_index: 0, scheduled_time: "08:00")
 
-    patch "/api/v1/dispatch_items/#{item.id}", params: { scheduled_time: "" }
+    with_auth_env do
+      patch "/api/v1/dispatch_items/#{item.id}", params: { scheduled_time: "" }, headers: auth_headers
+    end
 
     assert_response :success
     assert_nil item.reload.scheduled_time
+  end
+
+  private
+
+  def with_auth_env
+    previous = ENV["CLERK_JWKS_URL"]
+    ENV["CLERK_JWKS_URL"] = "https://clerk.example.test/.well-known/jwks.json"
+    yield
+  ensure
+    previous.nil? ? ENV.delete("CLERK_JWKS_URL") : ENV["CLERK_JWKS_URL"] = previous
+  end
+
+  def auth_headers
+    User.find_or_create_by!(clerk_id: "dispatcher_123") do |user|
+      user.email = "dispatcher@example.com"
+      user.role = "dispatcher"
+    end
+    { "Authorization" => "Bearer test_token:dispatcher_123:dispatcher@example.com" }
   end
 end

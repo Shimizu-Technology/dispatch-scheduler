@@ -1,14 +1,12 @@
 require "test_helper"
 
 class AuthenticationTest < ActionDispatch::IntegrationTest
-  test "development auth bypass allows local API access before Clerk credentials are configured" do
+  test "api requires Clerk configuration" do
     with_auth_env({}) do
       get "/api/v1/me"
 
-      assert_response :success
-      payload = JSON.parse(response.body)
-      assert_equal "admin", payload.dig("user", "role")
-      assert_equal "development_bypass", payload.dig("user", "auth_mode")
+      assert_response :service_unavailable
+      assert_equal [ "Clerk authentication is not configured" ], JSON.parse(response.body).fetch("errors")
     end
   end
 
@@ -33,12 +31,10 @@ class AuthenticationTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "dispatcher can mutate dispatch data" do
-    with_auth_env(
-      "CLERK_JWKS_URL" => "https://clerk.example.test/.well-known/jwks.json",
-      "CLERK_DISPATCHER_EMAILS" => "dispatcher@example.com"
-    ) do
+  test "dispatcher can mutate dispatch data from persisted user role" do
+    with_auth_env("CLERK_JWKS_URL" => "https://clerk.example.test/.well-known/jwks.json") do
       crew = team(name: "Dispatcher Test Crew")
+      User.create!(clerk_id: "dispatcher_123", email: "dispatcher@example.com", role: "dispatcher")
 
       patch "/api/v1/technicians/#{crew.technicians.first.id}", params: { date: DEFAULT_DATE, availability: "unavailable" }, headers: auth_headers("dispatcher_123", "dispatcher@example.com")
 
@@ -47,14 +43,36 @@ class AuthenticationTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "existing users refresh their role from auth environment on sign in" do
+  test "bootstrap admin env promotes matching user on sign in" do
     with_auth_env(
       "CLERK_JWKS_URL" => "https://clerk.example.test/.well-known/jwks.json",
-      "CLERK_DISPATCHER_EMAILS" => "promoted@example.com"
+      "CLERK_BOOTSTRAP_ADMIN_EMAILS" => "owner@example.com"
     ) do
-      user = User.create!(clerk_id: "promoted_123", email: "promoted@example.com", role: "viewer")
+      user = User.create!(clerk_id: "owner_123", email: "owner@example.com", role: "viewer")
 
-      get "/api/v1/me", headers: auth_headers("promoted_123", "promoted@example.com")
+      get "/api/v1/me", headers: auth_headers("owner_123", "owner@example.com")
+
+      assert_response :success
+      assert_equal "admin", user.reload.role
+      assert_equal "admin", JSON.parse(response.body).dig("user", "role")
+    end
+  end
+
+  test "new non-bootstrap Clerk users start as viewers" do
+    with_auth_env("CLERK_JWKS_URL" => "https://clerk.example.test/.well-known/jwks.json") do
+      get "/api/v1/me", headers: auth_headers("new_viewer_123", "new-viewer@example.com")
+
+      assert_response :success
+      assert_equal "viewer", JSON.parse(response.body).dig("user", "role")
+      assert_equal "viewer", User.find_by!(clerk_id: "new_viewer_123").role
+    end
+  end
+
+  test "persisted non-bootstrap role is not reset by auth env on sign in" do
+    with_auth_env("CLERK_JWKS_URL" => "https://clerk.example.test/.well-known/jwks.json") do
+      user = User.create!(clerk_id: "dispatcher_456", email: "dispatcher456@example.com", role: "dispatcher")
+
+      get "/api/v1/me", headers: auth_headers("dispatcher_456", "dispatcher456@example.com")
 
       assert_response :success
       assert_equal "dispatcher", user.reload.role
@@ -75,7 +93,7 @@ class AuthenticationTest < ActionDispatch::IntegrationTest
 
   private
 
-  AUTH_ENV_KEYS = %w[CLERK_JWKS_URL CLERK_DOMAIN CLERK_ALLOWED_EMAILS CLERK_ALLOWED_DOMAINS CLERK_ADMIN_EMAILS CLERK_DISPATCHER_EMAILS DEV_AUTH_ROLE].freeze
+  AUTH_ENV_KEYS = %w[CLERK_JWKS_URL CLERK_DOMAIN CLERK_SECRET_KEY CLERK_BOOTSTRAP_ADMIN_EMAILS].freeze
 
   def with_auth_env(values)
     previous = AUTH_ENV_KEYS.to_h { |key| [ key, ENV[key] ] }

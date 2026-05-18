@@ -1,35 +1,71 @@
 # Authentication
 
-The dispatch scheduler uses Clerk for browser sign-in and Rails-side JWT verification.
+Dispatch Scheduler always uses Clerk for browser sign-in and Rails-side JWT verification. There is no local dev bypass. Local development, staging, and production all use the same authentication flow so role behavior is tested the same way users experience it.
 
-## Local Development Modes
+## Required Environment Variables
 
-### No Clerk Credentials
-
-In development and test only, if `VITE_CLERK_PUBLISHABLE_KEY` is not set in the web app and neither `CLERK_JWKS_URL` nor `CLERK_DOMAIN` is set for Rails, the app runs with a local development bypass:
-
-- User: `dev-dispatcher@example.com`
-- Role: `admin` by default
-- Override Rails with `DEV_AUTH_ROLE=dispatcher` or `DEV_AUTH_ROLE=viewer`
-- Override the React dev UI with `VITE_DEV_AUTH_ROLE=dispatcher` or `VITE_DEV_AUTH_ROLE=viewer`
-
-This keeps CI and local setup unblocked before real Clerk credentials are added.
-Keep `DEV_AUTH_ROLE` and `VITE_DEV_AUTH_ROLE` aligned when testing viewer/dispatcher behavior locally.
-
-Production does not use this bypass. If Clerk JWT verification is not configured, Rails returns a service-unavailable auth configuration error.
-
-### Clerk Enabled
-
-Set the frontend key in `web/.env.local`:
+Frontend (`web/.env.local`):
 
 ```bash
 VITE_CLERK_PUBLISHABLE_KEY=pk_test_...
+VITE_API_URL=http://localhost:3000
 ```
 
-Rails needs the Clerk token to include an email claim. Clerk's default session token does not include email/name by default, so configure one of these before testing with real Clerk credentials:
+Backend (`api/.env` or the Rails process environment):
 
-- Recommended: customize the Clerk session token claims and add the claims below.
-- Alternative: create a Clerk JWT template with the claims below and set `VITE_CLERK_JWT_TEMPLATE=<template-name>` in `web/.env.local` so the frontend requests that token template.
+```bash
+FRONTEND_URL=http://localhost:5173
+CLERK_JWKS_URL=https://your-clerk-domain/.well-known/jwks.json
+CLERK_SECRET_KEY=sk_test_...
+CLERK_BOOTSTRAP_ADMIN_EMAILS=leon@example.com
+```
+
+You can use `CLERK_DOMAIN=your-clerk-domain` instead of `CLERK_JWKS_URL`; Rails will derive `https://<domain>/.well-known/jwks.json`. `CLERK_SECRET_KEY` lets Rails fetch the Clerk user profile when the verified browser token does not include email claims, which is Clerk's default behavior.
+
+## Optional Environment Variables
+
+```bash
+# Frontend: request a Clerk JWT template instead of customized session claims.
+VITE_CLERK_JWT_TEMPLATE=dispatch-scheduler
+
+# Backend: additional browser origins beyond FRONTEND_URL.
+CORS_ORIGINS=http://127.0.0.1:5173,https://staging.example.com
+
+# Backend: JWKS HTTP open/read timeout. Defaults to 3 seconds.
+CLERK_JWKS_TIMEOUT_SECONDS=3
+
+# Backend: Clerk Backend API open/read timeout. Defaults to 3 seconds.
+CLERK_API_TIMEOUT_SECONDS=3
+```
+
+Access is controlled by the Clerk application plus Dispatch Scheduler's in-app roles. Email/domain allowlist env vars and local auth-role bypass env vars are intentionally not supported.
+
+## Frontend And Backend URLs
+
+The frontend uses `VITE_API_URL` as the Rails origin. In local development that should usually be:
+
+```bash
+VITE_API_URL=http://localhost:3000
+```
+
+The API client appends `/api/v1`, so do not include a trailing API path unless you intentionally want to override it.
+
+Rails uses `FRONTEND_URL` for CORS:
+
+```bash
+FRONTEND_URL=http://localhost:5173
+```
+
+In development and test, Rails also allows `localhost` and `127.0.0.1` on port `5173` so Vite remains easy to run locally. In non-development environments, set `FRONTEND_URL` or `CORS_ORIGINS` explicitly.
+
+## Clerk User Email
+
+Rails needs the signed-in user's email to create or find the local `users` row. The recommended setup is to provide `CLERK_SECRET_KEY`, so Rails can verify the JWT with JWKS and then fetch the Clerk user profile by `sub` when email is not present in the token.
+
+If you do not want Rails to call the Clerk Backend API for profile data, configure one of these token-claim options instead:
+
+- Customize the Clerk session token claims and add the claims below.
+- Create a Clerk JWT template with the claims below and set `VITE_CLERK_JWT_TEMPLATE=<template-name>` in `web/.env.local` so the frontend requests that token template.
 
 Required/optional claims:
 
@@ -42,60 +78,34 @@ Required/optional claims:
 }
 ```
 
-`email` is required. The name fields are optional but make `/api/v1/me` display friendlier user information.
+`email` is required when `CLERK_SECRET_KEY` is not set. The name fields are optional but make `/api/v1/me` display friendlier user information.
 
-Set Rails JWT verification in `api/.env` or your shell. Use one of these:
+## Roles And User Management
 
-```bash
-CLERK_JWKS_URL=https://your-clerk-domain/.well-known/jwks.json
-```
-
-or:
-
-```bash
-CLERK_DOMAIN=your-clerk-domain
-```
-
-JWKS fetches use a 3-second open/read timeout by default. Override with `CLERK_JWKS_TIMEOUT_SECONDS` if your deployment needs a different limit.
-
-The React API client automatically attaches `Authorization: Bearer <token>` to Rails requests when Clerk is enabled.
-
-## Roles
-
-Roles live in the Rails `users` table. The first time a Clerk user is verified, Rails creates or updates the user record.
+Roles live in the Rails `users` table. Clerk creates the identity; Dispatch Scheduler stores the application role.
 
 Supported roles:
 
-- `admin`: full dispatch edit access and future admin-only settings.
+- `admin`: full dispatch edit access and user management.
 - `dispatcher`: can create/regenerate schedules, edit dispatch items, and update availability.
 - `viewer`: can read dashboard/work-order/team/PM data but cannot change dispatch data.
 
-Role assignment is refreshed from comma-separated env vars on every verified sign-in:
+New Clerk sign-ins are created as `viewer` by default unless their email is listed in `CLERK_BOOTSTRAP_ADMIN_EMAILS`.
 
-```bash
-CLERK_ADMIN_EMAILS=admin@example.com
-CLERK_DISPATCHER_EMAILS=john@example.com,dispatcher@example.com
-```
+`CLERK_BOOTSTRAP_ADMIN_EMAILS` is for first-admin setup and emergency recovery only. Set it to Leon's or the primary owner email before the first real sign-in so that person can open the `Users` section and promote John or other staff to `dispatcher` or `admin`.
 
-Anyone not listed there is created as `viewer`.
+After the first admin is in, normal role changes should happen in the app:
 
-## Approved Access
-
-To restrict who can read dispatch data, configure at least one allowlist variable:
-
-```bash
-CLERK_ALLOWED_EMAILS=john@example.com,dispatcher@example.com
-CLERK_ALLOWED_DOMAINS=jmiguam.com,shimizutechnology.com
-```
-
-If neither allowlist variable is set, any signed-in Clerk user can enter as a viewer. That is convenient for early setup, but production should use an allowlist.
+- Admin opens the `Users` section.
+- Admin changes a user role to `admin`, `dispatcher`, or `viewer`.
+- The API prevents removing the last admin.
 
 ## API Protection
 
-All Rails API endpoints require auth when Clerk is configured, except:
+All Rails API endpoints require Clerk auth except:
 
-- `OPTIONS *` CORS preflight
 - `GET /up` health check
+- CORS preflight handled by Rack CORS
 
 Mutating dispatch endpoints also require `admin` or `dispatcher`:
 
@@ -104,4 +114,21 @@ Mutating dispatch endpoints also require `admin` or `dispatcher`:
 - `POST /api/v1/dispatch_schedules/suggest`
 - `PATCH /api/v1/dispatch_items/:id`
 
+User management endpoints require `admin`:
+
+- `GET /api/v1/users`
+- `PATCH /api/v1/users/:id`
+
 `GET /api/v1/me` returns the current role and permissions for the frontend.
+
+## Future Email Delivery
+
+No email provider is required for the current dispatch board. Clerk handles sign-in email flows inside Clerk itself.
+
+When the app adds invitations, admin notifications, schedule-send emails, or intake/OCR alerts, use Resend or an equivalent transactional email provider. Expected future env vars:
+
+```bash
+RESEND_API_KEY=...
+RESEND_FROM_EMAIL=Dispatch Scheduler <dispatch@your-domain.com>
+APP_URL=https://dispatch.your-domain.com
+```

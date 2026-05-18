@@ -10,24 +10,38 @@
 cd api
 bundle install
 bundle exec rails db:setup
-bundle exec rails server -p 3005
+bundle exec rails server -p 3000
 
 # Web
 cd ../web
 npm install
-npm run dev -- --port 5175
+npm run dev -- --port 5173
 ```
 
-Open http://127.0.0.1:5175.
+Open http://127.0.0.1:5173.
 
 ## Authentication
 
-The app runs with a local auth bypass when Clerk env vars are absent. It defaults
-to an admin user so the POC opens quickly, but you can test read-only behavior
-with `DEV_AUTH_ROLE=viewer` for Rails and `VITE_DEV_AUTH_ROLE=viewer` for React.
+The app always uses Clerk. Local development needs the same Clerk setup shape as
+production, plus local URLs for the frontend and backend:
 
-To test real auth, copy `.env.example` values into `web/.env.local` and your
-Rails shell/API environment, then add real Clerk values. See
+```bash
+# web/.env.local
+VITE_CLERK_PUBLISHABLE_KEY=pk_test_...
+VITE_API_URL=http://localhost:3000
+
+# api/.env or Rails shell
+FRONTEND_URL=http://localhost:5173
+CLERK_JWKS_URL=https://your-clerk-domain/.well-known/jwks.json
+CLERK_SECRET_KEY=sk_test_...
+CLERK_BOOTSTRAP_ADMIN_EMAILS=you@example.com
+```
+
+Rails loads `api/.env` automatically in development and test. Restart `rails server`
+after changing Clerk or CORS values so the process sees the new environment.
+
+The bootstrap admin email is only for first sign-in and recovery. After that,
+manage admins, dispatchers, and viewers from the in-app `Users` section. See
 `docs/AUTHENTICATION.md`.
 
 ## Verification

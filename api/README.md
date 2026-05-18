@@ -5,8 +5,8 @@ Rails API for the JMI dispatch scheduler proof of concept.
 ## Responsibilities
 
 - Serve dashboard, work-order, team, technician, PM task, dispatch schedule, and WhatsApp export data.
-- Verify Clerk JWTs when Clerk is configured.
-- Provide a development/test auth bypass when Clerk env vars are absent.
+- Verify Clerk JWTs for every API request except health checks.
+- Allow frontend origins with `FRONTEND_URL` / `CORS_ORIGINS`.
 - Enforce `admin` / `dispatcher` / `viewer` role permissions on mutating dispatch endpoints.
 - Generate idempotent daily draft dispatch schedules from work orders, PM tasks, team skills, driver coverage, availability, and region preferences.
 
@@ -19,11 +19,15 @@ From the repo root:
 cd api
 bundle install
 bundle exec rails db:setup
-bundle exec rails server -p 3005
+bundle exec rails server -p 3000
 ```
 
-Without Clerk env vars, development uses the local auth bypass documented in
-`../docs/AUTHENTICATION.md`.
+Clerk env vars are required for local app testing, including the Clerk secret key
+used to fetch profile email when the browser token omits it. See
+`../docs/AUTHENTICATION.md` for the mandatory frontend/backend env variables and
+bootstrap-admin setup.
+Rails loads `api/.env` automatically in development and test; restart the server
+after changing those values.
 
 ## Verification
 
@@ -37,6 +41,8 @@ bundle exec bundle-audit check --update
 ## Key Endpoints
 
 - `GET /api/v1/me`
+- `GET /api/v1/users`
+- `PATCH /api/v1/users/:id`
 - `GET /api/v1/dashboard?date=YYYY-MM-DD`
 - `GET /api/v1/work_orders`
 - `POST /api/v1/work_orders`

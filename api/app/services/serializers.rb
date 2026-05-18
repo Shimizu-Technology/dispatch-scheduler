@@ -18,8 +18,7 @@ module Serializers
     eligible_work_order_count = candidate_work_orders.count
     eligible_pm_task_count = candidate_pm_tasks.count
     candidate_count = eligible_work_order_count + eligible_pm_task_count
-    scheduled_capacity = [ candidate_count, daily_item_limit ].min
-    deferred = [ scheduled_capacity - schedule.dispatch_items.size, 0 ].max
+    deferred = [ candidate_count - schedule.dispatch_items.size, 0 ].max
     blocked = blocked_work_orders_for(schedule.date).count
     {
       scheduled_items: schedule.dispatch_items.size,
@@ -81,6 +80,22 @@ module Serializers
     }
   end
 
+  def user(user)
+    {
+      id: user.id,
+      clerk_id: user.clerk_id,
+      email: user.email,
+      name: user.display_name,
+      role: user.role,
+      auth_mode: user.auth_mode,
+      last_seen_at: user.respond_to?(:last_seen_at) ? user.last_seen_at&.iso8601 : nil,
+      permissions: {
+        can_edit_dispatch: user.can_edit_dispatch?,
+        can_admin: user.admin?
+      }
+    }
+  end
+
   def technician(technician, date: Date.current)
     availability = technician.technician_availabilities.find_by(date: date)
     {
@@ -96,13 +111,13 @@ module Serializers
   end
 
   def team(team, date: Date.current)
-    techs = team.technicians.includes(:technician_skills, :technician_availabilities)
+    techs = team.technicians_for_date(date).includes(:technician_skills, :technician_availabilities)
     {
       id: team.id,
       name: team.name,
       region_preference: team.region_preference,
       has_driver: team.has_driver?(date),
-      skills: team.skills,
+      skills: team.skills(date),
       technicians: techs.map { |tech| technician(tech, date: date) }
     }
   end

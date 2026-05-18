@@ -49,11 +49,11 @@ function statusLabel(schedule: DispatchSchedule | null) {
 
 function nextAction(schedule: DispatchSchedule | null, driverIssues: number, canEdit: boolean) {
   if (!canEdit) return { label: 'Review today', detail: 'Viewer mode is read-only. Inspect schedule status, crews, and activity.', target: 'dispatch' as const, cta: 'Open dispatch' }
+  if (schedule?.status === 'sent') return { label: 'Monitor changes', detail: 'Dispatch has been sent. Watch activity for edits or reopen only if the day changes.', target: 'activity' as const, cta: 'View activity' }
   if (driverIssues > 0) return { label: 'Resolve crew coverage', detail: 'At least one crew is missing an available driver. Confirm call-outs or adjust daily crew composition first.', target: 'teams' as const, cta: 'Check crews' }
   if (!schedule) return { label: 'Generate a draft', detail: 'Crews look ready enough to start a first-pass schedule suggestion for dispatch review.', target: 'dispatch' as const, cta: 'Build schedule' }
   if (schedule.status === 'draft') return { label: 'Review and finalize', detail: 'A draft exists. Check times, crew assignments, notes, then finalize when it is ready to send.', target: 'dispatch' as const, cta: 'Review draft' }
-  if (schedule.status === 'finalized') return { label: 'Copy WhatsApp dispatch', detail: 'The schedule is locked and ready. Copy the crew message and mark it sent after delivery.', target: 'whatsapp' as const, cta: 'Open WhatsApp' }
-  return { label: 'Monitor changes', detail: 'Dispatch has been sent. Watch activity for edits or reopen only if the day changes.', target: 'activity' as const, cta: 'View activity' }
+  return { label: 'Copy WhatsApp dispatch', detail: 'The schedule is locked and ready. Copy the crew message and mark it sent after delivery.', target: 'whatsapp' as const, cta: 'Open WhatsApp' }
 }
 
 function priorityCount(workOrders: WorkOrder[]) {

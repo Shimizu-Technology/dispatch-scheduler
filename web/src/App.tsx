@@ -511,31 +511,7 @@ function DispatchApp() {
 
         {error && <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-800">{error}</div>}
 
-        {currentSection === 'overview' && <>
-          <DashboardMetrics dashboard={dashboard} workOrders={workOrders} />
-          <div className="grid gap-4 lg:grid-cols-4">
-            <button type="button" onClick={() => goToSection('work-orders')} className="rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white/88 p-5 text-left shadow-[0_10px_26px_rgba(23,32,51,0.05)] transition hover:-translate-y-0.5 hover:border-blue-200">
-              <span className="font-display text-xs font-extrabold uppercase tracking-[0.2em] text-[#d84332]">Step 1</span>
-              <span className="font-display mt-2 block text-xl font-extrabold text-[#172033]">Add incoming work</span>
-              <span className="mt-2 block text-sm leading-6 text-[#526071]">Enter requests from WhatsApp, email, phone, or the work-order system.</span>
-            </button>
-            <button type="button" onClick={() => goToSection('teams')} className="rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white/88 p-5 text-left shadow-[0_10px_26px_rgba(23,32,51,0.05)] transition hover:-translate-y-0.5 hover:border-blue-200">
-              <span className="font-display text-xs font-extrabold uppercase tracking-[0.2em] text-[#d84332]">Step 2</span>
-              <span className="font-display mt-2 block text-xl font-extrabold text-[#172033]">Triage and check crews</span>
-              <span className="mt-2 block text-sm leading-6 text-[#526071]">Confirm ready work, mark call-outs, and check driver coverage.</span>
-            </button>
-            <button type="button" onClick={() => goToSection('dispatch')} className="rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white/88 p-5 text-left shadow-[0_10px_26px_rgba(23,32,51,0.05)] transition hover:-translate-y-0.5 hover:border-blue-200">
-              <span className="font-display text-xs font-extrabold uppercase tracking-[0.2em] text-[#d84332]">Step 3</span>
-              <span className="font-display mt-2 block text-xl font-extrabold text-[#172033]">Build schedule</span>
-              <span className="mt-2 block text-sm leading-6 text-[#526071]">Generate a draft and adjust crew, time, order, or notes.</span>
-            </button>
-            <button type="button" onClick={() => goToSection('whatsapp')} className="rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white/88 p-5 text-left shadow-[0_10px_26px_rgba(23,32,51,0.05)] transition hover:-translate-y-0.5 hover:border-blue-200">
-              <span className="font-display text-xs font-extrabold uppercase tracking-[0.2em] text-[#d84332]">Step 4</span>
-              <span className="font-display mt-2 block text-xl font-extrabold text-[#172033]">Copy WhatsApp</span>
-              <span className="mt-2 block text-sm leading-6 text-[#526071]">Send the clean dispatch message after the plan is right.</span>
-            </button>
-          </div>
-        </>}
+        {currentSection === 'overview' && <DashboardMetrics dashboard={dashboard} workOrders={workOrders} teams={teams} technicians={technicians} pmTasks={pmTasks} schedule={schedule} auditEvents={auditEvents} canEdit={canEditDispatch} working={working} onGoToSection={goToSection} onSuggest={suggestSchedule} />}
 
         {currentSection === 'work-orders' && (user ? <WorkOrdersPanel workOrders={workOrders} canEdit={canEditDispatch} selectedDate={selectedDate} saving={workOrderSaving} onCreate={createWorkOrder} onUpdate={updateWorkOrder} /> : <SignInRequiredPanel title="Sign in to review work orders" />)}
 

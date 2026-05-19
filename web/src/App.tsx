@@ -492,8 +492,7 @@ function DispatchApp() {
                 </span>
               </div>
               <p className="font-display mt-7 text-xs font-extrabold uppercase tracking-[0.28em] text-blue-100/85">Facilities dispatch board</p>
-              <h1 className="font-display mt-2 max-w-4xl text-4xl font-extrabold tracking-[-0.035em] sm:text-5xl lg:text-6xl">Daily Dispatch Command</h1>
-              <p className="mt-4 max-w-3xl text-lg leading-8 text-blue-50/82">Prioritize open work, confirm crew coverage, build the day&apos;s JMI schedule, and send a clean WhatsApp dispatch from one controlled workspace.</p>
+              <h1 className="font-display mt-2 max-w-4xl text-4xl font-extrabold tracking-[-0.035em] sm:text-5xl lg:text-6xl">Daily Dispatch</h1>
             </div>
             <div className="relative flex flex-col gap-3 lg:items-end">
               {!user && isSignedIn ? <div className="w-full rounded-2xl border border-white/15 bg-white/10 p-4 text-sm text-blue-50 shadow-2xl backdrop-blur lg:max-w-sm">

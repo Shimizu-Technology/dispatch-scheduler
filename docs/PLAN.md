@@ -18,9 +18,11 @@ Build a **focused dispatch/scheduling system** first, not a full enterprise CMMS
 
 The scheduler is the product:
 
-> Work orders + PM commitments + team availability + drivers + skills + region → suggested daily dispatch schedule → WhatsApp-ready output.
+> Work orders + PM commitments + technician roster + default crews + today's call-outs/crew swaps + drivers + skills + regions → suggested daily dispatch schedule → reviewed/finalized dispatch → WhatsApp-ready output.
 
 Everything else supports that.
+
+See `docs/JMI_WORKFLOW_MODEL.md` for the current product/workflow model, including the important distinction between persistent default crews and selected-date daily crew overrides.
 
 ## 3. What John Sent Us
 
@@ -88,8 +90,10 @@ Principles:
    - Technicians from John's schedule workbook
    - Skills/trades
    - Driver flag
+   - Persistent/default crew setup for normal reusable crews
+   - Daily crew overrides for selected-date call-outs and swaps
    - Availability toggle for daily call-outs
-   - Team grouping/editing
+   - Clear driver coverage warnings for both default setup and today's actual crews
 
 4. **PM Schedule View**
    - Display sample recurring PMs by location/date

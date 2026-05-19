@@ -18,6 +18,7 @@ Current state:
 - CI covers Rails tests/lint/security, frontend lint/build, and Python importer tests.
 
 See `docs/PLAN.md` for product scope, architecture, and current implementation snapshot.
+See `docs/JMI_WORKFLOW_MODEL.md` for the current understanding of John's real workflow, the intended app flow, and the default-crew vs daily-crew model.
 See `docs/POST_PR_IMPLEMENTATION_PLAN.md` for the current phased implementation plan.
 See `docs/AUTHENTICATION.md` for Clerk setup, required env vars, roles, and user management.
 

@@ -25,6 +25,16 @@ async function requestJson<T>(path: string, options: RequestInit = {}): Promise<
   return res.json()
 }
 
+async function requestForm<T>(path: string, body: FormData): Promise<T> {
+  const headers = new Headers()
+  const token = await getAuthToken?.()
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+
+  const res = await fetch(`${API}${path}`, { method: 'POST', body, headers })
+  if (!res.ok) throw new Error(await errorMessage(res))
+  return res.json()
+}
+
 export async function getJson<T>(path: string): Promise<T> {
   return requestJson<T>(path)
 }
@@ -41,4 +51,8 @@ export async function postJson<T>(path: string, body: Record<string, unknown>): 
     method: 'POST',
     body: JSON.stringify(body),
   })
+}
+
+export async function postForm<T>(path: string, body: FormData): Promise<T> {
+  return requestForm<T>(path, body)
 }

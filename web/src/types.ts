@@ -24,6 +24,15 @@ export type WorkOrder = {
   notes: string | null
 }
 
+export type OcrWorkOrderDraft = WorkOrderInput & {
+  confidence: 'high' | 'medium' | 'low'
+  issues: string[]
+}
+
+export type WorkOrderImportPreview = {
+  work_orders: OcrWorkOrderDraft[]
+}
+
 export type WorkOrderInput = {
   client: string
   location: string

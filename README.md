@@ -13,13 +13,19 @@ Stack:
 Current state:
 
 - Sanitized demo data imports from John's real review examples in `docs/examples-from-john/`.
-- Dashboard, work-order list, teams/availability, PM task view, dispatch builder, manual overrides, and WhatsApp export are implemented.
+- Dashboard, work-order list, AI-assisted work-order image upload preview, teams/availability, PM task view, dispatch builder, manual overrides, and WhatsApp export are implemented.
 - Clerk authentication is implemented with Rails JWT verification, `admin` / `dispatcher` / `viewer` roles, a bootstrap admin email, and in-app user management.
 - CI covers Rails tests/lint/security, frontend lint/build, and Python importer tests.
 
 See `docs/PLAN.md` for product scope, architecture, and current implementation snapshot.
 See `docs/POST_PR_IMPLEMENTATION_PLAN.md` for the current phased implementation plan.
 See `docs/AUTHENTICATION.md` for Clerk setup, required env vars, roles, and user management.
+
+AI-assisted work-order upload uses OpenRouter vision models. Configure these API env vars when enabling it:
+
+- `OPENROUTER_API_KEY` - required for upload preview extraction.
+- `OPENROUTER_WORK_ORDER_OCR_MODEL` - optional, defaults to `google/gemini-2.5-flash`.
+- `OPENROUTER_HTTP_REFERER` - optional request attribution header.
 
 Current demo data is generated from John's review examples in `docs/examples-from-john/` with:
 

@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
-import { Edit3, Plus, Search, X } from 'lucide-react'
+import { Edit3, FileUp, Plus, Search, Sparkles, X } from 'lucide-react'
 import { Badge, Card, PanelHeader } from './ui'
-import type { WorkOrder, WorkOrderInput } from '../types'
+import { postForm } from '../lib/api'
+import type { OcrWorkOrderDraft, WorkOrder, WorkOrderImportPreview, WorkOrderInput } from '../types'
 
 const priorities = ['P1', 'P2', 'P3', 'P4']
 const statuses = ['new', 'needs_assessment', 'approved', 'scheduled', 'waiting_for_parts', 'waiting_for_approval']
@@ -163,6 +164,10 @@ function WorkOrderForm({ initialValues, saving, onCancel, onSubmit }: { initialV
 export function WorkOrdersPanel({ workOrders, canEdit, selectedDate, saving, onCreate, onUpdate }: { workOrders: WorkOrder[]; canEdit: boolean; selectedDate: string; saving: boolean; onCreate: (values: WorkOrderInput) => Promise<void>; onUpdate: (id: number, values: WorkOrderInput) => Promise<void> }) {
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<WorkOrder | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [importingIndex, setImportingIndex] = useState<number | null>(null)
+  const [importDrafts, setImportDrafts] = useState<OcrWorkOrderDraft[]>([])
+  const [importError, setImportError] = useState('')
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [priorityFilter, setPriorityFilter] = useState('')
@@ -201,13 +206,83 @@ export function WorkOrdersPanel({ workOrders, canEdit, selectedDate, saving, onC
     setShowForm(true)
   }
 
+  async function previewUpload(file: File | null) {
+    if (!file) return
+    setUploading(true)
+    setImportError('')
+    try {
+      const data = new FormData()
+      data.append('file', file)
+      const payload = await postForm<WorkOrderImportPreview>('/work_order_imports/preview', data)
+      setImportDrafts(payload.work_orders)
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : 'Unable to scan uploaded work order')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  async function importDraft(draft: OcrWorkOrderDraft, index: number) {
+    setImportingIndex(index)
+    setImportError('')
+    try {
+      await onCreate({
+        ...draft,
+        normalized_priority: draft.priority,
+        original_status_text: draft.original_status_text || draft.status,
+      })
+      setImportDrafts((currentDrafts) => currentDrafts.filter((_, draftIndex) => draftIndex !== index))
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : 'Unable to import extracted work order')
+    } finally {
+      setImportingIndex(null)
+    }
+  }
+
   return <Card className="overflow-hidden">
     <PanelHeader
       eyebrow="Incoming work"
       title="Work Orders"
       description="Add requests from WhatsApp, email, phone, or work-order systems. Approved and assessment work can be pulled into the dispatch draft."
-      action={canEdit ? <button onClick={startCreate} className="inline-flex items-center gap-2 rounded-2xl bg-[#d84332] px-4 py-2.5 font-display text-sm font-extrabold text-white shadow-[0_12px_26px_rgba(216,67,50,0.2)] transition hover:-translate-y-0.5 hover:bg-[#bf3228]"><Plus size={16} /> New Work Order</button> : <span className="tabular rounded-full bg-[#172b63] px-3 py-1.5 font-display text-xs font-extrabold uppercase tracking-[0.14em] text-white">{workOrders.length} records</span>}
+      action={canEdit ? <div className="flex flex-wrap gap-2">
+        <label className="inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-[#244393]/15 bg-[#e8eefc] px-4 py-2.5 font-display text-sm font-extrabold text-[#244393] transition hover:-translate-y-0.5 hover:bg-[#dfe8ff]">
+          <FileUp size={16} /> {uploading ? 'Scanning...' : 'Upload Scan'}
+          <input type="file" accept="image/png,image/jpeg,image/webp" disabled={uploading} onChange={(event) => void previewUpload(event.target.files?.[0] || null)} className="sr-only" />
+        </label>
+        <button type="button" onClick={startCreate} className="inline-flex items-center gap-2 rounded-2xl bg-[#d84332] px-4 py-2.5 font-display text-sm font-extrabold text-white shadow-[0_12px_26px_rgba(216,67,50,0.2)] transition hover:-translate-y-0.5 hover:bg-[#bf3228]"><Plus size={16} /> New Work Order</button>
+      </div> : <span className="tabular rounded-full bg-[#172b63] px-3 py-1.5 font-display text-xs font-extrabold uppercase tracking-[0.14em] text-white">{workOrders.length} records</span>}
     />
+
+    {importError && <div className="border-b border-red-100 bg-red-50 p-4 text-sm font-bold text-red-800">{importError}</div>}
+
+    {importDrafts.length > 0 && <div className="border-b border-[rgba(23,32,51,0.1)] bg-[#f8faff] p-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="font-display text-sm font-extrabold uppercase tracking-[0.16em] text-[#244393]">AI upload preview</p>
+          <p className="mt-1 text-sm text-[#526071]">Review each extracted request before importing it as a work order.</p>
+        </div>
+        <button type="button" onClick={() => setImportDrafts([])} className="rounded-2xl border border-[rgba(23,32,51,0.12)] bg-white px-3 py-2 font-display text-xs font-extrabold uppercase tracking-[0.12em] text-[#334155]">Clear</button>
+      </div>
+      <div className="grid gap-3 lg:grid-cols-2">
+        {importDrafts.map((draft, index) => <article key={`${draft.external_id || draft.title}-${index}`} className="rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white p-4 shadow-[0_10px_26px_rgba(23,32,51,0.05)]">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge kind={draft.priority}>{draft.priority}</Badge>
+                <Badge kind={draft.status}>{statusLabel(draft.status)}</Badge>
+                <span className="inline-flex items-center gap-1 rounded-full bg-[#e8eefc] px-2.5 py-1 text-[0.68rem] font-extrabold uppercase tracking-[0.08em] text-[#244393]"><Sparkles size={12} /> {draft.confidence}</span>
+              </div>
+              <h3 className="font-display mt-2 font-extrabold text-[#172033]">{draft.location} - {draft.title}</h3>
+            </div>
+            <button type="button" disabled={importingIndex === index || saving} onClick={() => void importDraft(draft, index)} className="shrink-0 rounded-2xl bg-[#16835f] px-3 py-2 font-display text-xs font-extrabold uppercase tracking-[0.12em] text-white transition hover:-translate-y-0.5 hover:bg-[#106a4c] disabled:cursor-wait disabled:opacity-60">{importingIndex === index ? 'Importing...' : 'Import'}</button>
+          </div>
+          <p className="mt-2 text-sm leading-6 text-[#526071]">{draft.description}</p>
+          <p className="mt-2 text-xs font-semibold text-[#7b8798]">{draft.client} • {draft.region} • {draft.trade_category} • WO #{draft.external_id || 'N/A'}</p>
+          {draft.notes && <p className="mt-2 text-xs font-semibold text-[#526071]">Notes: {draft.notes}</p>}
+          {draft.issues.length > 0 && <p className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900">Review: {draft.issues.join(', ')}</p>}
+        </article>)}
+      </div>
+    </div>}
 
     {showForm && <WorkOrderForm key={editing?.id || 'new'} initialValues={formInitialValues} saving={saving} onCancel={() => { setShowForm(false); setEditing(null) }} onSubmit={submitForm} />}
 

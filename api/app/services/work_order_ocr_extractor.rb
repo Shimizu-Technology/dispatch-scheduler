@@ -68,7 +68,7 @@ class WorkOrderOcrExtractor
     def validate_upload(uploaded_file)
       return "Upload a JPG, PNG, or WebP image of the work order." if uploaded_file.blank?
       return "File is too large. Upload an image under 8MB." if uploaded_file.size.to_i > MAX_FILE_SIZE
-      return "Unsupported file type. Upload a JPG, PNG, or WebP image." unless SUPPORTED_CONTENT_TYPES.include?(uploaded_file.content_type)
+      return "Unsupported file type. Upload a JPG, PNG, or WebP image." unless SUPPORTED_CONTENT_TYPES.include?(detected_content_type(uploaded_file))
 
       nil
     end
@@ -77,7 +77,21 @@ class WorkOrderOcrExtractor
       uploaded_file.rewind if uploaded_file.respond_to?(:rewind)
       encoded = Base64.strict_encode64(uploaded_file.read)
       uploaded_file.rewind if uploaded_file.respond_to?(:rewind)
-      "data:#{uploaded_file.content_type};base64,#{encoded}"
+      "data:#{detected_content_type(uploaded_file)};base64,#{encoded}"
+    end
+
+    def detected_content_type(uploaded_file)
+      uploaded_file.rewind if uploaded_file.respond_to?(:rewind)
+      header = uploaded_file.read(16).to_s.b
+      uploaded_file.rewind if uploaded_file.respond_to?(:rewind)
+
+      if header.start_with?("\xFF\xD8\xFF".b)
+        "image/jpeg"
+      elsif header.start_with?("\x89PNG\r\n\x1A\n".b)
+        "image/png"
+      elsif header[0, 4] == "RIFF" && header[8, 4] == "WEBP"
+        "image/webp"
+      end
     end
 
     def perform_openrouter_request(payload, api_key)

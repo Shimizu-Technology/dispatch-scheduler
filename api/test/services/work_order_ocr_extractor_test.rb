@@ -63,12 +63,24 @@ class WorkOrderOcrExtractorTest < ActiveSupport::TestCase
     assert_includes result[:error], "Unsupported file type"
   end
 
+  test "rejects spoofed image content type" do
+    file = Tempfile.new([ "spoofed", ".jpg" ])
+    file.write("not actually an image")
+    file.rewind
+    upload = Rack::Test::UploadedFile.new(file.path, "image/jpeg", false, original_filename: "spoofed.jpg")
+
+    result = WorkOrderOcrExtractor.extract(upload)
+
+    assert_equal false, result[:success]
+    assert_includes result[:error], "Unsupported file type"
+  end
+
   private
 
   def image_upload
     file = Tempfile.new([ "work-order", ".png" ])
     file.binmode
-    file.write("fake image")
+    file.write("\x89PNG\r\n\x1A\nfake image")
     file.rewind
     Rack::Test::UploadedFile.new(file.path, "image/png", true, original_filename: "work-order.png")
   end

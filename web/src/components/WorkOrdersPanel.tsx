@@ -9,7 +9,14 @@ const priorities = ['P1', 'P2', 'P3', 'P4']
 const statuses = ['new', 'needs_assessment', 'approved', 'scheduled', 'waiting_for_parts', 'waiting_for_approval']
 const trades = ['General', 'Plumbing', 'HVAC', 'Electrical', 'Carpentry', 'Painting', 'Landscaping', 'Masonry']
 const regions = ['North', 'Central', 'South', 'Islandwide', 'Unknown']
-const sources = ['whatsapp', 'phone', 'email', 'mywork', 'sodexo', 'manual']
+const sources = ['whatsapp', 'phone', 'email', 'mywork', 'sodexo', 'manual', 'upload']
+
+type ImportDraft = OcrWorkOrderDraft & { draftId: string }
+
+function draftId(draft: OcrWorkOrderDraft, index: number) {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID()
+  return `${draft.external_id || draft.title || draft.description}-${index}-${Date.now()}`
+}
 
 function statusLabel(status: string) {
   return status.replaceAll('_', ' ')
@@ -165,8 +172,8 @@ export function WorkOrdersPanel({ workOrders, canEdit, selectedDate, saving, onC
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<WorkOrder | null>(null)
   const [uploading, setUploading] = useState(false)
-  const [importingIndex, setImportingIndex] = useState<number | null>(null)
-  const [importDrafts, setImportDrafts] = useState<OcrWorkOrderDraft[]>([])
+  const [importingDraftId, setImportingDraftId] = useState<string | null>(null)
+  const [importDrafts, setImportDrafts] = useState<ImportDraft[]>([])
   const [importError, setImportError] = useState('')
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -214,7 +221,8 @@ export function WorkOrdersPanel({ workOrders, canEdit, selectedDate, saving, onC
       const data = new FormData()
       data.append('file', file)
       const payload = await postForm<WorkOrderImportPreview>('/work_order_imports/preview', data)
-      setImportDrafts(payload.work_orders)
+      const newDrafts = payload.work_orders.map((draft, index) => ({ ...draft, draftId: draftId(draft, index) }))
+      setImportDrafts((currentDrafts) => [...currentDrafts, ...newDrafts])
     } catch (err) {
       setImportError(err instanceof Error ? err.message : 'Unable to scan uploaded work order')
     } finally {
@@ -222,8 +230,8 @@ export function WorkOrdersPanel({ workOrders, canEdit, selectedDate, saving, onC
     }
   }
 
-  async function importDraft(draft: OcrWorkOrderDraft, index: number) {
-    setImportingIndex(index)
+  async function importDraft(draft: ImportDraft) {
+    setImportingDraftId(draft.draftId)
     setImportError('')
     try {
       await onCreate({
@@ -231,11 +239,11 @@ export function WorkOrdersPanel({ workOrders, canEdit, selectedDate, saving, onC
         normalized_priority: draft.priority,
         original_status_text: draft.original_status_text || draft.status,
       })
-      setImportDrafts((currentDrafts) => currentDrafts.filter((_, draftIndex) => draftIndex !== index))
+      setImportDrafts((currentDrafts) => currentDrafts.filter((candidate) => candidate.draftId !== draft.draftId))
     } catch (err) {
       setImportError(err instanceof Error ? err.message : 'Unable to import extracted work order')
     } finally {
-      setImportingIndex(null)
+      setImportingDraftId(null)
     }
   }
 
@@ -247,7 +255,7 @@ export function WorkOrdersPanel({ workOrders, canEdit, selectedDate, saving, onC
       action={canEdit ? <div className="flex flex-wrap gap-2">
         <label className="inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-[#244393]/15 bg-[#e8eefc] px-4 py-2.5 font-display text-sm font-extrabold text-[#244393] transition hover:-translate-y-0.5 hover:bg-[#dfe8ff]">
           <FileUp size={16} /> {uploading ? 'Scanning...' : 'Upload Scan'}
-          <input type="file" accept="image/png,image/jpeg,image/webp" disabled={uploading} onChange={(event) => void previewUpload(event.target.files?.[0] || null)} className="sr-only" />
+          <input type="file" accept="image/png,image/jpeg,image/webp" disabled={uploading} onChange={(event) => { const file = event.target.files?.[0] || null; event.target.value = ''; void previewUpload(file) }} className="sr-only" />
         </label>
         <button type="button" onClick={startCreate} className="inline-flex items-center gap-2 rounded-2xl bg-[#d84332] px-4 py-2.5 font-display text-sm font-extrabold text-white shadow-[0_12px_26px_rgba(216,67,50,0.2)] transition hover:-translate-y-0.5 hover:bg-[#bf3228]"><Plus size={16} /> New Work Order</button>
       </div> : <span className="tabular rounded-full bg-[#172b63] px-3 py-1.5 font-display text-xs font-extrabold uppercase tracking-[0.14em] text-white">{workOrders.length} records</span>}
@@ -264,7 +272,7 @@ export function WorkOrdersPanel({ workOrders, canEdit, selectedDate, saving, onC
         <button type="button" onClick={() => setImportDrafts([])} className="rounded-2xl border border-[rgba(23,32,51,0.12)] bg-white px-3 py-2 font-display text-xs font-extrabold uppercase tracking-[0.12em] text-[#334155]">Clear</button>
       </div>
       <div className="grid gap-3 lg:grid-cols-2">
-        {importDrafts.map((draft, index) => <article key={`${draft.external_id || draft.title}-${index}`} className="rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white p-4 shadow-[0_10px_26px_rgba(23,32,51,0.05)]">
+        {importDrafts.map((draft) => <article key={draft.draftId} className="rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white p-4 shadow-[0_10px_26px_rgba(23,32,51,0.05)]">
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="flex flex-wrap items-center gap-2">
@@ -274,7 +282,7 @@ export function WorkOrdersPanel({ workOrders, canEdit, selectedDate, saving, onC
               </div>
               <h3 className="font-display mt-2 font-extrabold text-[#172033]">{draft.location} - {draft.title}</h3>
             </div>
-            <button type="button" disabled={importingIndex === index || saving} onClick={() => void importDraft(draft, index)} className="shrink-0 rounded-2xl bg-[#16835f] px-3 py-2 font-display text-xs font-extrabold uppercase tracking-[0.12em] text-white transition hover:-translate-y-0.5 hover:bg-[#106a4c] disabled:cursor-wait disabled:opacity-60">{importingIndex === index ? 'Importing...' : 'Import'}</button>
+            <button type="button" disabled={importingDraftId !== null || saving} onClick={() => void importDraft(draft)} className="shrink-0 rounded-2xl bg-[#16835f] px-3 py-2 font-display text-xs font-extrabold uppercase tracking-[0.12em] text-white transition hover:-translate-y-0.5 hover:bg-[#106a4c] disabled:cursor-wait disabled:opacity-60">{importingDraftId === draft.draftId ? 'Importing...' : 'Import'}</button>
           </div>
           <p className="mt-2 text-sm leading-6 text-[#526071]">{draft.description}</p>
           <p className="mt-2 text-xs font-semibold text-[#7b8798]">{draft.client} • {draft.region} • {draft.trade_category} • WO #{draft.external_id || 'N/A'}</p>

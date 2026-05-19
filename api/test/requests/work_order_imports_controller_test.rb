@@ -78,7 +78,7 @@ class WorkOrderImportsControllerTest < ActionDispatch::IntegrationTest
   def image_upload
     file = Tempfile.new([ "work-order", ".png" ])
     file.binmode
-    file.write("fake image")
+    file.write("\x89PNG\r\n\x1A\nfake image")
     file.rewind
     Rack::Test::UploadedFile.new(file.path, "image/png", true, original_filename: "work-order.png")
   end

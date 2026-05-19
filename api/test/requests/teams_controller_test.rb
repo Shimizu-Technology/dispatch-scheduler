@@ -33,7 +33,42 @@ class TeamsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "North", payload.fetch("region_preference")
     assert_equal true, payload.fetch("has_driver")
     assert_equal [ "New Crew Driver", "New Crew Helper" ], payload.fetch("default_technicians").map { |tech| tech.fetch("name") }
+    assert_equal true, payload.fetch("default_has_driver")
     assert_equal "team.created", AuditEvent.last.action
+  end
+
+  test "dispatcher updates a default crew without clearing daily override" do
+    crew = team(name: "Original Default", skills: [ "General" ], driver: false)
+    original_tech = crew.technicians.first
+    daily_driver = Technician.create!(name: "Daily Driver", primary_trade: "General", is_driver: true, active: true)
+    daily_driver.technician_skills.create!(skill: "General")
+    new_default_driver = Technician.create!(name: "New Default Driver", primary_trade: "Electrical", is_driver: true, active: true)
+    new_default_driver.technician_skills.create!(skill: "Electrical")
+
+    with_auth_env do
+      patch "/api/v1/teams/#{crew.id}/daily_memberships", params: { date: DEFAULT_DATE, technician_ids: [ original_tech.id, daily_driver.id ] }, headers: auth_headers
+      patch "/api/v1/teams/#{crew.id}", params: { date: DEFAULT_DATE, name: "Updated Default", region_preference: "North", technician_ids: [ new_default_driver.id ] }, headers: auth_headers
+    end
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_equal "Updated Default", payload.fetch("name")
+    assert_equal "North", payload.fetch("region_preference")
+    assert_equal true, payload.fetch("daily_override")
+    assert_equal [ "Original Default Driver", "Daily Driver" ].sort, payload.fetch("technicians").map { |tech| tech.fetch("name") }.sort
+    assert_equal [ "New Default Driver" ], payload.fetch("default_technicians").map { |tech| tech.fetch("name") }
+    assert_equal true, payload.fetch("default_has_driver")
+    assert_equal "team.default_crew.updated", AuditEvent.last.action
+  end
+
+  test "viewer cannot update a default crew" do
+    crew = team(name: "Viewer Default Locked")
+
+    with_auth_env do
+      patch "/api/v1/teams/#{crew.id}", params: { technician_ids: [] }, headers: auth_headers("viewer_team_update_123", "viewer-team-update@example.com")
+    end
+
+    assert_response :forbidden
   end
 
   test "viewer cannot create a default crew" do

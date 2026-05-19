@@ -67,7 +67,9 @@ export type Team = {
   today_crew_name: string
   region_preference: string | null
   has_driver: boolean
+  default_has_driver: boolean
   skills: string[]
+  default_skills: string[]
   daily_override: boolean
   technicians: Technician[]
   default_technicians: Technician[]

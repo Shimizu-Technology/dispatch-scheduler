@@ -330,6 +330,38 @@ function DispatchApp() {
     }
   }
 
+  async function updateDefaultCrew(teamId: number, values: TeamInput) {
+    if (!canEditDispatch) {
+      setError('Viewer access cannot update default crews.')
+      return
+    }
+    if (teamSavingId !== null) return
+
+    setTeamSavingId(teamId)
+    setError('')
+    try {
+      const updatedTeam = await patchJson<Team>(`/teams/${teamId}`, values)
+      setTeams((currentTeams) => currentTeams.map((team) => team.id === updatedTeam.id ? updatedTeam : team))
+      await afterAuditedChange()
+
+      try {
+        const [dash, teamData] = await Promise.all([
+          getJson<Dashboard>(`/dashboard?date=${selectedDate}`),
+          getJson<Team[]>(`/teams?date=${selectedDate}`),
+        ])
+        setDashboard(dash)
+        setTeams(teamData)
+      } catch (err) {
+        setError(err instanceof Error ? `Default crew saved, but fresh dashboard data did not load: ${err.message}` : 'Default crew saved, but fresh dashboard data did not load')
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to update default crew')
+      throw err
+    } finally {
+      setTeamSavingId(null)
+    }
+  }
+
   async function updateDailyCrew(teamId: number, technicianIds: number[] | null) {
     if (!canEditDispatch) {
       setError('Viewer access cannot update daily crew composition.')
@@ -541,7 +573,7 @@ function DispatchApp() {
 
         {currentSection === 'work-orders' && (user ? <WorkOrdersPanel workOrders={workOrders} canEdit={canEditDispatch} selectedDate={selectedDate} saving={workOrderSaving} onCreate={createWorkOrder} onUpdate={updateWorkOrder} /> : <SignInRequiredPanel title="Sign in to review work orders" />)}
 
-        {currentSection === 'teams' && (user ? <TeamsPanel teams={teams} technicians={technicians} canEdit={canEditDispatch} savingTechnicianId={availabilitySavingId} savingTeamId={teamSavingId} onToggleAvailability={toggleAvailability} onUpdateDailyCrew={updateDailyCrew} onCreateTeam={createTeam} /> : <SignInRequiredPanel title="Sign in to check crews" />)}
+        {currentSection === 'teams' && (user ? <TeamsPanel teams={teams} technicians={technicians} canEdit={canEditDispatch} savingTechnicianId={availabilitySavingId} savingTeamId={teamSavingId} onToggleAvailability={toggleAvailability} onUpdateDailyCrew={updateDailyCrew} onUpdateDefaultCrew={updateDefaultCrew} onCreateTeam={createTeam} /> : <SignInRequiredPanel title="Sign in to check crews" />)}
 
         {currentSection === 'dispatch' && (user ? <DispatchBuilder schedule={schedule} teams={teams} working={working} canEdit={canEditDispatch} onSuggest={suggestSchedule} onUpdate={updateDispatchItem} onFinalize={finalizeSchedule} onReopen={reopenSchedule} /> : <SignInRequiredPanel title="Sign in to build today's dispatch" />)}
 

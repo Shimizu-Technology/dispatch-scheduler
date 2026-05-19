@@ -123,14 +123,23 @@ module Serializers
       team.technicians_for_date(date).includes(:technician_skills, :technician_availabilities).to_a
     end
     available_techs = techs.select { |tech| available_for_date?(tech, date) }
+    default_techs = if default_memberships
+      default_memberships.map(&:technician)
+    else
+      team.team_memberships.where(date: nil).includes(technician: [ :technician_skills, :technician_availabilities ]).map(&:technician)
+    end
+    today_crew_name = techs.map(&:name).join(" / ")
+
     {
       id: team.id,
       name: team.name,
+      today_crew_name: today_crew_name.presence || "No technicians assigned today",
       region_preference: team.region_preference,
       has_driver: available_techs.any? { |tech| tech.is_driver && tech.active },
       skills: available_techs.flat_map { |tech| skills_for(tech) }.uniq,
       daily_override: daily_override,
-      technicians: techs.map { |tech| technician(tech, date: date) }
+      technicians: techs.map { |tech| technician(tech, date: date) },
+      default_technicians: default_techs.map { |tech| technician(tech, date: date) }
     }
   end
 

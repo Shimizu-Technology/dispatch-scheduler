@@ -13,7 +13,7 @@ import { WorkOrdersPanel } from './components/WorkOrdersPanel'
 import { DEMO_DATE } from './constants'
 import { useAuthContext } from './contexts/useAuthContext'
 import { getJson, patchJson, postJson } from './lib/api'
-import type { AuditEvent, Dashboard, DispatchSchedule, ManagedUser, PmTask, Team, Technician, WhatsAppCrewExport, WhatsAppExportPayload, WorkOrder, WorkOrderInput } from './types'
+import type { AuditEvent, Dashboard, DispatchSchedule, ManagedUser, PmTask, Team, TeamInput, Technician, WhatsAppCrewExport, WhatsAppExportPayload, WorkOrder, WorkOrderInput } from './types'
 import './index.css'
 
 type ActiveSection = 'overview' | 'dispatch' | 'work-orders' | 'teams' | 'pm-tasks' | 'whatsapp' | 'activity' | 'users'
@@ -298,6 +298,38 @@ function DispatchApp() {
     setTimeout(() => setCopied(false), 1600)
   }
 
+  async function createTeam(values: TeamInput) {
+    if (!canEditDispatch) {
+      setError('Viewer access cannot create crews.')
+      return
+    }
+    if (teamSavingId !== null) return
+
+    setTeamSavingId(0)
+    setError('')
+    try {
+      const created = await postJson<Team>('/teams', values)
+      setTeams((currentTeams) => [...currentTeams, created].sort((a, b) => a.name.localeCompare(b.name)))
+      await afterAuditedChange()
+
+      try {
+        const [dash, teamData] = await Promise.all([
+          getJson<Dashboard>(`/dashboard?date=${selectedDate}`),
+          getJson<Team[]>(`/teams?date=${selectedDate}`),
+        ])
+        setDashboard(dash)
+        setTeams(teamData)
+      } catch (err) {
+        setError(err instanceof Error ? `Crew created, but fresh dashboard data did not load: ${err.message}` : 'Crew created, but fresh dashboard data did not load')
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to create crew')
+      throw err
+    } finally {
+      setTeamSavingId(null)
+    }
+  }
+
   async function updateDailyCrew(teamId: number, technicianIds: number[] | null) {
     if (!canEditDispatch) {
       setError('Viewer access cannot update daily crew composition.')
@@ -509,7 +541,7 @@ function DispatchApp() {
 
         {currentSection === 'work-orders' && (user ? <WorkOrdersPanel workOrders={workOrders} canEdit={canEditDispatch} selectedDate={selectedDate} saving={workOrderSaving} onCreate={createWorkOrder} onUpdate={updateWorkOrder} /> : <SignInRequiredPanel title="Sign in to review work orders" />)}
 
-        {currentSection === 'teams' && (user ? <TeamsPanel teams={teams} technicians={technicians} canEdit={canEditDispatch} savingTechnicianId={availabilitySavingId} savingTeamId={teamSavingId} onToggleAvailability={toggleAvailability} onUpdateDailyCrew={updateDailyCrew} /> : <SignInRequiredPanel title="Sign in to check crews" />)}
+        {currentSection === 'teams' && (user ? <TeamsPanel teams={teams} technicians={technicians} canEdit={canEditDispatch} savingTechnicianId={availabilitySavingId} savingTeamId={teamSavingId} onToggleAvailability={toggleAvailability} onUpdateDailyCrew={updateDailyCrew} onCreateTeam={createTeam} /> : <SignInRequiredPanel title="Sign in to check crews" />)}
 
         {currentSection === 'dispatch' && (user ? <DispatchBuilder schedule={schedule} teams={teams} working={working} canEdit={canEditDispatch} onSuggest={suggestSchedule} onUpdate={updateDispatchItem} onFinalize={finalizeSchedule} onReopen={reopenSchedule} /> : <SignInRequiredPanel title="Sign in to build today's dispatch" />)}
 

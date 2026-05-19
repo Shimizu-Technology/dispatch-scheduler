@@ -64,11 +64,19 @@ export type Technician = {
 export type Team = {
   id: number
   name: string
+  today_crew_name: string
   region_preference: string | null
   has_driver: boolean
   skills: string[]
   daily_override: boolean
   technicians: Technician[]
+  default_technicians: Technician[]
+}
+
+export type TeamInput = {
+  name?: string
+  region_preference?: string
+  technician_ids: number[]
 }
 
 export type PmTask = {

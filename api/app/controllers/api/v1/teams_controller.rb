@@ -3,7 +3,7 @@ require "set"
 module Api
   module V1
     class TeamsController < ApplicationController
-      before_action :require_dispatch_edit!, only: [ :daily_memberships ]
+      before_action :require_dispatch_edit!, only: [ :create, :daily_memberships ]
 
       def index
         date = date_param
@@ -14,6 +14,32 @@ module Api
         daily_override_team_ids = TeamDailyOverride.where(team_id: team_ids, date: date).pluck(:team_id).to_set
 
         render json: teams.map { |team| Serializers.team(team, date: date, daily_memberships: daily_memberships[team.id] || [], default_memberships: default_memberships[team.id] || [], daily_override: daily_override_team_ids.include?(team.id)) }
+      end
+
+      def create
+        technician_ids = Array(params[:technician_ids]).reject(&:blank?).map(&:to_i).uniq
+        existing_ids = Technician.where(id: technician_ids).pluck(:id)
+        missing_ids = technician_ids - existing_ids
+        if missing_ids.any?
+          return render json: { errors: [ "Technician(s) not found: #{missing_ids.join(', ')}" ] }, status: :unprocessable_entity
+        end
+
+        team = nil
+        Team.transaction do
+          team = Team.create!(name: team_name(existing_ids), region_preference: params[:region_preference].presence, notes: params[:notes].presence || "Created in dispatch crew editor")
+          existing_ids.each do |technician_id|
+            team.team_memberships.create!(technician_id: technician_id)
+          end
+          AuditEvent.record!(action: "team.created", record: team, user: current_user, metadata: {
+            team: team.name,
+            technician_ids: existing_ids,
+            technician_names: technician_names(existing_ids)
+          })
+        end
+
+        render json: Serializers.team(team.reload, date: date_param), status: :created
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
       end
 
       def daily_memberships
@@ -60,6 +86,16 @@ module Api
       end
 
       private
+
+      def team_name(technician_ids)
+        explicit_name = params[:name].to_s.strip
+        return explicit_name if explicit_name.present?
+
+        names = technician_names(technician_ids)
+        return "New Crew" if names.empty?
+
+        names.join(" / ")
+      end
 
       def technician_names(technician_ids)
         Technician.where(id: technician_ids).order(:name).pluck(:name)

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-11T22:47:10+00:00",
+  "generated_at": "2026-05-19T10:31:11+00:00",
   "notes": "Sanitized demo data generated from John's sample workflow artifacts in docs/examples-from-john.",
   "source_files": [
     "MOBIL SCHEDULE - MAY2026.xlsx",
@@ -318,6 +318,46 @@
       "is_driver": true,
       "active": true,
       "division": "HKR"
+    },
+    {
+      "name": "ARNANI",
+      "primary_trade": "General",
+      "skills": [
+        "General"
+      ],
+      "is_driver": false,
+      "active": true,
+      "division": "Mobil"
+    },
+    {
+      "name": "NELSON V.",
+      "primary_trade": "General",
+      "skills": [
+        "General"
+      ],
+      "is_driver": true,
+      "active": true,
+      "division": "Mobil"
+    },
+    {
+      "name": "ROBERT",
+      "primary_trade": "General",
+      "skills": [
+        "General"
+      ],
+      "is_driver": true,
+      "active": true,
+      "division": "Mobil"
+    },
+    {
+      "name": "RONEL",
+      "primary_trade": "General",
+      "skills": [
+        "General"
+      ],
+      "is_driver": false,
+      "active": true,
+      "division": "Mobil"
     }
   ],
   "teams": [

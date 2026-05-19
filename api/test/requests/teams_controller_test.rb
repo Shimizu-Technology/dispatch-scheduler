@@ -61,6 +61,29 @@ class TeamsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "team.default_crew.updated", AuditEvent.last.action
   end
 
+  test "dispatcher cannot empty a default crew" do
+    crew = team(name: "Cannot Empty Default")
+
+    with_auth_env do
+      patch "/api/v1/teams/#{crew.id}", params: { technician_ids: [] }, headers: auth_headers
+    end
+
+    assert_response :unprocessable_entity
+    payload = JSON.parse(response.body)
+    assert_includes payload.fetch("errors"), "Select at least one technician for the default crew."
+    assert_equal [ "Cannot Empty Default Driver" ], crew.reload.team_memberships.where(date: nil).includes(:technician).map { |membership| membership.technician.name }
+  end
+
+  test "dispatcher cannot create an empty default crew" do
+    with_auth_env do
+      post "/api/v1/teams", params: { technician_ids: [] }, headers: auth_headers
+    end
+
+    assert_response :unprocessable_entity
+    payload = JSON.parse(response.body)
+    assert_includes payload.fetch("errors"), "Select at least one technician for the default crew."
+  end
+
   test "viewer cannot update a default crew" do
     crew = team(name: "Viewer Default Locked")
 

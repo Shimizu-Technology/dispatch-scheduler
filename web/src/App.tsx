@@ -19,6 +19,11 @@ import './index.css'
 type ActiveSection = 'overview' | 'dispatch' | 'work-orders' | 'teams' | 'pm-tasks' | 'whatsapp' | 'activity' | 'users'
 
 const SECTION_IDS: ActiveSection[] = ['overview', 'dispatch', 'work-orders', 'teams', 'pm-tasks', 'whatsapp', 'activity', 'users']
+const SELECTED_DATE_STORAGE_KEY = 'dispatch-scheduler:selected-date'
+
+function initialSelectedDate() {
+  return window.localStorage.getItem(SELECTED_DATE_STORAGE_KEY) || DEMO_DATE
+}
 
 function sectionFromHash(): ActiveSection {
   const value = window.location.hash.replace('#', '')
@@ -28,7 +33,7 @@ function sectionFromHash(): ActiveSection {
 function DispatchApp() {
   const { isSignedIn, isLoading: authLoading, isVerifyingApi, user, authError, canEditDispatch, refreshUser } = useAuthContext()
   const [activeSection, setActiveSection] = useState<ActiveSection>(sectionFromHash)
-  const [selectedDate, setSelectedDate] = useState(DEMO_DATE)
+  const [selectedDate, setSelectedDate] = useState(initialSelectedDate)
   const [dashboard, setDashboard] = useState<Dashboard | null>(null)
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([])
   const [teams, setTeams] = useState<Team[]>([])
@@ -85,6 +90,10 @@ function DispatchApp() {
     }
     setLoading(false)
   }, [refreshAuditEvents, refreshWhatsApp])
+
+  useEffect(() => {
+    window.localStorage.setItem(SELECTED_DATE_STORAGE_KEY, selectedDate)
+  }, [selectedDate])
 
   useEffect(() => {
     if (authLoading || !user?.id) return

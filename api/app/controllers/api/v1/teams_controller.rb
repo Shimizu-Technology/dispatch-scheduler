@@ -17,12 +17,11 @@ module Api
       end
 
       def create
-        technician_ids = Array(params[:technician_ids]).reject(&:blank?).map(&:to_i).uniq
-        existing_ids = Technician.where(id: technician_ids).pluck(:id)
-        missing_ids = technician_ids - existing_ids
-        if missing_ids.any?
-          return render json: { errors: [ "Technician(s) not found: #{missing_ids.join(', ')}" ] }, status: :unprocessable_entity
-        end
+        technician_ids = default_technician_ids
+        return if performed?
+
+        existing_ids = valid_technician_ids(technician_ids)
+        return if performed?
 
         team = nil
         Team.transaction do
@@ -48,12 +47,11 @@ module Api
         previous_region = team.region_preference
         previous_ids = team.team_memberships.where(date: nil).pluck(:technician_id)
         updates_memberships = params.key?(:technician_ids)
-        requested_ids = updates_memberships ? Array(params[:technician_ids]).reject(&:blank?).map(&:to_i).uniq : previous_ids
-        existing_ids = Technician.where(id: requested_ids).pluck(:id)
-        missing_ids = requested_ids - existing_ids
-        if missing_ids.any?
-          return render json: { errors: [ "Technician(s) not found: #{missing_ids.join(', ')}" ] }, status: :unprocessable_entity
-        end
+        requested_ids = updates_memberships ? default_technician_ids : previous_ids
+        return if performed?
+
+        existing_ids = valid_technician_ids(requested_ids)
+        return if performed?
 
         next_name = params.key?(:name) ? team_name(existing_ids) : team.name
         next_region = params.key?(:region_preference) ? params[:region_preference].presence : team.region_preference
@@ -129,6 +127,23 @@ module Api
       end
 
       private
+
+      def default_technician_ids
+        technician_ids = Array(params[:technician_ids]).reject(&:blank?).map(&:to_i).uniq
+        if technician_ids.empty?
+          render json: { errors: [ "Select at least one technician for the default crew." ] }, status: :unprocessable_entity
+        end
+        technician_ids
+      end
+
+      def valid_technician_ids(technician_ids)
+        existing_ids = Technician.where(id: technician_ids).pluck(:id)
+        missing_ids = technician_ids - existing_ids
+        if missing_ids.any?
+          render json: { errors: [ "Technician(s) not found: #{missing_ids.join(', ')}" ] }, status: :unprocessable_entity
+        end
+        existing_ids
+      end
 
       def team_name(technician_ids)
         explicit_name = params[:name].to_s.strip

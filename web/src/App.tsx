@@ -10,7 +10,6 @@ import { TeamsPanel } from './components/TeamsPanel'
 import { UserManagementPanel } from './components/UserManagementPanel'
 import { WhatsAppExport } from './components/WhatsAppExport'
 import { WorkOrdersPanel } from './components/WorkOrdersPanel'
-import { DEMO_DATE } from './constants'
 import { useAuthContext } from './contexts/useAuthContext'
 import { getJson, patchJson, postJson } from './lib/api'
 import type { AuditEvent, Dashboard, DispatchSchedule, ManagedUser, PmTask, Team, TeamInput, Technician, WhatsAppCrewExport, WhatsAppExportPayload, WorkOrder, WorkOrderInput } from './types'
@@ -21,8 +20,13 @@ type ActiveSection = 'overview' | 'dispatch' | 'work-orders' | 'teams' | 'pm-tas
 const SECTION_IDS: ActiveSection[] = ['overview', 'dispatch', 'work-orders', 'teams', 'pm-tasks', 'whatsapp', 'activity', 'users']
 const SELECTED_DATE_STORAGE_KEY = 'dispatch-scheduler:selected-date'
 
+function localDateString(date = new Date()) {
+  const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
+  return offsetDate.toISOString().slice(0, 10)
+}
+
 function initialSelectedDate() {
-  return window.localStorage.getItem(SELECTED_DATE_STORAGE_KEY) || DEMO_DATE
+  return window.localStorage.getItem(SELECTED_DATE_STORAGE_KEY) || localDateString()
 }
 
 function sectionFromHash(): ActiveSection {
@@ -34,6 +38,7 @@ function DispatchApp() {
   const { isSignedIn, isLoading: authLoading, isVerifyingApi, user, authError, canEditDispatch, refreshUser } = useAuthContext()
   const [activeSection, setActiveSection] = useState<ActiveSection>(sectionFromHash)
   const [selectedDate, setSelectedDate] = useState(initialSelectedDate)
+  const todayDate = localDateString()
   const [dashboard, setDashboard] = useState<Dashboard | null>(null)
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([])
   const [teams, setTeams] = useState<Team[]>([])
@@ -509,15 +514,25 @@ function DispatchApp() {
                 </div>
               </div> : null}
               <div className="flex w-full flex-wrap items-center gap-3 lg:justify-end">
-                {user && <label className="inline-flex flex-1 items-center justify-between gap-3 rounded-2xl border border-white/15 bg-white/10 px-3 py-2 text-sm text-blue-50 shadow-[0_12px_32px_rgba(0,0,0,0.12)] backdrop-blur sm:flex-none">
-                  <span className="font-display text-xs font-extrabold uppercase tracking-[0.16em] text-blue-100">Schedule date</span>
-                  <input
-                    type="date"
-                    value={selectedDate}
-                    onChange={(event) => setSelectedDate(event.target.value)}
-                    className="tabular rounded-xl border border-white/15 bg-white px-3 py-2 font-display text-sm font-extrabold text-[#172033] outline-none transition focus:border-blue-200 focus:ring-4 focus:ring-blue-200/25"
-                  />
-                </label>}
+                {user && <div className="inline-flex flex-1 flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/15 bg-white/10 px-3 py-2 text-sm text-blue-50 shadow-[0_12px_32px_rgba(0,0,0,0.12)] backdrop-blur sm:flex-none">
+                  <label className="inline-flex items-center gap-3">
+                    <span className="font-display text-xs font-extrabold uppercase tracking-[0.16em] text-blue-100">Schedule date</span>
+                    <input
+                      type="date"
+                      value={selectedDate}
+                      onChange={(event) => setSelectedDate(event.target.value)}
+                      className="tabular rounded-xl border border-white/15 bg-white px-3 py-2 font-display text-sm font-extrabold text-[#172033] outline-none transition focus:border-blue-200 focus:ring-4 focus:ring-blue-200/25"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    disabled={selectedDate === todayDate}
+                    onClick={() => setSelectedDate(todayDate)}
+                    className="rounded-xl border border-white/15 bg-white/10 px-3 py-2 font-display text-xs font-extrabold uppercase tracking-[0.12em] text-white transition hover:-translate-y-0.5 hover:bg-white/16 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Today
+                  </button>
+                </div>}
                 {user && <div className="inline-flex items-center gap-3 rounded-2xl border border-white/15 bg-white/10 px-3 py-2 text-sm text-blue-50 shadow-[0_12px_32px_rgba(0,0,0,0.12)] backdrop-blur">
                   <UserButton />
                   <span className="leading-tight">

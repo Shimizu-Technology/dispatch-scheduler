@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_18_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_20_123000) do
   create_table "audit_events", force: :cascade do |t|
     t.string "action", null: false
     t.datetime "created_at", null: false
@@ -33,16 +33,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_18_100000) do
   end
 
   create_table "dispatch_items", force: :cascade do |t|
+    t.date "carried_over_to_date"
+    t.datetime "completed_at"
     t.datetime "created_at", null: false
     t.integer "dispatch_schedule_id", null: false
     t.text "notes"
     t.integer "order_index"
+    t.text "outcome_notes"
+    t.string "outcome_status", default: "pending", null: false
     t.integer "pm_task_id"
+    t.text "reassignment_reason"
     t.time "scheduled_time"
     t.integer "team_id", null: false
     t.datetime "updated_at", null: false
     t.integer "work_order_id"
+    t.index ["carried_over_to_date"], name: "index_dispatch_items_on_carried_over_to_date"
     t.index ["dispatch_schedule_id"], name: "index_dispatch_items_on_dispatch_schedule_id"
+    t.index ["outcome_status"], name: "index_dispatch_items_on_outcome_status"
     t.index ["pm_task_id"], name: "index_dispatch_items_on_pm_task_id"
     t.index ["team_id"], name: "index_dispatch_items_on_team_id"
     t.index ["work_order_id"], name: "index_dispatch_items_on_work_order_id"

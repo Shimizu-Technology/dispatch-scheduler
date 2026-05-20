@@ -46,6 +46,36 @@ class DispatchSuggestionServiceTest < ActiveSupport::TestCase
     ENV["DISPATCH_DAILY_ITEM_LIMIT"] = old_limit
   end
 
+  test "carry over work is suggested on the next day with previous crew preferred" do
+    previous_team = team(name: "Previous Crew", skills: [ "Plumbing" ])
+    other_team = team(name: "Other Crew", skills: [ "Plumbing" ])
+    wo = work_order(title: "Unfinished plumbing", trade: "Plumbing", status: "carry_over", date: DEFAULT_DATE + 1.day)
+    yesterday = DispatchSchedule.create!(date: DEFAULT_DATE, status: "sent")
+    yesterday.dispatch_items.create!(team: previous_team, work_order: wo, order_index: 0, outcome_status: "carry_over", outcome_notes: "Need return", carried_over_to_date: DEFAULT_DATE + 1.day)
+
+    schedule = DispatchSuggestionService.new(date: DEFAULT_DATE + 1.day).call
+    item = schedule.dispatch_items.first
+
+    assert_equal wo.id, item.work_order_id
+    assert_equal previous_team.id, item.team_id
+    assert_includes item.notes, "Carry-over from #{DEFAULT_DATE.strftime('%b %-d')}"
+    assert_includes item.notes, "Previous crew: Previous Crew"
+    assert_not_equal other_team.id, item.team_id
+  end
+
+  test "completed and blocked carry over work is not suggested" do
+    team(name: "Open Crew", skills: [ "General" ])
+    completed = work_order(title: "Done yesterday", status: "completed", date: DEFAULT_DATE + 1.day)
+    blocked = work_order(title: "Parts wait", status: "waiting_for_parts", date: DEFAULT_DATE + 1.day)
+    yesterday = DispatchSchedule.create!(date: DEFAULT_DATE, status: "sent")
+    yesterday.dispatch_items.create!(team: Team.first, work_order: completed, order_index: 0, outcome_status: "completed")
+    yesterday.dispatch_items.create!(team: Team.first, work_order: blocked, order_index: 1, outcome_status: "waiting_parts")
+
+    schedule = DispatchSuggestionService.new(date: DEFAULT_DATE + 1.day).call
+
+    assert_empty schedule.dispatch_items
+  end
+
   test "skill matching only uses technicians available on the schedule date" do
     hvac_team = team(name: "Unavailable HVAC", skills: [ "HVAC" ], driver: false, unavailable: true)
     general_team = team(name: "Available General", skills: [ "General" ])

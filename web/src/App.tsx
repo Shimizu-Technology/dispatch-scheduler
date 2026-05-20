@@ -12,7 +12,7 @@ import { WhatsAppExport } from './components/WhatsAppExport'
 import { WorkOrdersPanel } from './components/WorkOrdersPanel'
 import { useAuthContext } from './contexts/useAuthContext'
 import { getJson, patchJson, postJson } from './lib/api'
-import type { AuditEvent, Dashboard, DispatchSchedule, ManagedUser, PmTask, Team, TeamInput, Technician, WhatsAppCrewExport, WhatsAppExportPayload, WorkOrder, WorkOrderInput } from './types'
+import type { AuditEvent, Dashboard, DispatchOutcomeStatus, DispatchSchedule, ManagedUser, PmTask, Team, TeamInput, Technician, WhatsAppCrewExport, WhatsAppExportPayload, WorkOrder, WorkOrderInput } from './types'
 import './index.css'
 
 type ActiveSection = 'overview' | 'dispatch' | 'work-orders' | 'teams' | 'pm-tasks' | 'whatsapp' | 'activity' | 'users'
@@ -306,6 +306,25 @@ function DispatchApp() {
     }
   }
 
+  async function updateDispatchItemOutcome(itemId: number, changes: { outcome_status: DispatchOutcomeStatus; outcome_notes?: string; carried_over_to_date?: string }) {
+    if (!schedule) return
+    if (!canEditDispatch) {
+      setError('Viewer access cannot update dispatch outcomes.')
+      return
+    }
+    setWorking(true)
+    setError('')
+    try {
+      const updated = await patchJson<DispatchSchedule>(`/dispatch_items/${itemId}/outcome`, changes)
+      setSchedule(updated)
+      await Promise.allSettled([refreshWhatsApp(updated.id), refreshWorkOrderContext(), afterAuditedChange()])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to update dispatch outcome')
+    } finally {
+      setWorking(false)
+    }
+  }
+
   async function copyWhatsApp() {
     await navigator.clipboard.writeText(whatsApp)
     setCopied(true)
@@ -452,10 +471,10 @@ function DispatchApp() {
   const currentSection = activeSection === 'users' && !user?.permissions.can_admin ? 'overview' : activeSection
   const sections: Array<{ id: ActiveSection; label: string; description: string; icon: ReactNode; count?: number }> = [
     { id: 'overview', label: 'Dashboard', description: 'Start here', icon: <LayoutDashboard size={18} /> },
-    { id: 'dispatch', label: 'Today\'s Dispatch', description: 'Build and edit the plan', icon: <ClipboardList size={18} />, count: schedule?.items.length },
-    { id: 'work-orders', label: 'Work Orders', description: 'Review open work', icon: <Wrench size={18} />, count: workOrders.length },
+    { id: 'dispatch', label: 'Dispatch', description: 'Build and edit the plan', icon: <ClipboardList size={18} />, count: schedule?.items.length },
+    { id: 'work-orders', label: 'Work', description: 'Review open work', icon: <Wrench size={18} />, count: workOrders.length },
     { id: 'teams', label: 'Crews', description: 'Drivers and call-outs', icon: <Users size={18} />, count: teams.length },
-    { id: 'pm-tasks', label: 'PM Tasks', description: 'Preventive work', icon: <CalendarDays size={18} />, count: pmTasks.length },
+    { id: 'pm-tasks', label: 'PMs', description: 'Preventive work', icon: <CalendarDays size={18} />, count: pmTasks.length },
     { id: 'whatsapp', label: 'WhatsApp', description: 'Copy send-ready text', icon: <MessageSquareText size={18} /> },
     { id: 'activity', label: 'Activity', description: 'Audit history', icon: <Activity size={18} /> },
     ...(user?.permissions.can_admin ? [{ id: 'users' as const, label: 'Users', description: 'Roles and access', icon: <UserCog size={18} />, count: managedUsers.length }] : []),
@@ -546,7 +565,7 @@ function DispatchApp() {
                 </SignInButton>}
                 {schedule && <span className={`inline-flex flex-1 items-center justify-center rounded-2xl border px-4 py-3 font-display text-xs font-extrabold uppercase tracking-[0.16em] sm:flex-none ${schedule.status === 'sent' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : schedule.status === 'finalized' ? 'border-blue-200 bg-blue-50 text-blue-900' : 'border-white/15 bg-white/10 text-blue-50'}`}>{schedule.status}</span>}
                 {canEditDispatch && <button disabled={working || Boolean(schedule && schedule.status !== 'draft')} onClick={suggestSchedule} className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[#d84332] px-5 py-3 font-display text-sm font-extrabold text-white shadow-[0_16px_38px_rgba(216,67,50,0.28)] transition hover:-translate-y-0.5 hover:bg-[#bf3228] disabled:cursor-not-allowed disabled:opacity-60 sm:flex-none">
-                  <ClipboardList size={18} /> {working ? 'Working...' : schedule?.status === 'draft' || !schedule ? "Suggest Today's Schedule" : 'Schedule Locked'}
+                  <ClipboardList size={18} /> {working ? 'Working...' : schedule?.status === 'draft' || !schedule ? 'Suggest Schedule' : 'Schedule Locked'}
                 </button>}
               </div>
             </div>
@@ -561,10 +580,10 @@ function DispatchApp() {
               type="button"
               onClick={() => goToSection(section.id)}
               title={section.description}
-              className={`group flex h-14 min-w-[8.4rem] flex-1 items-center justify-center gap-2 rounded-xl border px-3 text-center transition ${isActive ? 'border-[#244393] bg-[#172b63] text-white shadow-[0_10px_24px_rgba(36,67,147,0.2)]' : 'border-transparent text-[#172033] hover:border-[rgba(36,67,147,0.18)] hover:bg-[#f4f7fb]'}`}
+              className={`group flex h-12 min-w-fit shrink-0 items-center justify-center gap-2 rounded-xl border px-3 text-center transition sm:px-4 ${isActive ? 'border-[#244393] bg-[#172b63] text-white shadow-[0_10px_24px_rgba(36,67,147,0.2)]' : 'border-transparent text-[#172033] hover:border-[rgba(36,67,147,0.18)] hover:bg-[#f4f7fb]'}`}
             >
               <span className={`inline-flex shrink-0 rounded-lg p-1.5 ${isActive ? 'bg-white/12 text-blue-100' : 'bg-[#e8eefc] text-[#244393]'}`}>{section.icon}</span>
-              <span className="font-display truncate text-sm font-extrabold">{section.label}</span>
+              <span className="font-display whitespace-nowrap text-sm font-extrabold">{section.label}</span>
               {typeof section.count === 'number' && <span className={`tabular inline-flex min-w-7 shrink-0 justify-center rounded-full px-2 py-0.5 text-xs font-extrabold ${isActive ? 'bg-white/12 text-white' : 'bg-[#eef2ff] text-[#244393]'}`}>{section.count}</span>}
             </button>
           })}
@@ -598,7 +617,7 @@ function DispatchApp() {
 
         {currentSection === 'teams' && (user ? <TeamsPanel teams={teams} technicians={technicians} canEdit={canEditDispatch} savingTechnicianId={availabilitySavingId} savingTeamId={teamSavingId} onToggleAvailability={toggleAvailability} onUpdateDailyCrew={updateDailyCrew} onUpdateDefaultCrew={updateDefaultCrew} onCreateTeam={createTeam} /> : <SignInRequiredPanel title="Sign in to check crews" />)}
 
-        {currentSection === 'dispatch' && (user ? <DispatchBuilder schedule={schedule} teams={teams} working={working} canEdit={canEditDispatch} onSuggest={suggestSchedule} onUpdate={updateDispatchItem} onFinalize={finalizeSchedule} onReopen={reopenSchedule} /> : <SignInRequiredPanel title="Sign in to build today's dispatch" />)}
+        {currentSection === 'dispatch' && (user ? <DispatchBuilder schedule={schedule} teams={teams} working={working} canEdit={canEditDispatch} onSuggest={suggestSchedule} onUpdate={updateDispatchItem} onOutcome={updateDispatchItemOutcome} onFinalize={finalizeSchedule} onReopen={reopenSchedule} /> : <SignInRequiredPanel title="Sign in to build today's dispatch" />)}
 
         {currentSection === 'pm-tasks' && (user ? <PmTasksPanel pmTasks={pmTasks} /> : <SignInRequiredPanel title="Sign in to review PM tasks" />)}
 

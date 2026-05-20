@@ -4,14 +4,16 @@ module Api
       before_action :require_dispatch_edit!
 
       def update
-        item = DispatchItem.includes(:dispatch_schedule).find(params[:id])
+        item = DispatchItem.includes(:dispatch_schedule, :team).find(params[:id])
         if item.dispatch_schedule.locked?
           return render json: { errors: [ "This schedule is #{item.dispatch_schedule.status}. Reopen it before editing dispatch items." ] }, status: :conflict
         end
 
+        previous_team = item.team
         ApplicationRecord.transaction do
           update_item(item, dispatch_item_params)
-          AuditEvent.record!(action: "dispatch_item.updated", record: item, user: current_user, metadata: dispatch_item_audit_metadata(item))
+          action = item.team_id == previous_team.id ? "dispatch_item.updated" : "dispatch_item.reassigned"
+          AuditEvent.record!(action: action, record: item, user: current_user, metadata: dispatch_item_audit_metadata(item).merge(previous_team: previous_team.name, new_team: item.team.name, reassignment_reason: item.reassignment_reason))
         end
         render json: Serializers.schedule(item.dispatch_schedule)
       rescue ActiveRecord::RecordNotFound => e
@@ -20,6 +22,18 @@ module Api
         render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
       rescue ActiveRecord::InvalidForeignKey => e
         render json: { errors: [ e.message ] }, status: :unprocessable_entity
+      rescue ArgumentError => e
+        render json: { errors: [ e.message ] }, status: :unprocessable_entity
+      end
+
+      def outcome
+        item = DispatchItem.includes(:dispatch_schedule, :work_order, :team).find(params[:id])
+        update_outcome(item, outcome_params)
+        render json: Serializers.schedule(item.dispatch_schedule)
+      rescue ActiveRecord::RecordNotFound => e
+        render json: { errors: [ e.message ] }, status: :not_found
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
       rescue ArgumentError => e
         render json: { errors: [ e.message ] }, status: :unprocessable_entity
       end
@@ -47,6 +61,7 @@ module Api
           item.assign_attributes(attrs)
           team_changed = item.team_id != old_team_id
           order_changed = target_order.present?
+          item.reassignment_reason = nil unless team_changed
           item.save!
 
           if team_changed
@@ -58,6 +73,35 @@ module Api
             normalize_orders(item.dispatch_schedule, item.team_id)
           end
         end
+      end
+
+      def update_outcome(item, attrs)
+        status = attrs[:outcome_status].presence || "pending"
+        raise ArgumentError, "Invalid outcome status" unless DispatchItem::OUTCOME_STATUSES.include?(status)
+
+        ApplicationRecord.transaction do
+          item.update!(
+            outcome_status: status,
+            outcome_notes: attrs[:outcome_notes],
+            carried_over_to_date: status == "carry_over" ? carry_over_date(attrs[:carried_over_to_date], item.dispatch_schedule.date) : nil,
+            completed_at: status == "completed" ? Time.current : nil
+          )
+          update_work_order_from_outcome(item) if item.work_order
+          AuditEvent.record!(action: "dispatch_item.outcome_updated", record: item, user: current_user, metadata: dispatch_item_audit_metadata(item).merge(outcome_status: item.outcome_status, outcome_notes: item.outcome_notes, carried_over_to_date: item.carried_over_to_date))
+        end
+      end
+
+      def update_work_order_from_outcome(item)
+        status = case item.outcome_status
+        when "completed" then "completed"
+        when "carry_over" then "carry_over"
+        when "waiting_parts" then "waiting_for_parts"
+        when "waiting_approval" then "waiting_for_approval"
+        when "unable_to_access" then "needs_assessment"
+        when "cancelled" then "cancelled"
+        else item.work_order.status
+        end
+        item.work_order.update!(status: status, scheduled_date: item.carry_over? ? item.carried_over_to_date : item.work_order.scheduled_date)
       end
 
       def normalize_orders(schedule, team_id)
@@ -94,11 +138,19 @@ module Api
       end
 
       def dispatch_item_params
-        permitted = params.permit(:team_id, :order_index, :scheduled_time, :notes)
+        permitted = params.permit(:team_id, :order_index, :scheduled_time, :notes, :reassignment_reason)
         if params.key?(:scheduled_time)
           permitted[:scheduled_time] = permitted[:scheduled_time].present? ? normalize_time(permitted[:scheduled_time]) : nil
         end
         permitted
+      end
+
+      def outcome_params
+        params.permit(:outcome_status, :outcome_notes, :carried_over_to_date)
+      end
+
+      def carry_over_date(value, schedule_date)
+        value.present? ? Date.parse(value.to_s) : schedule_date.next_day
       end
 
       def normalize_time(value)

@@ -6,7 +6,7 @@ import { postForm } from '../lib/api'
 import type { OcrWorkOrderDraft, WorkOrder, WorkOrderImportPreview, WorkOrderInput } from '../types'
 
 const priorities = ['P1', 'P2', 'P3', 'P4']
-const statuses = ['new', 'needs_assessment', 'approved', 'scheduled', 'waiting_for_parts', 'waiting_for_approval']
+const statuses = ['new', 'needs_assessment', 'approved', 'scheduled', 'carry_over', 'waiting_for_parts', 'waiting_for_approval', 'completed', 'cancelled']
 const trades = ['General', 'Plumbing', 'HVAC', 'Electrical', 'Carpentry', 'Painting', 'Landscaping', 'Masonry']
 const regions = ['North', 'Central', 'South', 'Islandwide', 'Unknown']
 const sources = ['whatsapp', 'phone', 'email', 'mywork', 'sodexo', 'manual', 'upload']
@@ -68,7 +68,10 @@ function WorkOrderRow({ workOrder, canEdit, onEdit }: { workOrder: WorkOrder; ca
       </div>
       <h3 className="font-display mt-2 font-extrabold tracking-tight text-[#172033]">{workOrder.location} - {workOrder.title}</h3>
       <p className="mt-1 line-clamp-2 text-sm leading-6 text-[#526071]">{workOrder.description}</p>
-      <p className="mt-2 text-xs font-semibold text-[#7b8798]">Source: {workOrder.source}</p>
+      <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold text-[#7b8798]">
+        <span>Source: {workOrder.source}</span>
+        {workOrder.last_dispatched_on && <span>Last dispatched: {workOrder.last_dispatched_on}{workOrder.last_crew_name ? ` · ${workOrder.last_crew_name}` : ''}</span>}
+      </div>
     </div>
     <div className="flex flex-row gap-2 text-sm sm:flex-col sm:items-end">
       <span className="font-display rounded-full bg-[#e8eefc] px-3 py-1 text-xs font-extrabold uppercase tracking-[0.1em] text-[#244393]">{workOrder.trade_category}</span>

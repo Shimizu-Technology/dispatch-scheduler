@@ -1,7 +1,26 @@
 import { useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, Save, Unlock } from 'lucide-react'
 import { Badge, Card, PanelHeader } from './ui'
-import type { DispatchItem, DispatchSchedule, DispatchSummary, Team } from '../types'
+import type { DispatchItem, DispatchOutcomeStatus, DispatchSchedule, DispatchSummary, Team } from '../types'
+
+const OUTCOME_OPTIONS: Array<{ status: DispatchOutcomeStatus; label: string }> = [
+  { status: 'completed', label: 'Complete' },
+  { status: 'carry_over', label: 'Carry Over' },
+  { status: 'waiting_parts', label: 'Waiting Parts' },
+  { status: 'waiting_approval', label: 'Waiting Approval' },
+  { status: 'unable_to_access', label: 'Unable to Access' },
+]
+
+function nextDateString(dateString: string) {
+  const [year, month, day] = dateString.split('-').map(Number)
+  const date = new Date(year, month - 1, day)
+  date.setDate(date.getDate() + 1)
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 10)
+}
+
+function outcomeLabel(status: DispatchOutcomeStatus) {
+  return OUTCOME_OPTIONS.find((option) => option.status === status)?.label || 'Pending'
+}
 
 function ScheduleSummary({ summary }: { summary: DispatchSummary }) {
   return <div className="grid gap-3 rounded-2xl border border-blue-100 bg-gradient-to-br from-[#f8faff] to-white p-4 text-sm text-[#172033] shadow-[0_14px_34px_rgba(36,67,147,0.08)] sm:grid-cols-4">
@@ -25,7 +44,7 @@ function StatusNotice({ schedule }: { schedule: DispatchSchedule }) {
   return <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-900">Sent schedule: this dispatch has been marked as sent to the crews.</div>
 }
 
-function DispatchCard({ item, teams, disabled, canEdit, onUpdate }: { item: DispatchItem; teams: Team[]; disabled: boolean; canEdit: boolean; onUpdate: (itemId: number, changes: Record<string, unknown>) => Promise<void> }) {
+function DispatchCard({ item, scheduleDate, teams, disabled, canEdit, canEditOutcomes, onUpdate, onOutcome }: { item: DispatchItem; scheduleDate: string; teams: Team[]; disabled: boolean; canEdit: boolean; canEditOutcomes: boolean; onUpdate: (itemId: number, changes: Record<string, unknown>) => Promise<void>; onOutcome: (itemId: number, changes: { outcome_status: DispatchOutcomeStatus; outcome_notes?: string; carried_over_to_date?: string }) => Promise<void> }) {
   const wo = item.work_order
   const pm = item.pm_task
   const persistedTeamId = String(item.team_id)
@@ -35,6 +54,8 @@ function DispatchCard({ item, teams, disabled, canEdit, onUpdate }: { item: Disp
   const [scheduledTime, setScheduledTime] = useState(persistedTime)
   const [notes, setNotes] = useState(persistedNotes)
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const [outcomeNotes, setOutcomeNotes] = useState(item.outcome_notes || '')
+  const [carryOverDate, setCarryOverDate] = useState(item.carried_over_to_date || nextDateString(scheduleDate))
 
   useEffect(() => {
     // Keep each editable card aligned with the last persisted schedule response.
@@ -42,7 +63,9 @@ function DispatchCard({ item, teams, disabled, canEdit, onUpdate }: { item: Disp
     setTeamId(persistedTeamId)
     setScheduledTime(persistedTime)
     setNotes(persistedNotes)
-  }, [persistedTeamId, persistedTime, persistedNotes])
+    setOutcomeNotes(item.outcome_notes || '')
+    setCarryOverDate(item.carried_over_to_date || nextDateString(scheduleDate))
+  }, [persistedTeamId, persistedTime, persistedNotes, item.outcome_notes, item.carried_over_to_date, scheduleDate])
 
   const isDirty = teamId !== persistedTeamId || scheduledTime !== persistedTime || notes !== persistedNotes
   const isSaving = disabled || saveState === 'saving'
@@ -57,7 +80,7 @@ function DispatchCard({ item, teams, disabled, canEdit, onUpdate }: { item: Disp
     if (!isDirty || isSaving) return
     setSaveState('saving')
     try {
-      await onUpdate(item.id, { team_id: Number(teamId), scheduled_time: scheduledTime, notes })
+      await onUpdate(item.id, { team_id: Number(teamId), scheduled_time: scheduledTime, notes, reassignment_reason: teamId !== persistedTeamId ? 'Manual crew reassignment' : undefined })
       setSaveState('saved')
     } catch {
       setSaveState('idle')
@@ -93,6 +116,8 @@ function DispatchCard({ item, teams, disabled, canEdit, onUpdate }: { item: Disp
       <textarea disabled={disabled || !canEdit} value={notes} onChange={(event) => { markDirty(); setNotes(event.target.value) }} className="field-control mt-1 min-h-16 w-full rounded-xl px-3 py-2 text-sm text-[#334155]" />
     </label>
 
+    {item.reassignment_reason && <p className="mt-2 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-extrabold text-blue-900">Reassignment note: {item.reassignment_reason}</p>}
+
     {canEdit && <div className="mt-3 flex flex-wrap items-center gap-2">
       <button disabled={isSaving || !isDirty} onClick={() => void saveOverride()} className="inline-flex items-center gap-1 rounded-xl bg-[#244393] px-3 py-2 text-xs font-extrabold text-white transition hover:-translate-y-0.5 hover:bg-[#172b63] disabled:cursor-not-allowed disabled:opacity-60">
         <Save size={14} /> {saveState === 'saving' ? 'Saving...' : 'Save override'}
@@ -101,10 +126,32 @@ function DispatchCard({ item, teams, disabled, canEdit, onUpdate }: { item: Disp
       <button disabled={disabled} onClick={() => onUpdate(item.id, { order_index: Math.max(0, item.order_index - 1) })} className="rounded-xl border border-[rgba(23,32,51,0.12)] bg-white/80 px-3 py-2 text-xs font-extrabold text-[#334155] transition hover:-translate-y-0.5 hover:bg-[#e8eefc] disabled:opacity-50">Move earlier</button>
       <button disabled={disabled} onClick={() => onUpdate(item.id, { order_index: item.order_index + 1 })} className="rounded-xl border border-[rgba(23,32,51,0.12)] bg-white/80 px-3 py-2 text-xs font-extrabold text-[#334155] transition hover:-translate-y-0.5 hover:bg-[#e8eefc] disabled:opacity-50">Move later</button>
     </div>}
+
+    {canEditOutcomes && <div className="mt-4 rounded-2xl border border-[rgba(23,32,51,0.1)] bg-[#f8faff] p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-[#64748b]">End-of-day outcome</p>
+          <p className="mt-1 text-sm font-extrabold text-[#172033]">{outcomeLabel(item.outcome_status)}</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {OUTCOME_OPTIONS.map((option) => <button key={option.status} type="button" disabled={disabled} onClick={() => void onOutcome(item.id, { outcome_status: option.status, outcome_notes: outcomeNotes, carried_over_to_date: option.status === 'carry_over' ? carryOverDate : undefined })} className={`rounded-xl border px-3 py-2 text-xs font-extrabold transition hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-50 ${item.outcome_status === option.status ? 'border-[#244393] bg-[#244393] text-white' : 'border-[rgba(36,67,147,0.16)] bg-white text-[#244393] hover:bg-[#e8eefc]'}`}>{option.label}</button>)}
+        </div>
+      </div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-[180px_1fr]">
+        <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
+          Carry-over date
+          <input disabled={disabled} type="date" value={carryOverDate} onChange={(event) => setCarryOverDate(event.target.value)} className="field-control mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]" />
+        </label>
+        <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
+          Outcome notes
+          <input disabled={disabled} value={outcomeNotes} onChange={(event) => setOutcomeNotes(event.target.value)} placeholder="Parts needed, access issue, return notes..." className="field-control mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]" />
+        </label>
+      </div>
+    </div>}
   </div>
 }
 
-export function DispatchBuilder({ schedule, teams, working, canEdit, onSuggest, onUpdate, onFinalize, onReopen }: { schedule: DispatchSchedule | null; teams: Team[]; working: boolean; canEdit: boolean; onSuggest: () => Promise<void>; onUpdate: (itemId: number, changes: Record<string, unknown>) => Promise<void>; onFinalize: () => Promise<void>; onReopen: () => Promise<void> }) {
+export function DispatchBuilder({ schedule, teams, working, canEdit, onSuggest, onUpdate, onOutcome, onFinalize, onReopen }: { schedule: DispatchSchedule | null; teams: Team[]; working: boolean; canEdit: boolean; onSuggest: () => Promise<void>; onUpdate: (itemId: number, changes: Record<string, unknown>) => Promise<void>; onOutcome: (itemId: number, changes: { outcome_status: DispatchOutcomeStatus; outcome_notes?: string; carried_over_to_date?: string }) => Promise<void>; onFinalize: () => Promise<void>; onReopen: () => Promise<void> }) {
   const groupedSchedule = useMemo(() => {
     const groups: Record<string, DispatchItem[]> = {}
     schedule?.items.forEach((item) => {
@@ -116,6 +163,7 @@ export function DispatchBuilder({ schedule, teams, working, canEdit, onSuggest, 
     return groups
   }, [schedule])
   const canEditItems = canEdit && schedule?.status === 'draft'
+  const canEditOutcomes = canEdit && Boolean(schedule && schedule.status !== 'draft')
 
   return <Card className="overflow-hidden">
     <PanelHeader
@@ -138,7 +186,7 @@ export function DispatchBuilder({ schedule, teams, working, canEdit, onSuggest, 
           <div key={team} className="rounded-2xl border border-[rgba(36,67,147,0.12)] bg-[#f8faff]/85 p-4">
             <h3 className="font-display font-extrabold tracking-tight text-[#172033]">{team}</h3>
             <div className="mt-3 space-y-3">
-              {items.map((item) => <DispatchCard key={item.id} item={item} teams={teams} disabled={working} canEdit={canEditItems} onUpdate={onUpdate} />)}
+              {items.map((item) => <DispatchCard key={item.id} item={item} scheduleDate={schedule.date} teams={teams} disabled={working} canEdit={canEditItems} canEditOutcomes={canEditOutcomes} onUpdate={onUpdate} onOutcome={onOutcome} />)}
             </div>
           </div>
         ))}

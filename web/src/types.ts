@@ -22,6 +22,9 @@ export type WorkOrder = {
   source: string
   team_name: string | null
   notes: string | null
+  last_dispatched_on?: string | null
+  last_crew_name?: string | null
+  last_outcome_status?: DispatchOutcomeStatus | null
 }
 
 export type OcrWorkOrderDraft = WorkOrderInput & {
@@ -91,6 +94,8 @@ export type PmTask = {
   scheduled_date: string
 }
 
+export type DispatchOutcomeStatus = 'pending' | 'completed' | 'carry_over' | 'waiting_parts' | 'waiting_approval' | 'unable_to_access' | 'cancelled'
+
 export type DispatchItem = {
   id: number
   team_id: number
@@ -101,6 +106,11 @@ export type DispatchItem = {
   order_index: number
   scheduled_time: string | null
   notes: string | null
+  outcome_status: DispatchOutcomeStatus
+  outcome_notes: string | null
+  completed_at: string | null
+  carried_over_to_date: string | null
+  reassignment_reason: string | null
   kind: 'work_order' | 'pm_task'
   work_order?: WorkOrder
   pm_task?: PmTask

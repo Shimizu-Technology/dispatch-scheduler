@@ -3,6 +3,7 @@ module Serializers
 
   def schedule(dispatch_schedule, summary: nil)
     schedule = DispatchSchedule.includes(dispatch_items: [ :team, { work_order: [ :client, :location ] }, { pm_task: [ :client, :location ] } ]).find(dispatch_schedule.id)
+    team_contexts = dispatch_team_contexts(schedule)
     {
       id: schedule.id,
       date: schedule.date,
@@ -12,7 +13,7 @@ module Serializers
       finalized_by: schedule.finalized_by_user&.display_name,
       sent_by: schedule.sent_by_user&.display_name,
       summary: summary || schedule_summary(schedule),
-      items: schedule.dispatch_items.map { |item| dispatch_item(item) }
+      items: schedule.dispatch_items.map { |item| dispatch_item(item, team_context: team_contexts.fetch(item.team_id)) }
     }
   end
 
@@ -128,13 +129,13 @@ module Serializers
     else
       team.team_memberships.where(date: nil).includes(technician: [ :technician_skills, :technician_availabilities ]).map(&:technician)
     end
-    today_crew_name = techs.map(&:name).join(" / ")
+    today_crew_name = available_techs.map(&:name).join(" / ")
     available_default_techs = default_techs.select { |tech| available_for_date?(tech, date) }
 
     {
       id: team.id,
       name: team.name,
-      today_crew_name: today_crew_name.presence || "No technicians assigned today",
+      today_crew_name: today_crew_name.presence || "No available technicians today",
       region_preference: team.region_preference,
       has_driver: available_techs.any? { |tech| tech.is_driver && tech.active },
       default_has_driver: available_default_techs.any? { |tech| tech.is_driver && tech.active },
@@ -192,13 +193,22 @@ module Serializers
     }
   end
 
-  def dispatch_item(item)
+  def dispatch_team_contexts(schedule)
+    teams = schedule.dispatch_items.map(&:team).uniq
+    teams.to_h do |team|
+      active_technicians = team.available_technicians(schedule.date).order(:name).to_a
+      call_outs = team.technicians_for_date(schedule.date)
+        .includes(:technician_availabilities)
+        .select { |technician| availability_for(technician, schedule.date)&.status == "unavailable" }
+        .sort_by(&:name)
+      [ team.id, { active_technicians: active_technicians, call_outs: call_outs } ]
+    end
+  end
+
+  def dispatch_item(item, team_context:)
     schedulable = item.schedulable
-    active_technicians = item.team.available_technicians(item.dispatch_schedule.date).order(:name).to_a
-    call_outs = item.team.technicians_for_date(item.dispatch_schedule.date)
-      .includes(:technician_availabilities)
-      .select { |technician| availability_for(technician, item.dispatch_schedule.date)&.status == "unavailable" }
-      .sort_by(&:name)
+    active_technicians = team_context.fetch(:active_technicians)
+    call_outs = team_context.fetch(:call_outs)
     base = {
       id: item.id,
       team_id: item.team_id,

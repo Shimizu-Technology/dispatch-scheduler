@@ -19,6 +19,23 @@ class TeamsControllerTest < ActionDispatch::IntegrationTest
     assert_equal true, payload.fetch("daily_override")
   end
 
+  test "index shows active today crew name while retaining unavailable technician rows" do
+    crew = team(name: "Active Today Crew", skills: [ "General" ], driver: true)
+    helper = Technician.create!(name: "Out Helper", primary_trade: "General", is_driver: false, active: true)
+    helper.technician_availabilities.create!(date: DEFAULT_DATE, status: "unavailable", reason: "Sick")
+    crew.team_memberships.create!(technician: helper)
+
+    with_auth_env do
+      get "/api/v1/teams", params: { date: DEFAULT_DATE }, headers: auth_headers
+    end
+
+    assert_response :success
+    payload = JSON.parse(response.body).find { |candidate| candidate.fetch("id") == crew.id }
+    assert_equal "Active Today Crew Driver", payload.fetch("today_crew_name")
+    assert_equal [ "Active Today Crew Driver", "Out Helper" ], payload.fetch("technicians").map { |tech| tech.fetch("name") }
+    assert_equal "unavailable", payload.fetch("technicians").find { |tech| tech.fetch("name") == "Out Helper" }.fetch("availability")
+  end
+
   test "dispatcher creates a default crew" do
     driver = Technician.create!(name: "New Crew Driver", primary_trade: "General", is_driver: true, active: true)
     helper = Technician.create!(name: "New Crew Helper", primary_trade: "Helper", is_driver: false, active: true)

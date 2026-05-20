@@ -175,9 +175,8 @@ export function TeamsPanel({ teams, technicians, canEdit, savingTechnicianId, sa
     </div>
 
     <div className="space-y-4 p-4">
-      {mode === 'today' && <div className="rounded-2xl border border-blue-100 bg-[#f8faff] p-4 text-sm text-[#334155]">
-        <p className="font-display font-extrabold text-[#172033]">Morning call-out workflow</p>
-        <p className="mt-1 font-semibold leading-6">Click a technician name to mark them out for this date. Click an out technician again to mark them available. Use <span className="font-extrabold text-[#244393]">Edit Today</span> when John needs to swap people between crews without changing the default crew setup.</p>
+      {mode === 'today' && <div className="rounded-2xl border border-blue-100 bg-[#f8faff] px-4 py-3 text-sm font-semibold text-[#334155]">
+        Click a technician name to mark them out today. Click again to mark them available.
       </div>}
 
       {creatingCrew && mode === 'defaults' && <CreateCrewForm
@@ -212,7 +211,7 @@ export function TeamsPanel({ teams, technicians, canEdit, savingTechnicianId, sa
             </div>
           </div>
           <div className="mt-3">
-            <p className="mb-2 text-[0.68rem] font-extrabold uppercase tracking-[0.14em] text-[#64748b]">Tap technician name to mark out / available today</p>
+            <p className="mb-2 text-[0.68rem] font-extrabold uppercase tracking-[0.14em] text-[#64748b]">Click name to mark out / available</p>
             <div className="flex flex-wrap gap-2">
               {team.technicians.length === 0 && <span className="rounded-full border border-dashed border-[rgba(23,32,51,0.18)] px-3 py-1.5 text-xs font-extrabold text-[#64748b]">No technicians assigned today</span>}
               {team.technicians.map((tech) => {

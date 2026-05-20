@@ -194,10 +194,18 @@ module Serializers
 
   def dispatch_item(item)
     schedulable = item.schedulable
+    active_technicians = item.team.available_technicians(item.dispatch_schedule.date).order(:name).to_a
+    call_outs = item.team.technicians_for_date(item.dispatch_schedule.date)
+      .includes(:technician_availabilities)
+      .select { |technician| availability_for(technician, item.dispatch_schedule.date)&.status == "unavailable" }
+      .sort_by(&:name)
     base = {
       id: item.id,
       team_id: item.team_id,
       team_name: item.team.name,
+      crew_name: active_technicians.map(&:name).join(" / ").presence || "No available technicians",
+      technician_names: active_technicians.map(&:name),
+      call_out_names: call_outs.map(&:name),
       order_index: item.order_index,
       scheduled_time: item.scheduled_time&.strftime("%H:%M"),
       notes: item.notes,

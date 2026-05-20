@@ -77,7 +77,7 @@ function DispatchCard({ item, teams, disabled, canEdit, onUpdate }: { item: Disp
       <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
         Crew
         <select disabled={disabled || !canEdit} value={teamId} onChange={(event) => { markDirty(); setTeamId(event.target.value) }} className="field-control mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]">
-          {teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
+          {teams.map((team) => <option key={team.id} value={team.id}>{team.today_crew_name || team.name}</option>)}
         </select>
       </label>
       <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
@@ -85,6 +85,8 @@ function DispatchCard({ item, teams, disabled, canEdit, onUpdate }: { item: Disp
         <input disabled={disabled || !canEdit} type="time" value={scheduledTime} onChange={(event) => { markDirty(); setScheduledTime(event.target.value) }} className="field-control tabular mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]" />
       </label>
     </div>
+
+    {item.call_out_names.length > 0 && <p className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-extrabold text-amber-900">Out today from default crew: {item.call_out_names.join(', ')}. The active crew shown above excludes call-outs.</p>}
 
     <label className="mt-2 block text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
       Notes / warnings
@@ -106,8 +108,9 @@ export function DispatchBuilder({ schedule, teams, working, canEdit, onSuggest, 
   const groupedSchedule = useMemo(() => {
     const groups: Record<string, DispatchItem[]> = {}
     schedule?.items.forEach((item) => {
-      groups[item.team_name] ||= []
-      groups[item.team_name].push(item)
+      const groupName = item.crew_name || item.team_name
+      groups[groupName] ||= []
+      groups[groupName].push(item)
     })
     Object.values(groups).forEach((items) => items.sort((a, b) => a.order_index - b.order_index))
     return groups

@@ -16,6 +16,25 @@ class DispatchSchedulesControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1, payload.dig("schedule", "items").size
   end
 
+  test "serializes dispatch items with active crew and call-out context" do
+    crew = team(name: "Active Crew Context", skills: [ "General" ], unavailable: false)
+    helper = Technician.create!(name: "Unavailable Helper", primary_trade: "General", is_driver: false, active: true)
+    helper.technician_availabilities.create!(date: DEFAULT_DATE, status: "unavailable", reason: "Out sick")
+    crew.team_memberships.create!(technician: helper)
+    schedule = DispatchSchedule.create!(date: DEFAULT_DATE, status: "draft")
+    schedule.dispatch_items.create!(team: crew, work_order: work_order(title: "Context work"), order_index: 0)
+
+    with_auth_env do
+      get "/api/v1/dispatch_schedules", params: { date: DEFAULT_DATE.to_s }, headers: auth_headers
+    end
+
+    assert_response :success
+    item_payload = JSON.parse(response.body).dig("schedule", "items").first
+    assert_equal "Active Crew Context Driver", item_payload.fetch("crew_name")
+    assert_equal [ "Active Crew Context Driver" ], item_payload.fetch("technician_names")
+    assert_equal [ "Unavailable Helper" ], item_payload.fetch("call_out_names")
+  end
+
   test "returns null schedule when no draft exists for the date" do
     with_auth_env do
       get "/api/v1/dispatch_schedules", params: { date: DEFAULT_DATE.to_s }, headers: auth_headers
@@ -78,8 +97,12 @@ class DispatchSchedulesControllerTest < ActionDispatch::IntegrationTest
     assert_nil payload.fetch("sent_at")
   end
 
-  test "exports WhatsApp-ready crew assignments with crew context" do
-    crew = team(name: "Export Crew", skills: [ "HVAC" ], unavailable: true)
+  test "exports WhatsApp-ready crew assignments with active crew context" do
+    crew = team(name: "Export Crew", skills: [ "HVAC" ], unavailable: false)
+    helper = Technician.create!(name: "Export Helper", primary_trade: "HVAC", is_driver: false, active: true)
+    helper.technician_skills.create!(skill: "HVAC")
+    helper.technician_availabilities.create!(date: DEFAULT_DATE, status: "unavailable", reason: "Test call-out")
+    crew.team_memberships.create!(technician: helper)
     schedule = DispatchSchedule.create!(date: DEFAULT_DATE, status: "finalized")
     work = work_order(title: "Export work", priority: "P2", trade: "HVAC")
     schedule.dispatch_items.create!(team: crew, work_order: work, order_index: 0, scheduled_time: "08:30", notes: "Bring ladder")
@@ -92,14 +115,19 @@ class DispatchSchedulesControllerTest < ActionDispatch::IntegrationTest
     payload = JSON.parse(response.body)
     assert_equal "finalized", payload.fetch("status")
     assert_includes payload.fetch("message"), "JMI Dispatch - Tuesday, May 5, 2026"
-    assert_includes payload.fetch("message"), "EXPORT CREW"
+    assert_includes payload.fetch("message"), "EXPORT CREW DRIVER"
+    assert_includes payload.fetch("message"), "Crew: Export Crew Driver (Driver)"
+    assert_includes payload.fetch("message"), "Out today: Export Helper - Test call-out"
     assert_includes payload.fetch("message"), "8:30 AM - Mobil / Yigo North"
     assert_includes payload.fetch("message"), "WO: #{work.external_id} | P2 | HVAC"
     assert_includes payload.fetch("message"), "Notes: Bring ladder"
     crew_payload = payload.fetch("crews").first
     assert_equal "Export Crew", crew_payload.fetch("team_name")
+    assert_equal "Export Crew Driver", crew_payload.fetch("active_team_name")
     assert_equal 1, crew_payload.fetch("stops_count")
+    assert_equal [ "Export Crew Driver" ], crew_payload.fetch("technician_names")
     assert_equal [ "Export Crew Driver" ], crew_payload.fetch("driver_names")
+    assert_equal "Export Helper", crew_payload.fetch("call_outs").first.fetch("name")
     assert_equal "Test call-out", crew_payload.fetch("call_outs").first.fetch("reason")
   end
 

@@ -95,6 +95,9 @@ export type DispatchItem = {
   id: number
   team_id: number
   team_name: string
+  crew_name: string
+  technician_names: string[]
+  call_out_names: string[]
   order_index: number
   scheduled_time: string | null
   notes: string | null
@@ -116,6 +119,7 @@ export type DispatchSummary = {
 export type WhatsAppCrewExport = {
   team_id: number
   team_name: string
+  active_team_name: string
   technician_names: string[]
   driver_names: string[]
   call_outs: Array<{ name: string; reason: string }>

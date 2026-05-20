@@ -9,16 +9,18 @@ class WhatsAppExportService
 
   def crews
     @crews ||= grouped_items.map do |team, items|
-      technicians = team.technicians_for_date(@schedule.date).includes(:technician_availabilities).order(:name).to_a
-      unavailable = technicians.filter_map do |technician|
+      assigned_technicians = team.technicians_for_date(@schedule.date).includes(:technician_availabilities).order(:name).to_a
+      active_technicians = team.available_technicians(@schedule.date).order(:name).to_a
+      unavailable = assigned_technicians.filter_map do |technician|
         availability = availability_for(technician)
         availability&.status == "unavailable" ? [ technician, availability ] : nil
       end
       {
         team_id: team.id,
         team_name: team.name,
-        technician_names: technicians.map(&:name),
-        driver_names: technicians.select(&:is_driver).map(&:name),
+        active_team_name: active_technicians.map(&:name).join(" / ").presence || team.name,
+        technician_names: active_technicians.map(&:name),
+        driver_names: active_technicians.select(&:is_driver).map(&:name),
         call_outs: unavailable.map { |technician, availability| { name: technician.name, reason: availability.reason.presence || "Unavailable" } },
         stops_count: items.size
       }
@@ -39,9 +41,9 @@ class WhatsAppExportService
   def crew_sections
     grouped_items.map do |team, items|
       crew = crews.find { |payload| payload[:team_id] == team.id }
-      lines = [ team.name.upcase ]
+      lines = [ crew[:active_team_name].upcase ]
       lines << "Crew: #{crew_line(crew)}"
-      lines << "Call-outs: #{call_out_line(crew)}" if crew[:call_outs].any?
+      lines << "Out today: #{call_out_line(crew)}" if crew[:call_outs].any?
       lines << ""
 
       items.each_with_index do |item, index|

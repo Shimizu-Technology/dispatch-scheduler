@@ -10,7 +10,7 @@ Rails.application.routes.draw do
       post "work_order_imports/preview", to: "work_order_imports#preview"
       resources :work_orders, only: [ :index, :create, :update ]
       resources :technicians, only: [ :index, :update ]
-      resources :teams, only: [ :index ] do
+      resources :teams, only: [ :index, :create, :update ] do
         member do
           patch :daily_memberships
         end

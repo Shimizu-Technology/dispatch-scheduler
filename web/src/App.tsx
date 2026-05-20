@@ -10,15 +10,24 @@ import { TeamsPanel } from './components/TeamsPanel'
 import { UserManagementPanel } from './components/UserManagementPanel'
 import { WhatsAppExport } from './components/WhatsAppExport'
 import { WorkOrdersPanel } from './components/WorkOrdersPanel'
-import { DEMO_DATE } from './constants'
 import { useAuthContext } from './contexts/useAuthContext'
 import { getJson, patchJson, postJson } from './lib/api'
-import type { AuditEvent, Dashboard, DispatchSchedule, ManagedUser, PmTask, Team, Technician, WhatsAppCrewExport, WhatsAppExportPayload, WorkOrder, WorkOrderInput } from './types'
+import type { AuditEvent, Dashboard, DispatchSchedule, ManagedUser, PmTask, Team, TeamInput, Technician, WhatsAppCrewExport, WhatsAppExportPayload, WorkOrder, WorkOrderInput } from './types'
 import './index.css'
 
 type ActiveSection = 'overview' | 'dispatch' | 'work-orders' | 'teams' | 'pm-tasks' | 'whatsapp' | 'activity' | 'users'
 
 const SECTION_IDS: ActiveSection[] = ['overview', 'dispatch', 'work-orders', 'teams', 'pm-tasks', 'whatsapp', 'activity', 'users']
+const SELECTED_DATE_STORAGE_KEY = 'dispatch-scheduler:selected-date'
+
+function localDateString(date = new Date()) {
+  const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
+  return offsetDate.toISOString().slice(0, 10)
+}
+
+function initialSelectedDate() {
+  return window.localStorage.getItem(SELECTED_DATE_STORAGE_KEY) || localDateString()
+}
 
 function sectionFromHash(): ActiveSection {
   const value = window.location.hash.replace('#', '')
@@ -28,7 +37,8 @@ function sectionFromHash(): ActiveSection {
 function DispatchApp() {
   const { isSignedIn, isLoading: authLoading, isVerifyingApi, user, authError, canEditDispatch, refreshUser } = useAuthContext()
   const [activeSection, setActiveSection] = useState<ActiveSection>(sectionFromHash)
-  const [selectedDate, setSelectedDate] = useState(DEMO_DATE)
+  const [selectedDate, setSelectedDate] = useState(initialSelectedDate)
+  const todayDate = localDateString()
   const [dashboard, setDashboard] = useState<Dashboard | null>(null)
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([])
   const [teams, setTeams] = useState<Team[]>([])
@@ -85,6 +95,10 @@ function DispatchApp() {
     }
     setLoading(false)
   }, [refreshAuditEvents, refreshWhatsApp])
+
+  useEffect(() => {
+    window.localStorage.setItem(SELECTED_DATE_STORAGE_KEY, selectedDate)
+  }, [selectedDate])
 
   useEffect(() => {
     if (authLoading || !user?.id) return
@@ -298,6 +312,70 @@ function DispatchApp() {
     setTimeout(() => setCopied(false), 1600)
   }
 
+  async function createTeam(values: TeamInput) {
+    if (!canEditDispatch) {
+      setError('Viewer access cannot create crews.')
+      return
+    }
+    if (teamSavingId !== null) return
+
+    setTeamSavingId(0)
+    setError('')
+    try {
+      const created = await postJson<Team>('/teams', values)
+      setTeams((currentTeams) => [...currentTeams, created].sort((a, b) => a.name.localeCompare(b.name)))
+      await afterAuditedChange()
+
+      try {
+        const [dash, teamData] = await Promise.all([
+          getJson<Dashboard>(`/dashboard?date=${selectedDate}`),
+          getJson<Team[]>(`/teams?date=${selectedDate}`),
+        ])
+        setDashboard(dash)
+        setTeams(teamData)
+      } catch (err) {
+        setError(err instanceof Error ? `Crew created, but fresh dashboard data did not load: ${err.message}` : 'Crew created, but fresh dashboard data did not load')
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to create crew')
+      throw err
+    } finally {
+      setTeamSavingId(null)
+    }
+  }
+
+  async function updateDefaultCrew(teamId: number, values: TeamInput) {
+    if (!canEditDispatch) {
+      setError('Viewer access cannot update default crews.')
+      return
+    }
+    if (teamSavingId !== null) return
+
+    setTeamSavingId(teamId)
+    setError('')
+    try {
+      const updatedTeam = await patchJson<Team>(`/teams/${teamId}`, values)
+      setTeams((currentTeams) => currentTeams.map((team) => team.id === updatedTeam.id ? updatedTeam : team))
+      await afterAuditedChange()
+
+      try {
+        const [dash, teamData] = await Promise.all([
+          getJson<Dashboard>(`/dashboard?date=${selectedDate}`),
+          getJson<Team[]>(`/teams?date=${selectedDate}`),
+        ])
+        setDashboard(dash)
+        setTeams(teamData)
+      } catch (err) {
+        setError(err instanceof Error ? `Default crew saved, but fresh dashboard data did not load: ${err.message}` : 'Default crew saved, but fresh dashboard data did not load')
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to update default crew')
+      throw err
+    } finally {
+      setTeamSavingId(null)
+    }
+  }
+
   async function updateDailyCrew(teamId: number, technicianIds: number[] | null) {
     if (!canEditDispatch) {
       setError('Viewer access cannot update daily crew composition.')
@@ -414,8 +492,7 @@ function DispatchApp() {
                 </span>
               </div>
               <p className="font-display mt-7 text-xs font-extrabold uppercase tracking-[0.28em] text-blue-100/85">Facilities dispatch board</p>
-              <h1 className="font-display mt-2 max-w-4xl text-4xl font-extrabold tracking-[-0.035em] sm:text-5xl lg:text-6xl">Daily Dispatch Command</h1>
-              <p className="mt-4 max-w-3xl text-lg leading-8 text-blue-50/82">Prioritize open work, confirm crew coverage, build the day&apos;s JMI schedule, and send a clean WhatsApp dispatch from one controlled workspace.</p>
+              <h1 className="font-display mt-2 max-w-4xl text-4xl font-extrabold tracking-[-0.035em] sm:text-5xl lg:text-6xl">Daily Dispatch</h1>
             </div>
             <div className="relative flex flex-col gap-3 lg:items-end">
               {!user && isSignedIn ? <div className="w-full rounded-2xl border border-white/15 bg-white/10 p-4 text-sm text-blue-50 shadow-2xl backdrop-blur lg:max-w-sm">
@@ -436,15 +513,25 @@ function DispatchApp() {
                 </div>
               </div> : null}
               <div className="flex w-full flex-wrap items-center gap-3 lg:justify-end">
-                {user && <label className="inline-flex flex-1 items-center justify-between gap-3 rounded-2xl border border-white/15 bg-white/10 px-3 py-2 text-sm text-blue-50 shadow-[0_12px_32px_rgba(0,0,0,0.12)] backdrop-blur sm:flex-none">
-                  <span className="font-display text-xs font-extrabold uppercase tracking-[0.16em] text-blue-100">Schedule date</span>
-                  <input
-                    type="date"
-                    value={selectedDate}
-                    onChange={(event) => setSelectedDate(event.target.value)}
-                    className="tabular rounded-xl border border-white/15 bg-white px-3 py-2 font-display text-sm font-extrabold text-[#172033] outline-none transition focus:border-blue-200 focus:ring-4 focus:ring-blue-200/25"
-                  />
-                </label>}
+                {user && <div className="inline-flex flex-1 flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/15 bg-white/10 px-3 py-2 text-sm text-blue-50 shadow-[0_12px_32px_rgba(0,0,0,0.12)] backdrop-blur sm:flex-none">
+                  <label className="inline-flex items-center gap-3">
+                    <span className="font-display text-xs font-extrabold uppercase tracking-[0.16em] text-blue-100">Schedule date</span>
+                    <input
+                      type="date"
+                      value={selectedDate}
+                      onChange={(event) => setSelectedDate(event.target.value)}
+                      className="tabular rounded-xl border border-white/15 bg-white px-3 py-2 font-display text-sm font-extrabold text-[#172033] outline-none transition focus:border-blue-200 focus:ring-4 focus:ring-blue-200/25"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    disabled={selectedDate === todayDate}
+                    onClick={() => setSelectedDate(todayDate)}
+                    className="rounded-xl border border-white/15 bg-white/10 px-3 py-2 font-display text-xs font-extrabold uppercase tracking-[0.12em] text-white transition hover:-translate-y-0.5 hover:bg-white/16 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Today
+                  </button>
+                </div>}
                 {user && <div className="inline-flex items-center gap-3 rounded-2xl border border-white/15 bg-white/10 px-3 py-2 text-sm text-blue-50 shadow-[0_12px_32px_rgba(0,0,0,0.12)] backdrop-blur">
                   <UserButton />
                   <span className="leading-tight">
@@ -509,7 +596,7 @@ function DispatchApp() {
 
         {currentSection === 'work-orders' && (user ? <WorkOrdersPanel workOrders={workOrders} canEdit={canEditDispatch} selectedDate={selectedDate} saving={workOrderSaving} onCreate={createWorkOrder} onUpdate={updateWorkOrder} /> : <SignInRequiredPanel title="Sign in to review work orders" />)}
 
-        {currentSection === 'teams' && (user ? <TeamsPanel teams={teams} technicians={technicians} canEdit={canEditDispatch} savingTechnicianId={availabilitySavingId} savingTeamId={teamSavingId} onToggleAvailability={toggleAvailability} onUpdateDailyCrew={updateDailyCrew} /> : <SignInRequiredPanel title="Sign in to check crews" />)}
+        {currentSection === 'teams' && (user ? <TeamsPanel teams={teams} technicians={technicians} canEdit={canEditDispatch} savingTechnicianId={availabilitySavingId} savingTeamId={teamSavingId} onToggleAvailability={toggleAvailability} onUpdateDailyCrew={updateDailyCrew} onUpdateDefaultCrew={updateDefaultCrew} onCreateTeam={createTeam} /> : <SignInRequiredPanel title="Sign in to check crews" />)}
 
         {currentSection === 'dispatch' && (user ? <DispatchBuilder schedule={schedule} teams={teams} working={working} canEdit={canEditDispatch} onSuggest={suggestSchedule} onUpdate={updateDispatchItem} onFinalize={finalizeSchedule} onReopen={reopenSchedule} /> : <SignInRequiredPanel title="Sign in to build today's dispatch" />)}
 

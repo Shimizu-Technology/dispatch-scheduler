@@ -1,6 +1,124 @@
 require "test_helper"
 
 class TeamsControllerTest < ActionDispatch::IntegrationTest
+  test "index separates default crew name from today's daily crew" do
+    crew = team(name: "ANTON / RONEL", skills: [ "General" ], driver: false)
+    driver = Technician.create!(name: "RONALD", primary_trade: "General", is_driver: true, active: true)
+    driver.technician_skills.create!(skill: "General")
+
+    with_auth_env do
+      patch "/api/v1/teams/#{crew.id}/daily_memberships", params: { date: DEFAULT_DATE, technician_ids: [ crew.technicians.first.id, driver.id ] }, headers: auth_headers
+      get "/api/v1/teams", params: { date: DEFAULT_DATE }, headers: auth_headers
+    end
+
+    assert_response :success
+    payload = JSON.parse(response.body).find { |candidate| candidate.fetch("id") == crew.id }
+    assert_equal "ANTON / RONEL", payload.fetch("name")
+    assert_equal "#{crew.technicians.first.name} / RONALD", payload.fetch("today_crew_name")
+    assert_equal [ crew.technicians.first.name ], payload.fetch("default_technicians").map { |tech| tech.fetch("name") }
+    assert_equal true, payload.fetch("daily_override")
+  end
+
+  test "index shows active today crew name while retaining unavailable technician rows" do
+    crew = team(name: "Active Today Crew", skills: [ "General" ], driver: true)
+    helper = Technician.create!(name: "Out Helper", primary_trade: "General", is_driver: false, active: true)
+    helper.technician_availabilities.create!(date: DEFAULT_DATE, status: "unavailable", reason: "Sick")
+    crew.team_memberships.create!(technician: helper)
+
+    with_auth_env do
+      get "/api/v1/teams", params: { date: DEFAULT_DATE }, headers: auth_headers
+    end
+
+    assert_response :success
+    payload = JSON.parse(response.body).find { |candidate| candidate.fetch("id") == crew.id }
+    assert_equal "Active Today Crew Driver", payload.fetch("today_crew_name")
+    assert_equal [ "Active Today Crew Driver", "Out Helper" ], payload.fetch("technicians").map { |tech| tech.fetch("name") }
+    assert_equal "unavailable", payload.fetch("technicians").find { |tech| tech.fetch("name") == "Out Helper" }.fetch("availability")
+  end
+
+  test "dispatcher creates a default crew" do
+    driver = Technician.create!(name: "New Crew Driver", primary_trade: "General", is_driver: true, active: true)
+    helper = Technician.create!(name: "New Crew Helper", primary_trade: "Helper", is_driver: false, active: true)
+
+    with_auth_env do
+      post "/api/v1/teams", params: { technician_ids: [ driver.id, helper.id ], region_preference: "North" }, headers: auth_headers
+    end
+
+    assert_response :created
+    payload = JSON.parse(response.body)
+    assert_equal "New Crew Driver / New Crew Helper", payload.fetch("name")
+    assert_equal "North", payload.fetch("region_preference")
+    assert_equal true, payload.fetch("has_driver")
+    assert_equal [ "New Crew Driver", "New Crew Helper" ], payload.fetch("default_technicians").map { |tech| tech.fetch("name") }
+    assert_equal true, payload.fetch("default_has_driver")
+    assert_equal "team.created", AuditEvent.last.action
+  end
+
+  test "dispatcher updates a default crew without clearing daily override" do
+    crew = team(name: "Original Default", skills: [ "General" ], driver: false)
+    original_tech = crew.technicians.first
+    daily_driver = Technician.create!(name: "Daily Driver", primary_trade: "General", is_driver: true, active: true)
+    daily_driver.technician_skills.create!(skill: "General")
+    new_default_driver = Technician.create!(name: "New Default Driver", primary_trade: "Electrical", is_driver: true, active: true)
+    new_default_driver.technician_skills.create!(skill: "Electrical")
+
+    with_auth_env do
+      patch "/api/v1/teams/#{crew.id}/daily_memberships", params: { date: DEFAULT_DATE, technician_ids: [ original_tech.id, daily_driver.id ] }, headers: auth_headers
+      patch "/api/v1/teams/#{crew.id}", params: { date: DEFAULT_DATE, name: "Updated Default", region_preference: "North", technician_ids: [ new_default_driver.id ] }, headers: auth_headers
+    end
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_equal "Updated Default", payload.fetch("name")
+    assert_equal "North", payload.fetch("region_preference")
+    assert_equal true, payload.fetch("daily_override")
+    assert_equal [ "Original Default Driver", "Daily Driver" ].sort, payload.fetch("technicians").map { |tech| tech.fetch("name") }.sort
+    assert_equal [ "New Default Driver" ], payload.fetch("default_technicians").map { |tech| tech.fetch("name") }
+    assert_equal true, payload.fetch("default_has_driver")
+    assert_equal "team.default_crew.updated", AuditEvent.last.action
+  end
+
+  test "dispatcher cannot empty a default crew" do
+    crew = team(name: "Cannot Empty Default")
+
+    with_auth_env do
+      patch "/api/v1/teams/#{crew.id}", params: { technician_ids: [] }, headers: auth_headers
+    end
+
+    assert_response :unprocessable_entity
+    payload = JSON.parse(response.body)
+    assert_includes payload.fetch("errors"), "Select at least one technician for the default crew."
+    assert_equal [ "Cannot Empty Default Driver" ], crew.reload.team_memberships.where(date: nil).includes(:technician).map { |membership| membership.technician.name }
+  end
+
+  test "dispatcher cannot create an empty default crew" do
+    with_auth_env do
+      post "/api/v1/teams", params: { technician_ids: [] }, headers: auth_headers
+    end
+
+    assert_response :unprocessable_entity
+    payload = JSON.parse(response.body)
+    assert_includes payload.fetch("errors"), "Select at least one technician for the default crew."
+  end
+
+  test "viewer cannot update a default crew" do
+    crew = team(name: "Viewer Default Locked")
+
+    with_auth_env do
+      patch "/api/v1/teams/#{crew.id}", params: { technician_ids: [] }, headers: auth_headers("viewer_team_update_123", "viewer-team-update@example.com")
+    end
+
+    assert_response :forbidden
+  end
+
+  test "viewer cannot create a default crew" do
+    with_auth_env do
+      post "/api/v1/teams", params: { technician_ids: [] }, headers: auth_headers("viewer_team_create_123", "viewer-team-create@example.com")
+    end
+
+    assert_response :forbidden
+  end
+
   test "dispatcher sets and clears daily crew composition" do
     source_team = team(name: "Default Crew", skills: [ "Plumbing" ], driver: true)
     borrowed_tech = Technician.create!(name: "Borrowed Helper", primary_trade: "Electrical", is_driver: false, active: true)

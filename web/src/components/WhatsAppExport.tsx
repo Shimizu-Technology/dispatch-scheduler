@@ -16,7 +16,7 @@ type WhatsAppExportProps = {
 function statusCopy(schedule: DispatchSchedule | null) {
   if (!schedule) return 'Generate a schedule to preview the send-ready crew assignments.'
   if (schedule.status === 'sent') return `Marked sent${schedule.sent_by ? ` by ${schedule.sent_by}` : ''}.`
-  if (schedule.status === 'finalized') return 'Finalized and ready to copy into WhatsApp. Mark sent after John sends the message.'
+  if (schedule.status === 'finalized') return 'Finalized and ready to copy into WhatsApp. Mark sent after the message is sent.'
   return 'Draft preview. Finalize the schedule before sending the crew assignments.'
 }
 
@@ -59,14 +59,14 @@ export function WhatsAppExport({ schedule, message, crews, copied, working, canE
         {crews.map((crew) => <article key={crew.team_id} className="rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white/90 p-4 shadow-[0_10px_26px_rgba(23,32,51,0.05)]">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="font-display text-sm font-black uppercase tracking-[0.08em] text-[#172033]">{crew.team_name}</p>
+              <p className="font-display text-sm font-black uppercase tracking-[0.08em] text-[#172033]">{crew.active_team_name || crew.team_name}</p>
               <p className="mt-1 text-sm font-semibold text-[#526071]">{crew.stops_count} {crew.stops_count === 1 ? 'stop' : 'stops'}</p>
             </div>
             <span className="rounded-2xl bg-[#e8eefc] p-2 text-[#244393]"><UsersRound size={17} /></span>
           </div>
           <p className="mt-3 text-sm leading-6 text-[#526071]">{crew.technician_names.length ? crew.technician_names.join(', ') : 'No crew assigned'}</p>
           {crew.call_outs.length > 0 && <div className="mt-3 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm font-semibold text-red-800">
-            <span className="inline-flex items-center gap-2"><Radio size={14} /> Call-outs: {crew.call_outs.map((callOut) => `${callOut.name} - ${callOut.reason}`).join(', ')}</span>
+            <span className="inline-flex items-center gap-2"><Radio size={14} /> Out today: {crew.call_outs.map((callOut) => `${callOut.name} - ${callOut.reason}`).join(', ')}</span>
           </div>}
         </article>)}
       </div>}

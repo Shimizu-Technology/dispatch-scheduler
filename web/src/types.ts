@@ -64,11 +64,21 @@ export type Technician = {
 export type Team = {
   id: number
   name: string
+  today_crew_name: string
   region_preference: string | null
   has_driver: boolean
+  default_has_driver: boolean
   skills: string[]
+  default_skills: string[]
   daily_override: boolean
   technicians: Technician[]
+  default_technicians: Technician[]
+}
+
+export type TeamInput = {
+  name?: string
+  region_preference?: string
+  technician_ids: number[]
 }
 
 export type PmTask = {
@@ -85,6 +95,9 @@ export type DispatchItem = {
   id: number
   team_id: number
   team_name: string
+  crew_name: string
+  technician_names: string[]
+  call_out_names: string[]
   order_index: number
   scheduled_time: string | null
   notes: string | null
@@ -106,6 +119,7 @@ export type DispatchSummary = {
 export type WhatsAppCrewExport = {
   team_id: number
   team_name: string
+  active_team_name: string
   technician_names: string[]
   driver_names: string[]
   call_outs: Array<{ name: string; reason: string }>

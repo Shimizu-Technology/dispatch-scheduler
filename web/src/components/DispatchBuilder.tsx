@@ -28,20 +28,41 @@ function StatusNotice({ schedule }: { schedule: DispatchSchedule }) {
 function DispatchCard({ item, teams, disabled, canEdit, onUpdate }: { item: DispatchItem; teams: Team[]; disabled: boolean; canEdit: boolean; onUpdate: (itemId: number, changes: Record<string, unknown>) => Promise<void> }) {
   const wo = item.work_order
   const pm = item.pm_task
-  const [teamId, setTeamId] = useState(String(item.team_id))
-  const [scheduledTime, setScheduledTime] = useState(item.scheduled_time || '')
-  const [notes, setNotes] = useState(item.notes || '')
+  const persistedTeamId = String(item.team_id)
+  const persistedTime = item.scheduled_time || ''
+  const persistedNotes = item.notes || ''
+  const [teamId, setTeamId] = useState(persistedTeamId)
+  const [scheduledTime, setScheduledTime] = useState(persistedTime)
+  const [notes, setNotes] = useState(persistedNotes)
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle')
 
   useEffect(() => {
     // Keep each editable card aligned with the last persisted schedule response.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setTeamId(String(item.team_id))
-    setScheduledTime(item.scheduled_time || '')
-    setNotes(item.notes || '')
-  }, [item.team_id, item.scheduled_time, item.notes])
+    setTeamId(persistedTeamId)
+    setScheduledTime(persistedTime)
+    setNotes(persistedNotes)
+  }, [persistedTeamId, persistedTime, persistedNotes])
 
+  const isDirty = teamId !== persistedTeamId || scheduledTime !== persistedTime || notes !== persistedNotes
+  const isSaving = disabled || saveState === 'saving'
   const title = wo ? `${wo.location} - ${wo.title}` : `${pm?.location} - ${pm?.task_name}`
   const kind = wo?.normalized_priority || 'pm'
+
+  function markDirty() {
+    if (saveState === 'saved') setSaveState('idle')
+  }
+
+  async function saveOverride() {
+    if (!isDirty || isSaving) return
+    setSaveState('saving')
+    try {
+      await onUpdate(item.id, { team_id: Number(teamId), scheduled_time: scheduledTime, notes })
+      setSaveState('saved')
+    } catch {
+      setSaveState('idle')
+    }
+  }
 
   return <div className="rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white/92 p-4 shadow-[0_12px_28px_rgba(23,32,51,0.06)]">
     <div className="flex items-start justify-between gap-2">
@@ -55,25 +76,28 @@ function DispatchCard({ item, teams, disabled, canEdit, onUpdate }: { item: Disp
     <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_120px]">
       <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
         Crew
-        <select disabled={disabled || !canEdit} value={teamId} onChange={(event) => setTeamId(event.target.value)} className="field-control mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]">
-          {teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
+        <select disabled={disabled || !canEdit} value={teamId} onChange={(event) => { markDirty(); setTeamId(event.target.value) }} className="field-control mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]">
+          {teams.map((team) => <option key={team.id} value={team.id}>{team.today_crew_name || team.name}</option>)}
         </select>
       </label>
       <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
         Time
-        <input disabled={disabled || !canEdit} type="time" value={scheduledTime} onChange={(event) => setScheduledTime(event.target.value)} className="field-control tabular mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]" />
+        <input disabled={disabled || !canEdit} type="time" value={scheduledTime} onChange={(event) => { markDirty(); setScheduledTime(event.target.value) }} className="field-control tabular mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]" />
       </label>
     </div>
 
+    {item.call_out_names.length > 0 && <p className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-extrabold text-amber-900">Out today from default crew: {item.call_out_names.join(', ')}. The active crew shown above excludes call-outs.</p>}
+
     <label className="mt-2 block text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
       Notes / warnings
-      <textarea disabled={disabled || !canEdit} value={notes} onChange={(event) => setNotes(event.target.value)} className="field-control mt-1 min-h-16 w-full rounded-xl px-3 py-2 text-sm text-[#334155]" />
+      <textarea disabled={disabled || !canEdit} value={notes} onChange={(event) => { markDirty(); setNotes(event.target.value) }} className="field-control mt-1 min-h-16 w-full rounded-xl px-3 py-2 text-sm text-[#334155]" />
     </label>
 
-    {canEdit && <div className="mt-3 flex flex-wrap gap-2">
-      <button disabled={disabled} onClick={() => onUpdate(item.id, { team_id: Number(teamId), scheduled_time: scheduledTime, notes })} className="inline-flex items-center gap-1 rounded-xl bg-[#244393] px-3 py-2 text-xs font-extrabold text-white transition hover:-translate-y-0.5 hover:bg-[#172b63] disabled:cursor-wait disabled:opacity-60">
-        <Save size={14} /> Save override
+    {canEdit && <div className="mt-3 flex flex-wrap items-center gap-2">
+      <button disabled={isSaving || !isDirty} onClick={() => void saveOverride()} className="inline-flex items-center gap-1 rounded-xl bg-[#244393] px-3 py-2 text-xs font-extrabold text-white transition hover:-translate-y-0.5 hover:bg-[#172b63] disabled:cursor-not-allowed disabled:opacity-60">
+        <Save size={14} /> {saveState === 'saving' ? 'Saving...' : 'Save override'}
       </button>
+      {saveState === 'saved' && !isDirty && <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-extrabold text-emerald-800"><CheckCircle2 size={14} /> Saved</span>}
       <button disabled={disabled} onClick={() => onUpdate(item.id, { order_index: Math.max(0, item.order_index - 1) })} className="rounded-xl border border-[rgba(23,32,51,0.12)] bg-white/80 px-3 py-2 text-xs font-extrabold text-[#334155] transition hover:-translate-y-0.5 hover:bg-[#e8eefc] disabled:opacity-50">Move earlier</button>
       <button disabled={disabled} onClick={() => onUpdate(item.id, { order_index: item.order_index + 1 })} className="rounded-xl border border-[rgba(23,32,51,0.12)] bg-white/80 px-3 py-2 text-xs font-extrabold text-[#334155] transition hover:-translate-y-0.5 hover:bg-[#e8eefc] disabled:opacity-50">Move later</button>
     </div>}
@@ -84,8 +108,9 @@ export function DispatchBuilder({ schedule, teams, working, canEdit, onSuggest, 
   const groupedSchedule = useMemo(() => {
     const groups: Record<string, DispatchItem[]> = {}
     schedule?.items.forEach((item) => {
-      groups[item.team_name] ||= []
-      groups[item.team_name].push(item)
+      const groupName = item.crew_name || item.team_name
+      groups[groupName] ||= []
+      groups[groupName].push(item)
     })
     Object.values(groups).forEach((items) => items.sort((a, b) => a.order_index - b.order_index))
     return groups
@@ -113,7 +138,7 @@ export function DispatchBuilder({ schedule, teams, working, canEdit, onSuggest, 
           <div key={team} className="rounded-2xl border border-[rgba(36,67,147,0.12)] bg-[#f8faff]/85 p-4">
             <h3 className="font-display font-extrabold tracking-tight text-[#172033]">{team}</h3>
             <div className="mt-3 space-y-3">
-              {items.map((item) => <DispatchCard key={`${item.id}-${item.team_id}-${item.scheduled_time}-${item.notes}`} item={item} teams={teams} disabled={working} canEdit={canEditItems} onUpdate={onUpdate} />)}
+              {items.map((item) => <DispatchCard key={item.id} item={item} teams={teams} disabled={working} canEdit={canEditItems} onUpdate={onUpdate} />)}
             </div>
           </div>
         ))}

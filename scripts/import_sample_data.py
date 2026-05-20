@@ -462,6 +462,20 @@ def team_names_from_orders(orders):
     return teams
 
 
+def add_missing_team_technicians(technicians, teams):
+    existing = {tech["name"].upper() for tech in technicians}
+    missing = sorted({member.upper() for team in teams for member in team["members"] if member.upper() not in existing})
+    for name in missing:
+        technicians.append({
+            "name": name,
+            "primary_trade": "General",
+            "skills": ["General"],
+            "is_driver": name in DRIVERS,
+            "active": True,
+            "division": "Mobil",
+        })
+
+
 def main():
     mobil_path = find_required_file(["MOBIL SCHEDULE - MAY2026.xlsx"], env_var="JOHN_MOBIL_SCHEDULE_FILE")
     pm_path = find_required_file(["PM SCHEDULE-*2026.xlsx", "PM SCHEDULE-*.xlsx"], env_var="JOHN_PM_SCHEDULE_FILE")
@@ -473,6 +487,7 @@ def main():
     pm_tasks = parse_pm_schedule(pm_wb, pm_path.name) + parse_mobil_embedded_pms(mobil_wb)
     add_known_samples(work_orders)
     teams = team_names_from_orders(work_orders)
+    add_missing_team_technicians(technicians, teams)
 
     data = {
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),

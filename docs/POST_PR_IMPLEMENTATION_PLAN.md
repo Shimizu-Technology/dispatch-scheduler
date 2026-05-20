@@ -107,19 +107,30 @@ Acceptance criteria:
 
 ## Phase 5 - Team And Availability Management
 
-Goal: call-outs, drivers, and daily crew composition are first-class workflow inputs.
+Goal: default crews, call-outs, drivers, and daily crew composition are first-class workflow inputs.
+
+Important product distinction:
+
+- **Default crews** are the persistent normal crew setup.
+- **Today's crews** are selected-date adjustments for call-outs, swaps, borrowed drivers, and unusual field capacity.
+
+See `docs/JMI_WORKFLOW_MODEL.md` for the full workflow model.
 
 Tasks:
 
-- Add team composition editing by date.
-- Let dispatchers assign/remove technicians from a daily crew.
-- Track driver coverage per team per day.
+- Add persistent default crew editing: create, rename, update members, preferred region, and active/archive state.
+- Keep daily crew composition editing by date as a separate workflow from default crew editing.
+- Let dispatchers assign/remove technicians from a daily crew without mutating default crews.
+- Track driver coverage for both default crews and today's actual crews.
 - Add reason codes for unavailable technicians.
 - Surface overload warnings and no-driver warnings before schedule finalization.
+- Improve seed/import logic so historical `TECH ASSIGNED` values are not blindly treated as authoritative default crews.
 
 Acceptance criteria:
 
+- An admin/dispatcher can maintain normal reusable crew setup.
 - A dispatcher can model same-day call-outs without changing permanent team data.
+- The UI clearly shows default crew vs today's crew and when a daily override is active.
 - The scheduler uses the edited daily crew setup.
 - Finalization warns if a team has no driver or lacks the likely trade skill.
 

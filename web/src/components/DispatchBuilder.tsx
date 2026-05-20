@@ -4,6 +4,7 @@ import { Badge, Card, PanelHeader } from './ui'
 import type { DispatchItem, DispatchOutcomeStatus, DispatchSchedule, DispatchSummary, Team } from '../types'
 
 const OUTCOME_OPTIONS: Array<{ status: DispatchOutcomeStatus; label: string }> = [
+  { status: 'pending', label: 'Pending' },
   { status: 'completed', label: 'Complete' },
   { status: 'carry_over', label: 'Carry Over' },
   { status: 'waiting_parts', label: 'Waiting Parts' },

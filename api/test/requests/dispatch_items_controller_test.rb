@@ -68,6 +68,24 @@ class DispatchItemsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "dispatch_item.outcome_updated", AuditEvent.last.action
   end
 
+  test "resetting outcome to pending restores scheduled work order state" do
+    crew = team(name: "Reset Crew", skills: [ "General" ])
+    schedule = DispatchSchedule.create!(date: DEFAULT_DATE, status: "sent")
+    wo = work_order(title: "Reset work", status: "scheduled")
+    item = schedule.dispatch_items.create!(team: crew, work_order: wo, order_index: 0, outcome_status: "carry_over", carried_over_to_date: DEFAULT_DATE + 1.day)
+    wo.update!(status: "carry_over", scheduled_date: DEFAULT_DATE + 1.day)
+
+    with_auth_env do
+      patch "/api/v1/dispatch_items/#{item.id}/outcome", params: { outcome_status: "pending" }, headers: auth_headers
+    end
+
+    assert_response :success
+    assert_equal "pending", item.reload.outcome_status
+    assert_nil item.carried_over_to_date
+    assert_equal "scheduled", wo.reload.status
+    assert_equal DEFAULT_DATE, wo.scheduled_date
+  end
+
   test "records completed outcome and closes work order" do
     crew = team(name: "Complete Crew", skills: [ "General" ])
     schedule = DispatchSchedule.create!(date: DEFAULT_DATE, status: "sent")

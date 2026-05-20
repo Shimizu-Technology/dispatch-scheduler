@@ -99,9 +99,10 @@ module Api
         when "waiting_approval" then "waiting_for_approval"
         when "unable_to_access" then "needs_assessment"
         when "cancelled" then "cancelled"
+        when "pending" then "scheduled"
         else item.work_order.status
         end
-        item.work_order.update!(status: status, scheduled_date: item.carry_over? ? item.carried_over_to_date : item.work_order.scheduled_date)
+        item.work_order.update!(status: status, scheduled_date: item.carry_over? ? item.carried_over_to_date : item.dispatch_schedule.date)
       end
 
       def normalize_orders(schedule, team_id)

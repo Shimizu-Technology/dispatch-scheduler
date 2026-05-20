@@ -9,6 +9,7 @@ const OUTCOME_OPTIONS: Array<{ status: DispatchOutcomeStatus; label: string }> =
   { status: 'waiting_parts', label: 'Waiting Parts' },
   { status: 'waiting_approval', label: 'Waiting Approval' },
   { status: 'unable_to_access', label: 'Unable to Access' },
+  { status: 'cancelled', label: 'Cancelled' },
 ]
 
 function nextDateString(dateString: string) {

@@ -63,8 +63,8 @@ module Serializers
     notes.presence&.join(" ") || "No eligible or blocked items were held out."
   end
 
-  def work_order(work_order)
-    last_dispatch = last_dispatch_for(work_order)
+  def work_order(work_order, include_dispatch_history: true)
+    last_dispatch = include_dispatch_history ? last_dispatch_for(work_order) : nil
     {
       id: work_order.id,
       external_id: work_order.external_id,
@@ -232,7 +232,7 @@ module Serializers
     }
 
     if item.work_order_id
-      base.merge(work_order: work_order(schedulable))
+      base.merge(work_order: work_order(schedulable, include_dispatch_history: false))
     else
       base.merge(pm_task: pm_task(schedulable))
     end

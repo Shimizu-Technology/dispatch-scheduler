@@ -175,6 +175,11 @@ export function TeamsPanel({ teams, technicians, canEdit, savingTechnicianId, sa
     </div>
 
     <div className="space-y-4 p-4">
+      {mode === 'today' && <div className="rounded-2xl border border-blue-100 bg-[#f8faff] p-4 text-sm text-[#334155]">
+        <p className="font-display font-extrabold text-[#172033]">Morning call-out workflow</p>
+        <p className="mt-1 font-semibold leading-6">Click a technician name to mark them out for this date. Click an out technician again to mark them available. Use <span className="font-extrabold text-[#244393]">Edit Today</span> when John needs to swap people between crews without changing the default crew setup.</p>
+      </div>}
+
       {creatingCrew && mode === 'defaults' && <CreateCrewForm
         technicians={technicians}
         saving={savingTeamId === 0}
@@ -206,13 +211,17 @@ export function TeamsPanel({ teams, technicians, canEdit, savingTechnicianId, sa
               {canEdit && <button type="button" disabled={savingTeamId != null} onClick={() => setEditingTeamId(isEditing ? null : team.id)} className="rounded-full border border-[rgba(36,67,147,0.18)] bg-white px-3 py-1 text-xs font-extrabold text-[#244393] transition hover:-translate-y-0.5 hover:bg-[#e8eefc] disabled:cursor-wait disabled:opacity-60">{isEditing ? 'Close' : 'Edit Today'}</button>}
             </div>
           </div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {team.technicians.length === 0 && <span className="rounded-full border border-dashed border-[rgba(23,32,51,0.18)] px-3 py-1.5 text-xs font-extrabold text-[#64748b]">No technicians assigned today</span>}
-            {team.technicians.map((tech) => (
-              <button key={tech.id} type="button" disabled={!canEdit || savingTechnicianId != null} onClick={() => onToggleAvailability(tech)} title={canEdit ? 'Click to toggle today\'s availability' : undefined} className={`rounded-full border px-3 py-1.5 text-xs font-extrabold transition disabled:cursor-not-allowed ${tech.availability === 'unavailable' ? 'border-red-200 bg-red-50 text-red-700 line-through' : 'border-[#d8dee8] bg-[#f8faff] text-[#334155] hover:-translate-y-0.5 hover:border-blue-200 hover:bg-[#e8eefc]'}`}>
-                {savingTechnicianId === tech.id ? 'Saving...' : technicianLabel(tech)}
-              </button>
-            ))}
+          <div className="mt-3">
+            <p className="mb-2 text-[0.68rem] font-extrabold uppercase tracking-[0.14em] text-[#64748b]">Tap technician name to mark out / available today</p>
+            <div className="flex flex-wrap gap-2">
+              {team.technicians.length === 0 && <span className="rounded-full border border-dashed border-[rgba(23,32,51,0.18)] px-3 py-1.5 text-xs font-extrabold text-[#64748b]">No technicians assigned today</span>}
+              {team.technicians.map((tech) => {
+                const unavailable = tech.availability === 'unavailable'
+                return <button key={tech.id} type="button" disabled={!canEdit || savingTechnicianId != null} onClick={() => onToggleAvailability(tech)} title={canEdit ? (unavailable ? 'Click to mark available today' : 'Click to mark out today') : undefined} aria-label={`${unavailable ? 'Mark available today' : 'Mark out today'}: ${tech.name}`} className={`rounded-full border px-3 py-1.5 text-xs font-extrabold transition disabled:cursor-not-allowed ${unavailable ? 'border-red-200 bg-red-50 text-red-700 line-through hover:-translate-y-0.5 hover:bg-red-100' : 'border-[#d8dee8] bg-[#f8faff] text-[#334155] hover:-translate-y-0.5 hover:border-blue-200 hover:bg-[#e8eefc]'}`}>
+                  {savingTechnicianId === tech.id ? 'Saving...' : technicianLabel(tech)}
+                </button>
+              })}
+            </div>
           </div>
           {isEditing && <TodayCrewEditor
             team={team}

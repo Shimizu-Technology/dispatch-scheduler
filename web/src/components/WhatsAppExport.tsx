@@ -16,7 +16,7 @@ type WhatsAppExportProps = {
 function statusCopy(schedule: DispatchSchedule | null) {
   if (!schedule) return 'Generate a schedule to preview the send-ready crew assignments.'
   if (schedule.status === 'sent') return `Marked sent${schedule.sent_by ? ` by ${schedule.sent_by}` : ''}.`
-  if (schedule.status === 'finalized') return 'Finalized and ready to copy into WhatsApp. Mark sent after John sends the message.'
+  if (schedule.status === 'finalized') return 'Finalized and ready to copy into WhatsApp. Mark sent after the message is sent.'
   return 'Draft preview. Finalize the schedule before sending the crew assignments.'
 }
 

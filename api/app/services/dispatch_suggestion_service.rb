@@ -25,7 +25,8 @@ class DispatchSuggestionService
       items = candidate_items.first(daily_item_limit)
 
       items.each do |item|
-        team = choose_team(item, teams, counters, team_skills, team_driver_status, carry_over_contexts[item.id])
+        carry_over_context = carry_over_context_for(item, carry_over_contexts)
+        team = choose_team(item, teams, counters, team_skills, team_driver_status, carry_over_context)
         next unless team
 
         index = counters[team.id]
@@ -36,7 +37,7 @@ class DispatchSuggestionService
           team: team,
           order_index: index,
           scheduled_time: START_TIME + (index * 2).hours,
-          notes: notes_for(item, team, team_skills[team.id], team_driver_status[team.id], carry_over_contexts[item.id])
+          notes: notes_for(item, team, team_skills[team.id], team_driver_status[team.id], carry_over_context)
         )
       end
 
@@ -99,6 +100,12 @@ class DispatchSuggestionService
     warnings << "Check skill match: #{item.trade_category}" unless skills.include?(item.trade_category) || item.trade_category == "General"
     warnings << "Keep in #{item.location.region} route if possible"
     warnings.join(" | ")
+  end
+
+  def carry_over_context_for(item, contexts)
+    return nil unless item.is_a?(WorkOrder)
+
+    contexts[item.id]
   end
 
   def carry_over_contexts_for(items)

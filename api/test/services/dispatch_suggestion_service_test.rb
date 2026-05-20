@@ -63,6 +63,23 @@ class DispatchSuggestionServiceTest < ActiveSupport::TestCase
     assert_not_equal other_team.id, item.team_id
   end
 
+  test "pm task id collision does not receive work order carry over context" do
+    previous_team = team(name: "Z Previous Crew", skills: [ "General" ])
+    pm_team = team(name: "A PM Crew", skills: [ "General" ])
+    wo = work_order(title: "Carry-over work", status: "carry_over", date: DEFAULT_DATE + 1.day)
+    pm = pm_task(task_name: "Same id PM", date: DEFAULT_DATE + 1.day)
+    assert_equal wo.id, pm.id, "test setup expects independent work order and PM task ids to collide"
+    yesterday = DispatchSchedule.create!(date: DEFAULT_DATE, status: "sent")
+    yesterday.dispatch_items.create!(team: previous_team, work_order: wo, order_index: 0, outcome_status: "carry_over", outcome_notes: "Work order only", carried_over_to_date: DEFAULT_DATE + 1.day)
+
+    schedule = DispatchSuggestionService.new(date: DEFAULT_DATE + 1.day).call
+    pm_item = schedule.dispatch_items.find_by!(pm_task: pm)
+
+    assert_equal pm_team.id, pm_item.team_id
+    refute_includes pm_item.notes, "Carry-over from"
+    refute_includes pm_item.notes, "Work order only"
+  end
+
   test "completed and blocked carry over work is not suggested" do
     team(name: "Open Crew", skills: [ "General" ])
     completed = work_order(title: "Done yesterday", status: "completed", date: DEFAULT_DATE + 1.day)

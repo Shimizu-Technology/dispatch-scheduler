@@ -50,6 +50,88 @@ class DispatchItemsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Original", item.reload.notes
   end
 
+  test "records carry over outcome and keeps work order eligible" do
+    crew = team(name: "Carry Crew", skills: [ "General" ])
+    schedule = DispatchSchedule.create!(date: DEFAULT_DATE, status: "sent")
+    wo = work_order(title: "Carry work", status: "scheduled")
+    item = schedule.dispatch_items.create!(team: crew, work_order: wo, order_index: 0)
+
+    with_auth_env do
+      patch "/api/v1/dispatch_items/#{item.id}/outcome", params: { outcome_status: "carry_over", outcome_notes: "Need cartridge", carried_over_to_date: (DEFAULT_DATE + 1.day).to_s }, headers: auth_headers
+    end
+
+    assert_response :success
+    assert_equal "carry_over", item.reload.outcome_status
+    assert_equal DEFAULT_DATE + 1.day, item.carried_over_to_date
+    assert_equal "carry_over", wo.reload.status
+    assert_equal DEFAULT_DATE + 1.day, wo.scheduled_date
+    assert_equal "dispatch_item.outcome_updated", AuditEvent.last.action
+  end
+
+  test "resetting outcome to pending restores scheduled work order state" do
+    crew = team(name: "Reset Crew", skills: [ "General" ])
+    schedule = DispatchSchedule.create!(date: DEFAULT_DATE, status: "sent")
+    wo = work_order(title: "Reset work", status: "scheduled")
+    item = schedule.dispatch_items.create!(team: crew, work_order: wo, order_index: 0, outcome_status: "carry_over", carried_over_to_date: DEFAULT_DATE + 1.day)
+    wo.update!(status: "carry_over", scheduled_date: DEFAULT_DATE + 1.day)
+
+    with_auth_env do
+      patch "/api/v1/dispatch_items/#{item.id}/outcome", params: { outcome_status: "pending" }, headers: auth_headers
+    end
+
+    assert_response :success
+    assert_equal "pending", item.reload.outcome_status
+    assert_nil item.carried_over_to_date
+    assert_equal "scheduled", wo.reload.status
+    assert_equal DEFAULT_DATE, wo.scheduled_date
+  end
+
+  test "records completed outcome and closes work order" do
+    crew = team(name: "Complete Crew", skills: [ "General" ])
+    schedule = DispatchSchedule.create!(date: DEFAULT_DATE, status: "sent")
+    wo = work_order(title: "Complete work", status: "scheduled")
+    item = schedule.dispatch_items.create!(team: crew, work_order: wo, order_index: 0)
+
+    with_auth_env do
+      patch "/api/v1/dispatch_items/#{item.id}/outcome", params: { outcome_status: "completed", outcome_notes: "Done" }, headers: auth_headers
+    end
+
+    assert_response :success
+    assert_equal "completed", item.reload.outcome_status
+    assert_not_nil item.completed_at
+    assert_equal "completed", wo.reload.status
+  end
+
+  test "viewer cannot update dispatch outcome" do
+    crew = team(name: "Outcome Locked", skills: [ "General" ])
+    schedule = DispatchSchedule.create!(date: DEFAULT_DATE, status: "sent")
+    item = schedule.dispatch_items.create!(team: crew, work_order: work_order(title: "Viewer outcome"), order_index: 0)
+
+    with_auth_env do
+      patch "/api/v1/dispatch_items/#{item.id}/outcome", params: { outcome_status: "completed" }, headers: viewer_auth_headers
+    end
+
+    assert_response :forbidden
+    assert_equal "pending", item.reload.outcome_status
+  end
+
+  test "records reassignment audit metadata" do
+    source_team = team(name: "Original Crew", skills: [ "General" ])
+    target_team = team(name: "New Crew", skills: [ "General" ])
+    schedule = DispatchSchedule.create!(date: DEFAULT_DATE, status: "draft")
+    item = schedule.dispatch_items.create!(team: source_team, work_order: work_order(title: "Reassign work"), order_index: 0)
+
+    with_auth_env do
+      patch "/api/v1/dispatch_items/#{item.id}", params: { team_id: target_team.id, reassignment_reason: "Call-out" }, headers: auth_headers
+    end
+
+    assert_response :success
+    assert_equal "dispatch_item.reassigned", AuditEvent.last.action
+    assert_equal "Original Crew", AuditEvent.last.metadata_hash.fetch("previous_team")
+    assert_equal "New Crew", AuditEvent.last.metadata_hash.fetch("new_team")
+    assert_equal "Call-out", AuditEvent.last.metadata_hash.fetch("reassignment_reason")
+  end
+
   test "clears scheduled time when blank string is provided" do
     crew = team(name: "Time Crew", skills: [ "General" ])
     schedule = DispatchSchedule.create!(date: DEFAULT_DATE, status: "draft")
@@ -92,5 +174,13 @@ class DispatchItemsControllerTest < ActionDispatch::IntegrationTest
       user.role = "dispatcher"
     end
     { "Authorization" => "Bearer test_token:dispatcher_123:dispatcher@example.com" }
+  end
+
+  def viewer_auth_headers
+    User.find_or_create_by!(clerk_id: "viewer_123") do |user|
+      user.email = "viewer@example.com"
+      user.role = "viewer"
+    end
+    { "Authorization" => "Bearer test_token:viewer_123:viewer@example.com" }
   end
 end

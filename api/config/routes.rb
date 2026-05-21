@@ -16,7 +16,11 @@ Rails.application.routes.draw do
         end
       end
       resources :pm_tasks, only: [ :index ]
-      resources :dispatch_items, only: [ :update ]
+      resources :dispatch_items, only: [ :update ] do
+        member do
+          patch :outcome
+        end
+      end
       resources :dispatch_schedules, only: [ :index, :show ] do
         collection do
           post :suggest

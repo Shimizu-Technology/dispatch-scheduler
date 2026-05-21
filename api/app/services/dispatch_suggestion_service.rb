@@ -21,10 +21,12 @@ class DispatchSuggestionService
       team_skills = teams.to_h { |team| [ team.id, team.skills(@date) ] }
       team_driver_status = teams.to_h { |team| [ team.id, team.has_driver?(@date) ] }
       candidate_items = schedulables
+      carry_over_contexts = carry_over_contexts_for(candidate_items)
       items = candidate_items.first(daily_item_limit)
 
       items.each do |item|
-        team = choose_team(item, teams, counters, team_skills, team_driver_status)
+        carry_over_context = carry_over_context_for(item, carry_over_contexts)
+        team = choose_team(item, teams, counters, team_skills, team_driver_status, carry_over_context)
         next unless team
 
         index = counters[team.id]
@@ -35,7 +37,7 @@ class DispatchSuggestionService
           team: team,
           order_index: index,
           scheduled_time: START_TIME + (index * 2).hours,
-          notes: notes_for(item, team, team_skills[team.id], team_driver_status[team.id])
+          notes: notes_for(item, team, team_skills[team.id], team_driver_status[team.id], carry_over_context)
         )
       end
 
@@ -52,11 +54,16 @@ class DispatchSuggestionService
   end
 
   def eligible_work_orders
-    WorkOrder.includes(:client, :location, :team)
-      .open
+    scheduled_scope = WorkOrder.includes(:client, :location, :team)
+      .dispatchable
       .where("scheduled_date = ? OR scheduled_date IS NULL", @date)
-      .reject { |wo| blocked_statuses.include?(wo.status) }
-      .sort_by { |wo| [ wo.urgent_rank, region_rank(wo.location.region), wo.status == "needs_assessment" ? 0 : 1, wo.location.name.to_s, wo.id ] }
+    carry_over_scope = WorkOrder.includes(:client, :location, :team)
+      .dispatchable
+      .joins(:dispatch_items)
+      .where(dispatch_items: { outcome_status: "carry_over", carried_over_to_date: @date })
+    (scheduled_scope.to_a + carry_over_scope.to_a)
+      .uniq(&:id)
+      .sort_by { |wo| [ wo.status == "carry_over" ? 0 : 1, wo.urgent_rank, region_rank(wo.location.region), wo.status == "needs_assessment" ? 0 : 1, wo.location.name.to_s, wo.id ] }
   end
 
   def pm_tasks_due
@@ -65,7 +72,7 @@ class DispatchSuggestionService
       .sort_by { |pm| [ region_rank(pm.location.region), pm.location.name.to_s, pm.task_name.to_s, pm.id ] }
   end
 
-  def choose_team(item, teams, counters, team_skills, team_driver_status)
+  def choose_team(item, teams, counters, team_skills, team_driver_status, carry_over_context = nil)
     return nil if teams.empty?
 
     trade = item.trade_category
@@ -74,15 +81,40 @@ class DispatchSuggestionService
     skill_match = available.select { |team| team_skills[team.id].include?(trade) || trade == "General" }
     regional = skill_match.select { |team| team.region_preference.blank? || team.region_preference == region }
     candidates = regional.presence || skill_match.presence || available.presence || teams
+    previous_team = carry_over_context&.team
+    return previous_team if previous_team && candidates.include?(previous_team)
+
     candidates.min_by { |team| [ counters[team.id], region_penalty(team, region), team.name.to_s ] }
   end
 
-  def notes_for(item, team, skills, has_driver)
+  def notes_for(item, team, skills, has_driver, carry_over_context = nil)
     warnings = []
+    if carry_over_context
+      previous = carry_over_context.team
+      warnings << "Carry-over from #{carry_over_context.dispatch_schedule.date.strftime('%b %-d')}"
+      warnings << "Previous crew: #{previous.name}"
+      warnings << "Previous crew unavailable" if previous != team
+      warnings << carry_over_context.outcome_notes if carry_over_context.outcome_notes.present?
+    end
     warnings << (has_driver ? "Driver OK" : "No driver warning")
     warnings << "Check skill match: #{item.trade_category}" unless skills.include?(item.trade_category) || item.trade_category == "General"
     warnings << "Keep in #{item.location.region} route if possible"
     warnings.join(" | ")
+  end
+
+  def carry_over_context_for(item, contexts)
+    return nil unless item.is_a?(WorkOrder)
+
+    contexts[item.id]
+  end
+
+  def carry_over_contexts_for(items)
+    work_order_ids = items.select { |item| item.is_a?(WorkOrder) }.map(&:id)
+    DispatchItem.includes(:dispatch_schedule, :team)
+      .joins(:dispatch_schedule)
+      .where(work_order_id: work_order_ids, outcome_status: "carry_over", carried_over_to_date: @date)
+      .order("dispatch_schedules.date DESC", id: :desc)
+      .each_with_object({}) { |dispatch_item, contexts| contexts[dispatch_item.work_order_id] ||= dispatch_item }
   end
 
   def build_summary(candidate_items, schedule)
@@ -117,7 +149,7 @@ class DispatchSuggestionService
   end
 
   def blocked_statuses
-    %w[waiting_for_parts waiting_for_approval]
+    WorkOrder::BLOCKED_STATUSES
   end
 
   def region_penalty(team, region)

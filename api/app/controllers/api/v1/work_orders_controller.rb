@@ -4,7 +4,7 @@ module Api
       before_action :require_dispatch_edit!, only: [ :create, :update ]
 
       def index
-        scope = WorkOrder.includes(:client, :location, :team).order(:scheduled_date, :id)
+        scope = WorkOrder.includes(:client, :location, :team, dispatch_items: [ :team, :dispatch_schedule ]).order(:scheduled_date, :id)
         scope = scope.left_joins(:client, :location) if joined_filter_params?
         scope = scope.where(status: params[:status]) if params[:status].present?
         scope = scope.where(normalized_priority: params[:priority]) if params[:priority].present?

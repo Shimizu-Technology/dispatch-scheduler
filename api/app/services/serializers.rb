@@ -37,9 +37,9 @@ module Serializers
   end
 
   def eligible_work_orders_for(date)
-    WorkOrder.open
-      .where("scheduled_date = ? OR scheduled_date IS NULL", date)
-      .where.not(status: %w[waiting_for_parts waiting_for_approval])
+    scheduled_scope = WorkOrder.dispatchable.where("scheduled_date = ? OR scheduled_date IS NULL", date)
+    carry_over_scope = WorkOrder.dispatchable.joins(:dispatch_items).where(dispatch_items: { outcome_status: "carry_over", carried_over_to_date: date })
+    WorkOrder.where(id: scheduled_scope.select(:id)).or(WorkOrder.where(id: carry_over_scope.select(:id)))
   end
 
   def pm_tasks_due_for(date)
@@ -48,7 +48,7 @@ module Serializers
 
   def blocked_work_orders_for(date)
     WorkOrder.open
-      .where(status: %w[waiting_for_parts waiting_for_approval])
+      .where(status: WorkOrder::BLOCKED_STATUSES)
       .where("scheduled_date = ? OR scheduled_date IS NULL", date)
   end
 
@@ -63,7 +63,8 @@ module Serializers
     notes.presence&.join(" ") || "No eligible or blocked items were held out."
   end
 
-  def work_order(work_order)
+  def work_order(work_order, include_dispatch_history: true)
+    last_dispatch = include_dispatch_history ? last_dispatch_for(work_order) : nil
     {
       id: work_order.id,
       external_id: work_order.external_id,
@@ -81,7 +82,10 @@ module Serializers
       source: work_order.source,
       team_id: work_order.team_id,
       team_name: work_order.team&.name,
-      notes: work_order.notes
+      notes: work_order.notes,
+      last_dispatched_on: last_dispatch&.dispatch_schedule&.date,
+      last_crew_name: last_dispatch&.team&.name,
+      last_outcome_status: last_dispatch&.outcome_status
     }
   end
 
@@ -219,13 +223,24 @@ module Serializers
       order_index: item.order_index,
       scheduled_time: item.scheduled_time&.strftime("%H:%M"),
       notes: item.notes,
+      outcome_status: item.outcome_status,
+      outcome_notes: item.outcome_notes,
+      completed_at: item.completed_at&.iso8601,
+      carried_over_to_date: item.carried_over_to_date,
+      reassignment_reason: item.reassignment_reason,
       kind: item.work_order_id ? "work_order" : "pm_task"
     }
 
     if item.work_order_id
-      base.merge(work_order: work_order(schedulable))
+      base.merge(work_order: work_order(schedulable, include_dispatch_history: false))
     else
       base.merge(pm_task: pm_task(schedulable))
     end
+  end
+
+  def last_dispatch_for(work_order)
+    return work_order.association(:dispatch_items).target.select(&:persisted?).max_by { |item| [ item.dispatch_schedule&.date || Date.new(1900, 1, 1), item.id ] } if work_order.association(:dispatch_items).loaded?
+
+    work_order.dispatch_items.includes(:dispatch_schedule, :team).joins(:dispatch_schedule).order("dispatch_schedules.date DESC", id: :desc).first
   end
 end

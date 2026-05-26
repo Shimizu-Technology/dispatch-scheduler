@@ -42,6 +42,12 @@ function shortDateTime(value?: string | null) {
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'short', timeStyle: 'short' }).format(date)
 }
 
+function datetimeLocalToIso(value?: string | null) {
+  if (!value) return undefined
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? value : date.toISOString()
+}
+
 function slaLabel(status?: string | null) {
   if (status === 'overdue') return 'SLA overdue'
   if (status === 'due_soon') return 'SLA due soon'
@@ -186,8 +192,8 @@ function WorkOrderForm({ initialValues, serviceLines, saving, onCancel, onSubmit
       normalized_priority: values.priority,
       original_status_text: values.original_status_text || values.status,
       service_line_id: values.service_line_id || null,
-      reported_at: values.reported_at || undefined,
-      assessed_at: values.assessed_at || undefined,
+      reported_at: datetimeLocalToIso(values.reported_at),
+      assessed_at: datetimeLocalToIso(values.assessed_at),
     })
   }
 

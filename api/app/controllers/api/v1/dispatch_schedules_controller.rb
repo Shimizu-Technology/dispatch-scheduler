@@ -118,9 +118,8 @@ module Api
           work_order = item.work_order
           next unless work_order&.archived_at.nil?
           next unless WorkOrder::STATUSES.include?(item.previous_work_order_status)
-          next unless %w[scheduled in_progress].include?(work_order.status)
 
-          work_order.update!(status: item.previous_work_order_status)
+          work_order.update!(status: item.previous_work_order_status) if %w[scheduled in_progress].include?(work_order.status)
           item.update!(previous_work_order_status: nil)
         end
       end

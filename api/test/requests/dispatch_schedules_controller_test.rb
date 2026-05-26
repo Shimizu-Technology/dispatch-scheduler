@@ -117,6 +117,7 @@ class DispatchSchedulesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_equal "waiting_for_parts", work.reload.status
+    assert_nil schedule.dispatch_items.first.reload.previous_work_order_status
   end
 
   test "exports WhatsApp-ready crew assignments with active crew context" do

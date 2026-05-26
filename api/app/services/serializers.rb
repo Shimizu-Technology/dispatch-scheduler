@@ -97,14 +97,14 @@ module Serializers
     }
   end
 
-  def service_line(service_line)
+  def service_line(service_line, work_orders_count: nil)
     {
       id: service_line.id,
       name: service_line.name,
       position: service_line.position,
       active: service_line.active,
       notes: service_line.notes,
-      work_orders_count: service_line.work_orders.count
+      work_orders_count: work_orders_count.nil? ? service_line.work_orders.count : work_orders_count
     }
   end
 

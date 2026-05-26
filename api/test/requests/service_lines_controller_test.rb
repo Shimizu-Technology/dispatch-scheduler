@@ -1,18 +1,22 @@
 require "test_helper"
 
 class ServiceLinesControllerTest < ActionDispatch::IntegrationTest
-  test "lists active service lines in configured order" do
-    ServiceLine.create!(name: "General", position: 20, active: true)
+  test "lists active service lines in configured order with aggregate work order counts" do
+    general = ServiceLine.create!(name: "General", position: 20, active: true)
     ServiceLine.create!(name: "Archived", position: 10, active: false)
-    ServiceLine.create!(name: "Mobil / CBRE", position: 5, active: true)
+    mobil = ServiceLine.create!(name: "Mobil / CBRE", position: 5, active: true)
+    work_order(title: "Mobil 1", service_line_record: mobil)
+    work_order(title: "Mobil 2", service_line_record: mobil)
+    work_order(title: "General", service_line_record: general)
 
     with_auth_env do
       get "/api/v1/service_lines", headers: auth_headers
     end
 
     assert_response :success
-    names = JSON.parse(response.body).fetch("service_lines").map { |line| line.fetch("name") }
-    assert_equal [ "Mobil / CBRE", "General" ], names
+    payload = JSON.parse(response.body).fetch("service_lines")
+    assert_equal [ "Mobil / CBRE", "General" ], payload.map { |line| line.fetch("name") }
+    assert_equal [ 2, 1 ], payload.map { |line| line.fetch("work_orders_count") }
   end
 
   test "admin creates and updates service line" do

@@ -88,6 +88,7 @@ export function DashboardMetrics({ dashboard, workOrders, teams, technicians, pm
   const highPriority = priorityCount(workOrders)
   const unscheduledApproved = workOrders.filter((workOrder) => workOrder.status === 'approved' && !workOrder.scheduled_date).length
   const paProjects = workOrders.filter((workOrder) => workOrder.pa_project).length
+  const correctiveMaintenance = workOrders.filter((workOrder) => workOrder.corrective_maintenance).length
   const estimateRequired = workOrders.filter((workOrder) => workOrder.estimate_required).length
   const next = nextAction(schedule, driverIssues, canEdit)
   const scheduleItems = schedule?.items.length || 0
@@ -137,7 +138,7 @@ export function DashboardMetrics({ dashboard, workOrders, teams, technicians, pm
       <button type="button" onClick={() => onGoToSection('pa-projects')} className="text-left transition hover:-translate-y-0.5">
         <Metric icon={<FolderKanban size={20} />} label="PA Projects" value={dashboard?.counts.pa_projects ?? paProjects} detail="Long-lead follow-up workspace" tone={paProjects > 0 ? 'amber' : 'steel'} />
       </button>
-      <Metric icon={<Wrench size={20} />} label="Corrective Maint." value={dashboard?.counts.corrective_maintenance} detail="CM-flagged open work" tone="blue" />
+      <Metric icon={<Wrench size={20} />} label="Corrective Maint." value={dashboard?.counts.corrective_maintenance ?? correctiveMaintenance} detail="CM-flagged open work" tone="blue" />
       <Metric icon={<FileText size={20} />} label="Estimates" value={dashboard?.counts.estimate_required ?? estimateRequired} detail="Estimate-required open work" tone={estimateRequired > 0 ? 'amber' : 'steel'} />
       <button type="button" onClick={() => onGoToSection('work-orders')} className="text-left transition hover:-translate-y-0.5">
         <Metric icon={<Clock3 size={20} />} label="Waiting parts" value={dashboard?.counts.waiting_for_parts} detail="Held out of dispatch suggestions" tone={(dashboard?.counts.waiting_for_parts || 0) > 0 ? 'amber' : 'steel'} />

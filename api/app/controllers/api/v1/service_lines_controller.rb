@@ -6,7 +6,12 @@ module Api
       def index
         scope = ServiceLine.ordered
         scope = scope.active unless params[:include_inactive] == "true"
-        render json: { service_lines: scope.map { |service_line| Serializers.service_line(service_line) } }
+        work_order_counts = WorkOrder.group(:service_line_id).count
+        render json: {
+          service_lines: scope.map do |service_line|
+            Serializers.service_line(service_line, work_orders_count: work_order_counts.fetch(service_line.id, 0))
+          end
+        }
       end
 
       def create

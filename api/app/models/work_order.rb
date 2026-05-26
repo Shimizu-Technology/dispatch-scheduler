@@ -17,6 +17,10 @@ class WorkOrder < ApplicationRecord
     archived_at.present?
   end
 
+  def open?
+    CLOSED_STATUSES.exclude?(status)
+  end
+
   def urgent_rank
     { "P1" => 0, "Level 1" => 0, "P2" => 1, "P3" => 2, "P4" => 3 }.fetch(normalized_priority.presence || priority, 4)
   end

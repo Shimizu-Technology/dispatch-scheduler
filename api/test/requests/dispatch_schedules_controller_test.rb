@@ -98,6 +98,25 @@ class DispatchSchedulesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "draft", payload.fetch("status")
     assert_nil payload.fetch("finalized_at")
     assert_nil payload.fetch("sent_at")
+    assert_equal "needs_assessment", work.reload.status
+    assert_nil schedule.dispatch_items.first.reload.previous_work_order_status
+  end
+
+  test "reopen preserves mid-day work order status changes" do
+    crew = team(name: "Midday Status Crew")
+    schedule = DispatchSchedule.create!(date: DEFAULT_DATE, status: "draft")
+    work = work_order(title: "Midday status work", status: "needs_assessment", date: DEFAULT_DATE)
+    schedule.dispatch_items.create!(team: crew, work_order: work, order_index: 0)
+
+    with_auth_env do
+      post "/api/v1/dispatch_schedules/#{schedule.id}/finalize", headers: auth_headers
+      post "/api/v1/dispatch_schedules/#{schedule.id}/mark_sent", headers: auth_headers
+      patch "/api/v1/work_orders/#{work.id}/status", params: { status: "waiting_for_parts" }, headers: auth_headers
+      post "/api/v1/dispatch_schedules/#{schedule.id}/reopen", headers: auth_headers
+    end
+
+    assert_response :success
+    assert_equal "waiting_for_parts", work.reload.status
   end
 
   test "exports WhatsApp-ready crew assignments with active crew context" do

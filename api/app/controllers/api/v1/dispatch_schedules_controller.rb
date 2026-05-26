@@ -77,6 +77,7 @@ module Api
         schedule = DispatchSchedule.find(params[:id])
         previous_status = schedule.status
         ApplicationRecord.transaction do
+          restore_schedule_work_orders!(schedule)
           schedule.reopen!
           AuditEvent.record!(action: "dispatch_schedule.reopened", record: schedule, user: current_user, metadata: { date: schedule.date, previous_status: previous_status })
         end
@@ -98,10 +99,30 @@ module Api
       end
 
       def transition_schedule_work_orders!(schedule, status)
-        work_order_ids = schedule.dispatch_items.where.not(work_order_id: nil).pluck(:work_order_id)
-        return if work_order_ids.empty?
+        items = schedule.dispatch_items.includes(:work_order).where.not(work_order_id: nil)
+        timestamp = Time.current
+        items.each do |item|
+          work_order = item.work_order
+          next unless work_order&.archived_at.nil?
+          next unless work_order.open?
 
-        WorkOrder.active_queue.open.where(id: work_order_ids).update_all(status: status, scheduled_date: schedule.date, updated_at: Time.current)
+          item.update!(previous_work_order_status: work_order.status) if item.previous_work_order_status.blank?
+          work_order.update!(status: status, scheduled_date: schedule.date, updated_at: timestamp)
+        end
+      end
+
+      def restore_schedule_work_orders!(schedule)
+        schedule.dispatch_items.includes(:work_order).where.not(work_order_id: nil).find_each do |item|
+          next if item.previous_work_order_status.blank?
+
+          work_order = item.work_order
+          next unless work_order&.archived_at.nil?
+          next unless WorkOrder::STATUSES.include?(item.previous_work_order_status)
+          next unless %w[scheduled in_progress].include?(work_order.status)
+
+          work_order.update!(status: item.previous_work_order_status)
+          item.update!(previous_work_order_status: nil)
+        end
       end
     end
   end

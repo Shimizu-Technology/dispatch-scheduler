@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_21_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_26_141000) do
   create_table "audit_events", force: :cascade do |t|
     t.string "action", null: false
     t.datetime "created_at", null: false
@@ -42,6 +42,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_21_090000) do
     t.text "outcome_notes"
     t.string "outcome_status", default: "pending", null: false
     t.integer "pm_task_id"
+    t.string "previous_work_order_status"
     t.text "reassignment_reason"
     t.time "scheduled_time"
     t.integer "team_id", null: false

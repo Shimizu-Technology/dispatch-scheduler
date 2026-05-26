@@ -3,7 +3,7 @@ import type { FormEvent } from 'react'
 import { Archive, ArchiveRestore, Edit3, FileUp, Plus, Search, Sparkles, X } from 'lucide-react'
 import { Badge, Card, PanelHeader } from './ui'
 import { postForm } from '../lib/api'
-import type { OcrWorkOrderDraft, WorkOrder, WorkOrderImportPreview, WorkOrderInput, WorkOrderStatus } from '../types'
+import type { OcrWorkOrderDraft, ServiceLine, WorkOrder, WorkOrderImportPreview, WorkOrderInput, WorkOrderStatus } from '../types'
 
 const priorities = ['P1', 'P2', 'P3', 'P4']
 const statuses: WorkOrderStatus[] = ['new', 'needs_assessment', 'approved', 'scheduled', 'in_progress', 'carry_over', 'waiting_for_parts', 'waiting_for_approval', 'completed', 'closed', 'cancelled']
@@ -70,6 +70,11 @@ function emptyForm(scheduledDate?: string): WorkOrderInput {
     trade_category: 'General',
     scheduled_date: scheduledDate || '',
     notes: '',
+    service_line_id: '',
+    pa_project: false,
+    pa_project_notes: '',
+    corrective_maintenance: false,
+    estimate_required: false,
   }
 }
 
@@ -89,6 +94,11 @@ function formFromWorkOrder(workOrder: WorkOrder): WorkOrderInput {
     trade_category: workOrder.trade_category || 'General',
     scheduled_date: workOrder.scheduled_date || '',
     notes: workOrder.notes || '',
+    service_line_id: workOrder.service_line_id || '',
+    pa_project: workOrder.pa_project,
+    pa_project_notes: workOrder.pa_project_notes || '',
+    corrective_maintenance: workOrder.corrective_maintenance,
+    estimate_required: workOrder.estimate_required,
   }
 }
 
@@ -99,6 +109,9 @@ function WorkOrderRow({ workOrder, canEdit, onEdit, onArchive }: { workOrder: Wo
         <Badge kind={workOrder.normalized_priority}>{workOrder.normalized_priority}</Badge>
         <Badge kind={workOrder.status}>{statusLabel(workOrder.status)}</Badge>
         {workOrder.archived && <Badge kind="waiting">Archived</Badge>}
+        {workOrder.pa_project && <Badge kind="waiting">PA Project</Badge>}
+        {workOrder.corrective_maintenance && <Badge kind="approved">CM</Badge>}
+        {workOrder.estimate_required && <Badge kind="scheduled">Estimate</Badge>}
         <span className="font-display tabular text-xs font-bold uppercase tracking-[0.12em] text-[#7b8798]">WO #{workOrder.external_id || 'N/A'}</span>
       </div>
       <h3 className="font-display mt-2 font-extrabold tracking-tight text-[#172033]">{workOrder.location} - {workOrder.title}</h3>
@@ -110,6 +123,7 @@ function WorkOrderRow({ workOrder, canEdit, onEdit, onArchive }: { workOrder: Wo
         <span>Created: {shortDate(workOrder.created_at)}</span>
         <span>Scheduled: {shortDate(workOrder.scheduled_date)}</span>
         <span>Source: {workOrder.source}</span>
+        <span>Service line: {workOrder.service_line || 'Unassigned'}</span>
         <span>Last dispatched: {shortDate(workOrder.last_dispatched_on)}{workOrder.last_crew_name ? ` · ${workOrder.last_crew_name}` : ''}</span>
       </div>
     </div>
@@ -122,8 +136,10 @@ function WorkOrderRow({ workOrder, canEdit, onEdit, onArchive }: { workOrder: Wo
   </article>
 }
 
-function WorkOrderForm({ initialValues, saving, onCancel, onSubmit }: { initialValues: WorkOrderInput; saving: boolean; onCancel: () => void; onSubmit: (values: WorkOrderInput) => Promise<void> }) {
+function WorkOrderForm({ initialValues, serviceLines, saving, onCancel, onSubmit }: { initialValues: WorkOrderInput; serviceLines: ServiceLine[]; saving: boolean; onCancel: () => void; onSubmit: (values: WorkOrderInput) => Promise<void> }) {
   const [values, setValues] = useState<WorkOrderInput>(initialValues)
+  const selectedServiceLineId = values.service_line_id ? String(values.service_line_id) : ''
+  const serviceLineOptions = useMemo(() => serviceLines.filter((line) => line.active || String(line.id) === selectedServiceLineId), [selectedServiceLineId, serviceLines])
 
   function updateField<K extends keyof WorkOrderInput>(field: K, value: WorkOrderInput[K]) {
     setValues((current) => ({ ...current, [field]: value }))
@@ -135,6 +151,7 @@ function WorkOrderForm({ initialValues, saving, onCancel, onSubmit }: { initialV
       ...values,
       normalized_priority: values.priority,
       original_status_text: values.original_status_text || values.status,
+      service_line_id: values.service_line_id || null,
     })
   }
 
@@ -165,7 +182,7 @@ function WorkOrderForm({ initialValues, saving, onCancel, onSubmit }: { initialV
       <textarea required value={values.description} onChange={(event) => updateField('description', event.target.value)} placeholder="Paste or summarize the incoming request" className="field-control mt-1 min-h-24 w-full rounded-xl px-3 py-2 text-sm text-[#334155]" />
     </label>
 
-    <div className="mt-3 grid gap-3 lg:grid-cols-5">
+    <div className="mt-3 grid gap-3 lg:grid-cols-6">
       <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
         Priority
         <select value={values.priority} onChange={(event) => updateField('priority', event.target.value)} className="field-control mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]">
@@ -194,7 +211,37 @@ function WorkOrderForm({ initialValues, saving, onCancel, onSubmit }: { initialV
         Schedule date
         <input type="date" value={values.scheduled_date || ''} onChange={(event) => updateField('scheduled_date', event.target.value)} className="field-control tabular mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]" />
       </label>
+      <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
+        Service line
+        <select value={values.service_line_id || ''} onChange={(event) => updateField('service_line_id', event.target.value)} className="field-control mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]">
+          <option value="">Unassigned</option>
+          {serviceLineOptions.map((line) => <option key={line.id} value={line.id}>{line.name}{line.active ? '' : ' (inactive)'}</option>)}
+        </select>
+      </label>
     </div>
+
+    <div className="mt-3 grid gap-3 lg:grid-cols-3">
+      <label className="rounded-2xl border border-[rgba(36,67,147,0.12)] bg-white p-3 text-sm font-bold text-[#172033]">
+        <input type="checkbox" checked={Boolean(values.pa_project)} onChange={(event) => updateField('pa_project', event.target.checked)} className="mr-2 accent-[#244393]" />
+        PA Project
+        <span className="mt-1 block text-xs font-semibold leading-5 text-[#64748b]">Track separately from status so long-lead work does not get lost.</span>
+      </label>
+      <label className="rounded-2xl border border-[rgba(36,67,147,0.12)] bg-white p-3 text-sm font-bold text-[#172033]">
+        <input type="checkbox" checked={Boolean(values.corrective_maintenance)} onChange={(event) => updateField('corrective_maintenance', event.target.checked)} className="mr-2 accent-[#244393]" />
+        Corrective Maintenance
+        <span className="mt-1 block text-xs font-semibold leading-5 text-[#64748b]">Used for Mobil/CBRE monthly reporting and pricing conversations.</span>
+      </label>
+      <label className="rounded-2xl border border-[rgba(36,67,147,0.12)] bg-white p-3 text-sm font-bold text-[#172033]">
+        <input type="checkbox" checked={Boolean(values.estimate_required)} onChange={(event) => updateField('estimate_required', event.target.checked)} className="mr-2 accent-[#244393]" />
+        Estimate Required
+        <span className="mt-1 block text-xs font-semibold leading-5 text-[#64748b]">Flag work needing estimate/approval tracking.</span>
+      </label>
+    </div>
+
+    {values.pa_project && <label className="mt-3 block text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
+      PA Project notes
+      <textarea value={values.pa_project_notes || ''} onChange={(event) => updateField('pa_project_notes', event.target.value)} placeholder="Parts/materials status, ETA, CBRE update, follow-up context..." className="field-control mt-1 min-h-16 w-full rounded-xl px-3 py-2 text-sm text-[#334155]" />
+    </label>}
 
     <label className="mt-3 block text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
       Notes
@@ -212,7 +259,7 @@ function WorkOrderForm({ initialValues, saving, onCancel, onSubmit }: { initialV
   </form>
 }
 
-export function WorkOrdersPanel({ workOrders, canEdit, selectedDate, saving, onCreate, onUpdate, onArchive }: { workOrders: WorkOrder[]; canEdit: boolean; selectedDate: string; saving: boolean; onCreate: (values: WorkOrderInput) => Promise<void>; onUpdate: (id: number, values: WorkOrderInput) => Promise<void>; onArchive: (workOrderId: number, archived: boolean) => Promise<void> }) {
+export function WorkOrdersPanel({ workOrders, serviceLines, canEdit, selectedDate, saving, onCreate, onUpdate, onArchive }: { workOrders: WorkOrder[]; serviceLines: ServiceLine[]; canEdit: boolean; selectedDate: string; saving: boolean; onCreate: (values: WorkOrderInput) => Promise<void>; onUpdate: (id: number, values: WorkOrderInput) => Promise<void>; onArchive: (workOrderId: number, archived: boolean) => Promise<void> }) {
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<WorkOrder | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -224,6 +271,10 @@ export function WorkOrdersPanel({ workOrders, canEdit, selectedDate, saving, onC
   const [priorityFilter, setPriorityFilter] = useState('')
   const [regionFilter, setRegionFilter] = useState('')
   const [archiveFilter, setArchiveFilter] = useState<'active' | 'archived' | 'all'>('active')
+  const [serviceLineFilter, setServiceLineFilter] = useState('')
+  const [paProjectFilter, setPaProjectFilter] = useState(false)
+  const [correctiveMaintenanceFilter, setCorrectiveMaintenanceFilter] = useState(false)
+  const [estimateRequiredFilter, setEstimateRequiredFilter] = useState(false)
 
   const filteredWorkOrders = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
@@ -235,8 +286,12 @@ export function WorkOrdersPanel({ workOrders, canEdit, selectedDate, saving, onC
         && (!statusFilter || workOrder.status === statusFilter)
         && (!priorityFilter || workOrder.normalized_priority === priorityFilter)
         && (!regionFilter || workOrder.region === regionFilter)
+        && (!serviceLineFilter || String(workOrder.service_line_id || '') === serviceLineFilter)
+        && (!paProjectFilter || workOrder.pa_project)
+        && (!correctiveMaintenanceFilter || workOrder.corrective_maintenance)
+        && (!estimateRequiredFilter || workOrder.estimate_required)
     })
-  }, [archiveFilter, priorityFilter, query, regionFilter, statusFilter, workOrders])
+  }, [archiveFilter, correctiveMaintenanceFilter, estimateRequiredFilter, paProjectFilter, priorityFilter, query, regionFilter, serviceLineFilter, statusFilter, workOrders])
 
   const formInitialValues = editing ? formFromWorkOrder(editing) : emptyForm(selectedDate)
 
@@ -339,10 +394,10 @@ export function WorkOrdersPanel({ workOrders, canEdit, selectedDate, saving, onC
       </div>
     </div>}
 
-    {showForm && <WorkOrderForm key={editing?.id || 'new'} initialValues={formInitialValues} saving={saving} onCancel={() => { setShowForm(false); setEditing(null) }} onSubmit={submitForm} />}
+    {showForm && <WorkOrderForm key={editing?.id || 'new'} initialValues={formInitialValues} serviceLines={serviceLines} saving={saving} onCancel={() => { setShowForm(false); setEditing(null) }} onSubmit={submitForm} />}
 
     <div className="border-b border-[rgba(23,32,51,0.1)] bg-white p-4">
-      <div className="grid gap-3 lg:grid-cols-[1fr_150px_160px_150px_160px]">
+      <div className="grid gap-3 lg:grid-cols-[1fr_150px_160px_150px_160px_180px]">
         <label className="relative block">
           <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#7b8798]" size={16} />
           <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search WO #, location, description, notes..." className="field-control w-full rounded-xl py-2 pl-9 pr-3 text-sm font-semibold text-[#172033]" />
@@ -364,6 +419,15 @@ export function WorkOrdersPanel({ workOrders, canEdit, selectedDate, saving, onC
           <option value="">All regions</option>
           {regions.map((region) => <option key={region} value={region}>{region}</option>)}
         </select>
+        <select value={serviceLineFilter} onChange={(event) => setServiceLineFilter(event.target.value)} className="field-control rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]">
+          <option value="">All service lines</option>
+          {serviceLines.map((line) => <option key={line.id} value={line.id}>{line.name}</option>)}
+        </select>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button type="button" onClick={() => setPaProjectFilter((current) => !current)} className={`rounded-full px-3 py-1.5 text-xs font-extrabold uppercase tracking-[0.1em] ${paProjectFilter ? 'bg-[#244393] text-white' : 'border border-[rgba(36,67,147,0.16)] bg-white text-[#244393]'}`}>PA Projects</button>
+        <button type="button" onClick={() => setCorrectiveMaintenanceFilter((current) => !current)} className={`rounded-full px-3 py-1.5 text-xs font-extrabold uppercase tracking-[0.1em] ${correctiveMaintenanceFilter ? 'bg-[#244393] text-white' : 'border border-[rgba(36,67,147,0.16)] bg-white text-[#244393]'}`}>CM</button>
+        <button type="button" onClick={() => setEstimateRequiredFilter((current) => !current)} className={`rounded-full px-3 py-1.5 text-xs font-extrabold uppercase tracking-[0.1em] ${estimateRequiredFilter ? 'bg-[#244393] text-white' : 'border border-[rgba(36,67,147,0.16)] bg-white text-[#244393]'}`}>Estimates</button>
       </div>
     </div>
 
@@ -378,7 +442,7 @@ export function WorkOrdersPanel({ workOrders, canEdit, selectedDate, saving, onC
       {filteredWorkOrders.length > 40 && <p className="px-3 pb-2 text-xs font-bold text-[#8a5b18]">Showing the first 40 matching records. Tighten search or filters to narrow the list.</p>}
       {workOrders.length > 0 && <div className="flex items-center justify-between px-3 pb-2 text-xs font-bold uppercase tracking-[0.14em] text-[#7b8798]">
         <span>{filteredWorkOrders.length} shown</span>
-        {(query || archiveFilter !== 'active' || statusFilter || priorityFilter || regionFilter) && <button className="inline-flex items-center gap-1 text-[#244393]" onClick={() => { setQuery(''); setArchiveFilter('active'); setStatusFilter(''); setPriorityFilter(''); setRegionFilter('') }}><X size={13} /> Clear filters</button>}
+        {(query || archiveFilter !== 'active' || statusFilter || priorityFilter || regionFilter || serviceLineFilter || paProjectFilter || correctiveMaintenanceFilter || estimateRequiredFilter) && <button className="inline-flex items-center gap-1 text-[#244393]" onClick={() => { setQuery(''); setArchiveFilter('active'); setStatusFilter(''); setPriorityFilter(''); setRegionFilter(''); setServiceLineFilter(''); setPaProjectFilter(false); setCorrectiveMaintenanceFilter(false); setEstimateRequiredFilter(false) }}><X size={13} /> Clear filters</button>}
       </div>}
     </div>
   </Card>

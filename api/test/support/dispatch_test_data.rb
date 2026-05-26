@@ -2,7 +2,7 @@ module DispatchTestData
   DEFAULT_DATE = Date.new(2026, 5, 5)
 
   def reset_dispatch_records
-    [ AuditEvent, FollowUp, DispatchItem, DispatchSchedule, WorkOrder, PmTask, TeamMembership, TeamDailyOverride, TechnicianAvailability, TechnicianSkill, Technician, Team, Location, Client, User ].each(&:delete_all)
+    [ AuditEvent, FollowUp, DispatchItem, DispatchSchedule, WorkOrder, PmTask, TeamMembership, TeamDailyOverride, TechnicianAvailability, TechnicianSkill, Technician, Team, Location, Client, ServiceLine, User ].each(&:delete_all)
   end
 
   def client(name = "Mobil")
@@ -24,7 +24,14 @@ module DispatchTestData
     team
   end
 
-  def work_order(title: "Repair item", priority: "P4", status: "approved", trade: "General", date: DEFAULT_DATE, location_record: location)
+  def service_line(name = "Mobil / CBRE")
+    ServiceLine.find_or_create_by!(name: name) do |line|
+      line.position = 10
+      line.active = true
+    end
+  end
+
+  def work_order(title: "Repair item", priority: "P4", status: "approved", trade: "General", date: DEFAULT_DATE, location_record: location, service_line_record: service_line)
     WorkOrder.create!(
       client: location_record.client,
       location: location_record,
@@ -37,7 +44,8 @@ module DispatchTestData
       status: status,
       original_status_text: status,
       trade_category: trade,
-      scheduled_date: date
+      scheduled_date: date,
+      service_line: service_line_record
     )
   end
 

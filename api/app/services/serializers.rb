@@ -2,7 +2,7 @@ module Serializers
   module_function
 
   def schedule(dispatch_schedule, summary: nil)
-    schedule = DispatchSchedule.includes(dispatch_items: [ :team, { work_order: [ :client, :location ] }, { pm_task: [ :client, :location ] } ]).find(dispatch_schedule.id)
+    schedule = DispatchSchedule.includes(dispatch_items: [ :team, { work_order: [ :client, :location, :service_line ] }, { pm_task: [ :client, :location ] } ]).find(dispatch_schedule.id)
     team_contexts = dispatch_team_contexts(schedule)
     {
       id: schedule.id,
@@ -85,9 +85,26 @@ module Serializers
       archived: work_order.archived?,
       team_name: work_order.team&.name,
       notes: work_order.notes,
+      service_line_id: work_order.service_line_id,
+      service_line: work_order.service_line&.name,
+      pa_project: work_order.pa_project,
+      pa_project_notes: work_order.pa_project_notes,
+      corrective_maintenance: work_order.corrective_maintenance,
+      estimate_required: work_order.estimate_required,
       last_dispatched_on: last_dispatch&.dispatch_schedule&.date,
       last_crew_name: last_dispatch&.team&.name,
       last_outcome_status: last_dispatch&.outcome_status
+    }
+  end
+
+  def service_line(service_line, work_orders_count: nil)
+    {
+      id: service_line.id,
+      name: service_line.name,
+      position: service_line.position,
+      active: service_line.active,
+      notes: service_line.notes,
+      work_orders_count: work_orders_count.nil? ? service_line.work_orders.count : work_orders_count
     }
   end
 

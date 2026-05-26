@@ -72,6 +72,89 @@ class WorkOrdersControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Parts confirmed", payload.fetch("notes")
   end
 
+  test "dispatcher creates work order with operational tracking fields" do
+    service_line = service_line("Mobil / CBRE")
+
+    with_auth_env do
+      post "/api/v1/work_orders", params: {
+        client: "Mobil",
+        location: "Yigo",
+        region: "North",
+        source: "mywork",
+        description: "Long lead lighting repair",
+        service_line_id: service_line.id,
+        pa_project: true,
+        pa_project_notes: "Waiting for lights until September",
+        corrective_maintenance: true,
+        estimate_required: true
+      }, headers: auth_headers
+    end
+
+    assert_response :created
+    payload = JSON.parse(response.body)
+    assert_equal service_line.id, payload.fetch("service_line_id")
+    assert_equal "Mobil / CBRE", payload.fetch("service_line")
+    assert_equal true, payload.fetch("pa_project")
+    assert_equal "Waiting for lights until September", payload.fetch("pa_project_notes")
+    assert_equal true, payload.fetch("corrective_maintenance")
+    assert_equal true, payload.fetch("estimate_required")
+  end
+
+  test "rejects inactive service line assignment" do
+    inactive = ServiceLine.create!(name: "Retired", position: 90, active: false)
+
+    with_auth_env do
+      post "/api/v1/work_orders", params: {
+        client: "Mobil",
+        location: "Yigo",
+        description: "Retired service line should not be assigned",
+        service_line_id: inactive.id
+      }, headers: auth_headers
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal [ "Inactive service lines cannot be assigned to work orders" ], JSON.parse(response.body).fetch("errors")
+  end
+
+  test "allows existing inactive service line to remain assigned while editing other fields" do
+    inactive = ServiceLine.create!(name: "Retired", position: 90, active: false)
+    wo = work_order(title: "Legacy retired line", service_line_record: inactive)
+
+    with_auth_env do
+      patch "/api/v1/work_orders/#{wo.id}", params: {
+        client: wo.client.name,
+        location: wo.location.name,
+        region: wo.location.region,
+        source: wo.source,
+        description: "Updated notes for legacy service line",
+        status: wo.status,
+        service_line_id: inactive.id,
+        notes: "Keep old line until admin reclassifies"
+      }, headers: auth_headers
+    end
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_equal inactive.id, payload.fetch("service_line_id")
+    assert_equal "Keep old line until admin reclassifies", payload.fetch("notes")
+  end
+
+  test "filters by operational tracking fields" do
+    mobil = service_line("Mobil / CBRE")
+    schools = service_line("Public Schools / Sodexo")
+    match = work_order(title: "PA lighting", service_line_record: mobil)
+    match.update!(pa_project: true, corrective_maintenance: true, estimate_required: true)
+    work_order(title: "School freezer", service_line_record: schools)
+
+    with_auth_env do
+      get "/api/v1/work_orders", params: { service_line_id: mobil.id, pa_project: true, corrective_maintenance: true, estimate_required: true }, headers: auth_headers
+    end
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_equal [ match.id ], payload.map { |item| item.fetch("id") }
+  end
+
   test "duplicate source and external id is rejected" do
     work_order(title: "Existing", status: "approved").update!(source: "mywork", external_id: "40787")
 

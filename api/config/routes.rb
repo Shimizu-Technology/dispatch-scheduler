@@ -7,6 +7,7 @@ Rails.application.routes.draw do
       get "dashboard", to: "dashboard#index"
       resources :users, only: [ :index, :update ]
       resources :audit_events, only: [ :index ]
+      resources :service_lines, only: [ :index, :create, :update ]
       post "work_order_imports/preview", to: "work_order_imports#preview"
       resources :work_orders, only: [ :index, :create, :update ] do
         member do

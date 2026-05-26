@@ -5,12 +5,22 @@ abort "Missing seed data at #{seed_path}. Run scripts/import_sample_data.py from
 
 data = JSON.parse(File.read(seed_path))
 
-[ FollowUp, DispatchItem, DispatchSchedule, WorkOrder, PmTask, TeamMembership, TechnicianAvailability, TechnicianSkill, Technician, Team, Location, Client ].each(&:delete_all)
+[ FollowUp, DispatchItem, DispatchSchedule, WorkOrder, PmTask, TeamMembership, TechnicianAvailability, TechnicianSkill, Technician, Team, Location, Client, ServiceLine ].each(&:delete_all)
 
 clients = {}
 locations = {}
 technicians = {}
 teams = {}
+service_lines = {}
+
+[
+  [ "Mobil / CBRE", 10 ],
+  [ "Hotels / Kitchens / Restaurants", 20 ],
+  [ "Public Schools / Sodexo", 30 ],
+  [ "General", 40 ]
+].each do |name, position|
+  service_lines[name] = ServiceLine.create!(name: name, position: position, active: true)
+end
 
 (data["work_orders"].map { |w| w["client"] } + data["pm_tasks"].map { |p| p["client"] }).compact.uniq.each do |name|
   clients[name] = Client.create!(name: name)
@@ -46,6 +56,12 @@ data["work_orders"].each do |attrs|
   client = clients[attrs["client"]]
   location = locations[[ attrs["client"], attrs["location"] ]]
   team = teams[attrs["team_name"]]
+  service_line = case attrs["client"].to_s.downcase
+  when /mobil|cbre/ then service_lines["Mobil / CBRE"]
+  when /sodexo|school/ then service_lines["Public Schools / Sodexo"]
+  when /hotel|kitchen|restaurant|hkr/ then service_lines["Hotels / Kitchens / Restaurants"]
+  else service_lines["General"]
+  end
   WorkOrder.create!(
     client: client,
     location: location,
@@ -61,7 +77,11 @@ data["work_orders"].each do |attrs|
     original_status_text: attrs["original_status_text"],
     trade_category: attrs["trade_category"],
     scheduled_date: attrs["scheduled_date"],
-    notes: attrs["notes"]
+    notes: attrs["notes"],
+    service_line: service_line,
+    pa_project: false,
+    corrective_maintenance: attrs["original_status_text"].to_s.upcase.include?("CM"),
+    estimate_required: attrs["status"] == "waiting_for_approval"
   )
 end
 
@@ -77,4 +97,4 @@ data["pm_tasks"].each do |attrs|
   )
 end
 
-puts "Seeded #{Client.count} clients, #{Location.count} locations, #{Technician.count} technicians, #{Team.count} teams, #{WorkOrder.count} work orders, #{PmTask.count} PM tasks"
+puts "Seeded #{Client.count} clients, #{Location.count} locations, #{ServiceLine.count} service lines, #{Technician.count} technicians, #{Team.count} teams, #{WorkOrder.count} work orders, #{PmTask.count} PM tasks"

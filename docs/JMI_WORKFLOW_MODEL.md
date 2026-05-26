@@ -446,10 +446,10 @@ Likely additions/changes:
 - optional `crew_type` or `specialty` field
 - optional `preferred_region`/route field beyond current `region_preference`
 - configurable `service_lines` / `contract_lines` table managed by admins
-- optional service-line preference on crews/technicians
 - service-line selection on work orders
-- PA Project fields on work orders, likely `pa_project`, `pa_project_notes`, and future follow-up/ETA fields
-- corrective maintenance and estimate fields on work orders
+- PA Project fields on work orders: `pa_project`, `pa_project_notes`, and future follow-up/ETA fields
+- corrective maintenance and estimate-required fields on work orders
+- optional service-line preference on crews/technicians later, after the base service-line model is in use
 - SLA/KPI due fields, likely assessment due and repair due timestamps derived from priority and lifecycle state
 - stronger seed/import distinction between default crews and historical daily assignments
 

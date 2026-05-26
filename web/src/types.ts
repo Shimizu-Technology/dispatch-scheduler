@@ -27,6 +27,12 @@ export type WorkOrder = {
   archived_at: string | null
   team_name: string | null
   notes: string | null
+  service_line_id: number | null
+  service_line: string | null
+  pa_project: boolean
+  pa_project_notes: string | null
+  corrective_maintenance: boolean
+  estimate_required: boolean
   last_dispatched_on?: string | null
   last_crew_name?: string | null
   last_outcome_status?: DispatchOutcomeStatus | null
@@ -56,6 +62,28 @@ export type WorkOrderInput = {
   original_status_text?: string
   trade_category: string
   scheduled_date?: string
+  notes?: string
+  service_line_id?: number | string | null
+  service_line?: string
+  pa_project?: boolean
+  pa_project_notes?: string
+  corrective_maintenance?: boolean
+  estimate_required?: boolean
+}
+
+export type ServiceLine = {
+  id: number
+  name: string
+  position: number
+  active: boolean
+  notes: string | null
+  work_orders_count: number
+}
+
+export type ServiceLineInput = {
+  name: string
+  position?: number
+  active?: boolean
   notes?: string
 }
 

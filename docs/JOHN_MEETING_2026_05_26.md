@@ -142,18 +142,22 @@ The app should continue to stay dispatch-first, but the next layer is operationa
 
 ## Recommended Next Work
 
-### Immediate
+### Immediate milestone: JMI operational tracking
 
-1. Finish and merge the work-order status lifecycle PR.
-2. Add PA Project tracking.
-3. Add corrective maintenance / estimate flags.
-4. Start SLA/KPI due-date modeling.
+The work-order status lifecycle PR has merged. The next PR should add the classification and follow-up layer John explicitly requested:
 
-### Near-term
+1. Add PA Project tracking.
+2. Add corrective maintenance / estimate flags.
+3. Add configurable Service Lines / Contract Lines.
+4. Add dashboard/work-queue visibility for PA Projects, CM, estimates, and service lines.
 
-5. Add configurable Service Lines / Contract Lines.
+This should ship before changing scheduler SLA behavior because it is mostly additive and gives John immediate follow-up/reporting value.
+
+### Near-term follow-up
+
+5. Start SLA/KPI due-date modeling and scheduler rules.
 6. Improve PM workflow for monthly completion and “while you are there” suggestions.
-7. Add waiting-parts/PA follow-up dashboard cards.
+7. Add broader waiting-parts/PA/SLA follow-up dashboard polish.
 
 ### Later
 

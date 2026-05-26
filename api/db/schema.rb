@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_26_212000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_27_091000) do
   create_table "audit_events", force: :cascade do |t|
     t.string "action", null: false
     t.datetime "created_at", null: false
@@ -108,6 +108,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_26_212000) do
     t.index ["location_id"], name: "index_pm_tasks_on_location_id"
   end
 
+  create_table "service_lines", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.datetime "created_at", null: false
+    t.string "name", null: false
+    t.text "notes"
+    t.integer "position", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.index ["active", "position"], name: "index_service_lines_on_active_and_position"
+    t.index ["name"], name: "index_service_lines_on_name", unique: true
+  end
+
   create_table "team_daily_overrides", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.date "date", null: false
@@ -178,19 +189,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_26_212000) do
   create_table "work_orders", force: :cascade do |t|
     t.datetime "archived_at"
     t.integer "client_id", null: false
+    t.boolean "corrective_maintenance", default: false, null: false
     t.datetime "created_at", null: false
     t.text "description"
+    t.boolean "estimate_required", default: false, null: false
     t.decimal "estimated_hours"
     t.string "external_id"
     t.integer "location_id", null: false
     t.string "normalized_priority"
     t.text "notes"
     t.string "original_status_text"
+    t.boolean "pa_project", default: false, null: false
+    t.text "pa_project_notes"
     t.string "priority"
     t.datetime "repair_due_at"
     t.datetime "requested_at"
     t.datetime "response_due_at"
     t.date "scheduled_date"
+    t.integer "service_line_id"
     t.string "source"
     t.string "source_reference"
     t.string "status"
@@ -200,7 +216,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_26_212000) do
     t.datetime "updated_at", null: false
     t.index ["archived_at"], name: "index_work_orders_on_archived_at"
     t.index ["client_id"], name: "index_work_orders_on_client_id"
+    t.index ["corrective_maintenance"], name: "index_work_orders_on_corrective_maintenance"
+    t.index ["estimate_required"], name: "index_work_orders_on_estimate_required"
     t.index ["location_id"], name: "index_work_orders_on_location_id"
+    t.index ["pa_project"], name: "index_work_orders_on_pa_project"
+    t.index ["service_line_id"], name: "index_work_orders_on_service_line_id"
     t.index ["team_id"], name: "index_work_orders_on_team_id"
   end
 
@@ -222,5 +242,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_26_212000) do
   add_foreign_key "technician_skills", "technicians"
   add_foreign_key "work_orders", "clients"
   add_foreign_key "work_orders", "locations"
+  add_foreign_key "work_orders", "service_lines"
   add_foreign_key "work_orders", "teams"
 end

@@ -6,7 +6,7 @@ import { postForm } from '../lib/api'
 import type { OcrWorkOrderDraft, WorkOrder, WorkOrderImportPreview, WorkOrderInput, WorkOrderStatus } from '../types'
 
 const priorities = ['P1', 'P2', 'P3', 'P4']
-const statuses: WorkOrderStatus[] = ['new', 'needs_assessment', 'approved', 'scheduled', 'in_progress', 'carry_over', 'waiting_for_parts', 'waiting_for_approval', 'completed', 'cancelled']
+const statuses: WorkOrderStatus[] = ['new', 'needs_assessment', 'approved', 'scheduled', 'in_progress', 'carry_over', 'waiting_for_parts', 'waiting_for_approval', 'completed', 'closed', 'cancelled']
 const trades = ['General', 'Plumbing', 'HVAC', 'Electrical', 'Carpentry', 'Painting', 'Landscaping', 'Masonry']
 const regions = ['North', 'Central', 'South', 'Islandwide', 'Unknown']
 const sources = ['whatsapp', 'phone', 'email', 'mywork', 'sodexo', 'manual', 'upload']

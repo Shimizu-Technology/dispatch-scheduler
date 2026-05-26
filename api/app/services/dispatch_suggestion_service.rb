@@ -139,7 +139,7 @@ class DispatchSuggestionService
   end
 
   def blocked_work_orders
-    WorkOrder.open
+    WorkOrder.active_queue.open
       .where(status: blocked_statuses)
       .where("scheduled_date = ? OR scheduled_date IS NULL", @date)
   end

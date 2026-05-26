@@ -74,7 +74,7 @@ function DispatchApp() {
     setError('')
     const [dash, orders, teamData, technicianData, pms, schedulePayload] = await Promise.all([
       getJson<Dashboard>(`/dashboard?date=${date}`),
-      getJson<WorkOrder[]>('/work_orders'),
+      getJson<WorkOrder[]>('/work_orders?archived=all'),
       getJson<Team[]>(`/teams?date=${date}`),
       getJson<Technician[]>(`/technicians?date=${date}`),
       getJson<PmTask[]>(`/pm_tasks?date=${date}`),
@@ -161,7 +161,7 @@ function DispatchApp() {
   async function refreshWorkOrderContext() {
     const [dash, orders] = await Promise.all([
       getJson<Dashboard>(`/dashboard?date=${selectedDate}`),
-      getJson<WorkOrder[]>('/work_orders'),
+      getJson<WorkOrder[]>('/work_orders?archived=all'),
     ])
     setDashboard(dash)
     setWorkOrders(orders)
@@ -215,6 +215,26 @@ function DispatchApp() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to update work order')
       throw err
+    } finally {
+      setWorkOrderSaving(false)
+    }
+  }
+
+  async function archiveWorkOrder(workOrderId: number, archived: boolean) {
+    if (!canEditDispatch) {
+      setError('Viewer access cannot archive work orders.')
+      return
+    }
+
+    setWorkOrderSaving(true)
+    setError('')
+    try {
+      const updated = await patchJson<WorkOrder>(`/work_orders/${workOrderId}/${archived ? 'archive' : 'unarchive'}`, {})
+      setWorkOrders((current) => current.map((workOrder) => workOrder.id === updated.id ? updated : workOrder))
+      await afterAuditedChange()
+      await refreshWorkOrderContext()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to update work order archive state')
     } finally {
       setWorkOrderSaving(false)
     }
@@ -472,7 +492,7 @@ function DispatchApp() {
   const sections: Array<{ id: ActiveSection; label: string; description: string; icon: ReactNode; count?: number }> = [
     { id: 'overview', label: 'Dashboard', description: 'Start here', icon: <LayoutDashboard size={18} /> },
     { id: 'dispatch', label: 'Dispatch', description: 'Build and edit the plan', icon: <ClipboardList size={18} />, count: schedule?.items.length },
-    { id: 'work-orders', label: 'Work', description: 'Review open work', icon: <Wrench size={18} />, count: workOrders.length },
+    { id: 'work-orders', label: 'Work', description: 'Review open work', icon: <Wrench size={18} />, count: workOrders.filter((workOrder) => !workOrder.archived).length },
     { id: 'teams', label: 'Crews', description: 'Drivers and call-outs', icon: <Users size={18} />, count: teams.length },
     { id: 'pm-tasks', label: 'PMs', description: 'Preventive work', icon: <CalendarDays size={18} />, count: pmTasks.length },
     { id: 'whatsapp', label: 'WhatsApp', description: 'Copy send-ready text', icon: <MessageSquareText size={18} /> },
@@ -611,9 +631,9 @@ function DispatchApp() {
 
         {error && <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-800">{error}</div>}
 
-        {currentSection === 'overview' && <DashboardMetrics dashboard={dashboard} workOrders={workOrders} teams={teams} technicians={technicians} pmTasks={pmTasks} schedule={schedule} auditEvents={auditEvents} canEdit={canEditDispatch} working={working} onGoToSection={goToSection} onSuggest={suggestSchedule} />}
+        {currentSection === 'overview' && <DashboardMetrics dashboard={dashboard} workOrders={workOrders.filter((workOrder) => !workOrder.archived)} teams={teams} technicians={technicians} pmTasks={pmTasks} schedule={schedule} auditEvents={auditEvents} canEdit={canEditDispatch} working={working} onGoToSection={goToSection} onSuggest={suggestSchedule} />}
 
-        {currentSection === 'work-orders' && (user ? <WorkOrdersPanel workOrders={workOrders} canEdit={canEditDispatch} selectedDate={selectedDate} saving={workOrderSaving} onCreate={createWorkOrder} onUpdate={updateWorkOrder} /> : <SignInRequiredPanel title="Sign in to review work orders" />)}
+        {currentSection === 'work-orders' && (user ? <WorkOrdersPanel workOrders={workOrders} canEdit={canEditDispatch} selectedDate={selectedDate} saving={workOrderSaving} onCreate={createWorkOrder} onUpdate={updateWorkOrder} onArchive={archiveWorkOrder} /> : <SignInRequiredPanel title="Sign in to review work orders" />)}
 
         {currentSection === 'teams' && (user ? <TeamsPanel teams={teams} technicians={technicians} canEdit={canEditDispatch} savingTechnicianId={availabilitySavingId} savingTeamId={teamSavingId} onToggleAvailability={toggleAvailability} onUpdateDailyCrew={updateDailyCrew} onUpdateDefaultCrew={updateDefaultCrew} onCreateTeam={createTeam} /> : <SignInRequiredPanel title="Sign in to check crews" />)}
 

@@ -46,7 +46,7 @@ function StatusNotice({ schedule }: { schedule: DispatchSchedule }) {
   return <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-900">Sent schedule: this dispatch has been marked as sent to the crews.</div>
 }
 
-function DispatchCard({ item, scheduleDate, teams, disabled, canEdit, canEditOutcomes, onUpdate, onOutcome }: { item: DispatchItem; scheduleDate: string; teams: Team[]; disabled: boolean; canEdit: boolean; canEditOutcomes: boolean; onUpdate: (itemId: number, changes: Record<string, unknown>) => Promise<void>; onOutcome: (itemId: number, changes: { outcome_status: DispatchOutcomeStatus; outcome_notes?: string; carried_over_to_date?: string }) => Promise<void> }) {
+function DispatchCard({ item, scheduleDate, teams, disabled, canEdit, canEditOutcomes, canMoveEarlier, canMoveLater, onUpdate, onOutcome }: { item: DispatchItem; scheduleDate: string; teams: Team[]; disabled: boolean; canEdit: boolean; canEditOutcomes: boolean; canMoveEarlier: boolean; canMoveLater: boolean; onUpdate: (itemId: number, changes: Record<string, unknown>) => Promise<void>; onOutcome: (itemId: number, changes: { outcome_status: DispatchOutcomeStatus; outcome_notes?: string; carried_over_to_date?: string }) => Promise<void> }) {
   const wo = item.work_order
   const pm = item.pm_task
   const persistedTeamId = String(item.team_id)
@@ -58,6 +58,7 @@ function DispatchCard({ item, scheduleDate, teams, disabled, canEdit, canEditOut
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [outcomeNotes, setOutcomeNotes] = useState(item.outcome_notes || '')
   const [carryOverDate, setCarryOverDate] = useState(item.carried_over_to_date || nextDateString(scheduleDate))
+  const [showDetails, setShowDetails] = useState(false)
 
   useEffect(() => {
     // Keep each editable card aligned with the last persisted schedule response.
@@ -98,6 +99,19 @@ function DispatchCard({ item, scheduleDate, teams, disabled, canEdit, canEditOut
       <Badge kind={kind}>{wo?.normalized_priority || 'PM'}</Badge>
     </div>
 
+    <div className="mt-3 flex flex-wrap gap-2 text-xs font-bold text-[#64748b]">
+      {wo && <><span>Client: {wo.client}</span><span>WO: {wo.external_id || 'N/A'}</span><span>Trade: {wo.trade_category}</span><span>Region: {wo.region}</span><span>Scheduled: {wo.scheduled_date || 'Not set'}</span></>}
+      {pm && <><span>Client: {pm.client}</span><span>Trade: {pm.trade_category}</span><span>Region: {pm.region}</span><span>Scheduled: {pm.scheduled_date}</span></>}
+      <button type="button" onClick={() => setShowDetails((current) => !current)} className="font-extrabold text-[#244393] underline-offset-4 hover:underline">{showDetails ? 'Hide details' : 'Details'}</button>
+    </div>
+
+    {showDetails && <div className="mt-3 rounded-2xl border border-blue-100 bg-[#f8faff] p-3 text-sm leading-6 text-[#334155]">
+      <p className="font-display font-extrabold text-[#172033]">{wo ? 'Work order details' : 'PM task details'}</p>
+      <p className="mt-1">{wo?.description || pm?.task_name}</p>
+      {wo?.notes && <p className="mt-2 text-xs font-semibold text-[#526071]">Work order notes: {wo.notes}</p>}
+      {wo?.last_dispatched_on && <p className="mt-2 text-xs font-semibold text-[#526071]">Last dispatched: {wo.last_dispatched_on}{wo.last_crew_name ? ` · ${wo.last_crew_name}` : ''}</p>}
+    </div>}
+
     <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_120px]">
       <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
         Crew
@@ -125,8 +139,8 @@ function DispatchCard({ item, scheduleDate, teams, disabled, canEdit, canEditOut
         <Save size={14} /> {saveState === 'saving' ? 'Saving...' : 'Save override'}
       </button>
       {saveState === 'saved' && !isDirty && <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-extrabold text-emerald-800"><CheckCircle2 size={14} /> Saved</span>}
-      <button disabled={disabled} onClick={() => onUpdate(item.id, { order_index: Math.max(0, item.order_index - 1) })} className="rounded-xl border border-[rgba(23,32,51,0.12)] bg-white/80 px-3 py-2 text-xs font-extrabold text-[#334155] transition hover:-translate-y-0.5 hover:bg-[#e8eefc] disabled:opacity-50">Move earlier</button>
-      <button disabled={disabled} onClick={() => onUpdate(item.id, { order_index: item.order_index + 1 })} className="rounded-xl border border-[rgba(23,32,51,0.12)] bg-white/80 px-3 py-2 text-xs font-extrabold text-[#334155] transition hover:-translate-y-0.5 hover:bg-[#e8eefc] disabled:opacity-50">Move later</button>
+      <button disabled={disabled || !canMoveEarlier} title={!canMoveEarlier ? 'Only available when this crew has an earlier stop to swap with.' : undefined} onClick={() => onUpdate(item.id, { order_index: Math.max(0, item.order_index - 1) })} className="rounded-xl border border-[rgba(23,32,51,0.12)] bg-white/80 px-3 py-2 text-xs font-extrabold text-[#334155] transition hover:-translate-y-0.5 hover:bg-[#e8eefc] disabled:cursor-not-allowed disabled:opacity-50">Move earlier</button>
+      <button disabled={disabled || !canMoveLater} title={!canMoveLater ? 'Only available when this crew has a later stop to swap with.' : undefined} onClick={() => onUpdate(item.id, { order_index: item.order_index + 1 })} className="rounded-xl border border-[rgba(23,32,51,0.12)] bg-white/80 px-3 py-2 text-xs font-extrabold text-[#334155] transition hover:-translate-y-0.5 hover:bg-[#e8eefc] disabled:cursor-not-allowed disabled:opacity-50">Move later</button>
     </div>}
 
     {canEditOutcomes && <div className="mt-4 rounded-2xl border border-[rgba(23,32,51,0.1)] bg-[#f8faff] p-3">
@@ -188,7 +202,7 @@ export function DispatchBuilder({ schedule, teams, working, canEdit, onSuggest, 
           <div key={team} className="rounded-2xl border border-[rgba(36,67,147,0.12)] bg-[#f8faff]/85 p-4">
             <h3 className="font-display font-extrabold tracking-tight text-[#172033]">{team}</h3>
             <div className="mt-3 space-y-3">
-              {items.map((item) => <DispatchCard key={item.id} item={item} scheduleDate={schedule.date} teams={teams} disabled={working} canEdit={canEditItems} canEditOutcomes={canEditOutcomes} onUpdate={onUpdate} onOutcome={onOutcome} />)}
+              {items.map((item, index) => <DispatchCard key={item.id} item={item} scheduleDate={schedule.date} teams={teams} disabled={working} canEdit={canEditItems} canEditOutcomes={canEditOutcomes} canMoveEarlier={index > 0} canMoveLater={index < items.length - 1} onUpdate={onUpdate} onOutcome={onOutcome} />)}
             </div>
           </div>
         ))}

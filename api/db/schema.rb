@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_20_123000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_21_090000) do
   create_table "audit_events", force: :cascade do |t|
     t.string "action", null: false
     t.datetime "created_at", null: false
@@ -173,6 +173,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_20_123000) do
   end
 
   create_table "work_orders", force: :cascade do |t|
+    t.datetime "archived_at"
     t.integer "client_id", null: false
     t.datetime "created_at", null: false
     t.text "description"
@@ -194,6 +195,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_20_123000) do
     t.string "title"
     t.string "trade_category"
     t.datetime "updated_at", null: false
+    t.index ["archived_at"], name: "index_work_orders_on_archived_at"
     t.index ["client_id"], name: "index_work_orders_on_client_id"
     t.index ["location_id"], name: "index_work_orders_on_location_id"
     t.index ["team_id"], name: "index_work_orders_on_team_id"

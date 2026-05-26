@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
-import { Edit3, FileUp, Plus, Search, Sparkles, X } from 'lucide-react'
+import { Archive, ArchiveRestore, Edit3, FileUp, Plus, Search, Sparkles, X } from 'lucide-react'
 import { Badge, Card, PanelHeader } from './ui'
 import { postForm } from '../lib/api'
 import type { OcrWorkOrderDraft, WorkOrder, WorkOrderImportPreview, WorkOrderInput } from '../types'
@@ -20,6 +20,11 @@ function draftId(draft: OcrWorkOrderDraft, index: number) {
 
 function statusLabel(status: string) {
   return status.replaceAll('_', ' ')
+}
+
+function shortDate(value?: string | null) {
+  if (!value) return 'Not set'
+  return value.slice(0, 10)
 }
 
 function emptyForm(scheduledDate?: string): WorkOrderInput {
@@ -58,25 +63,29 @@ function formFromWorkOrder(workOrder: WorkOrder): WorkOrderInput {
   }
 }
 
-function WorkOrderRow({ workOrder, canEdit, onEdit }: { workOrder: WorkOrder; canEdit: boolean; onEdit: (workOrder: WorkOrder) => void }) {
+function WorkOrderRow({ workOrder, canEdit, onEdit, onArchive }: { workOrder: WorkOrder; canEdit: boolean; onEdit: (workOrder: WorkOrder) => void; onArchive: (workOrderId: number, archived: boolean) => Promise<void> }) {
   return <article className="grid gap-3 rounded-xl border border-transparent p-4 transition hover:border-[rgba(36,67,147,0.16)] hover:bg-[#f8faff] sm:grid-cols-[1fr_auto]">
     <div>
       <div className="flex flex-wrap items-center gap-2">
         <Badge kind={workOrder.normalized_priority}>{workOrder.normalized_priority}</Badge>
         <Badge kind={workOrder.status}>{statusLabel(workOrder.status)}</Badge>
+        {workOrder.archived && <Badge kind="waiting">Archived</Badge>}
         <span className="font-display tabular text-xs font-bold uppercase tracking-[0.12em] text-[#7b8798]">WO #{workOrder.external_id || 'N/A'}</span>
       </div>
       <h3 className="font-display mt-2 font-extrabold tracking-tight text-[#172033]">{workOrder.location} - {workOrder.title}</h3>
       <p className="mt-1 line-clamp-2 text-sm leading-6 text-[#526071]">{workOrder.description}</p>
-      <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold text-[#7b8798]">
+      <div className="mt-2 grid gap-1 text-xs font-semibold text-[#7b8798] sm:grid-cols-2 lg:grid-cols-4">
+        <span>Created: {shortDate(workOrder.created_at)}</span>
+        <span>Scheduled: {shortDate(workOrder.scheduled_date)}</span>
         <span>Source: {workOrder.source}</span>
-        {workOrder.last_dispatched_on && <span>Last dispatched: {workOrder.last_dispatched_on}{workOrder.last_crew_name ? ` · ${workOrder.last_crew_name}` : ''}</span>}
+        <span>Last dispatched: {shortDate(workOrder.last_dispatched_on)}{workOrder.last_crew_name ? ` · ${workOrder.last_crew_name}` : ''}</span>
       </div>
     </div>
     <div className="flex flex-row gap-2 text-sm sm:flex-col sm:items-end">
       <span className="font-display rounded-full bg-[#e8eefc] px-3 py-1 text-xs font-extrabold uppercase tracking-[0.1em] text-[#244393]">{workOrder.trade_category}</span>
       <span className="font-semibold text-[#526071]">{workOrder.region}</span>
       {canEdit && <button type="button" onClick={() => onEdit(workOrder)} className="inline-flex items-center gap-1 rounded-full border border-[rgba(36,67,147,0.18)] bg-white px-3 py-1 text-xs font-extrabold text-[#244393] transition hover:-translate-y-0.5 hover:bg-[#e8eefc]"><Edit3 size={13} /> Edit</button>}
+      {canEdit && <button type="button" onClick={() => void onArchive(workOrder.id, !workOrder.archived)} className="inline-flex items-center gap-1 rounded-full border border-[rgba(23,32,51,0.14)] bg-white px-3 py-1 text-xs font-extrabold text-[#526071] transition hover:-translate-y-0.5 hover:bg-slate-50">{workOrder.archived ? <ArchiveRestore size={13} /> : <Archive size={13} />} {workOrder.archived ? 'Restore' : 'Archive'}</button>}
     </div>
   </article>
 }
@@ -171,7 +180,7 @@ function WorkOrderForm({ initialValues, saving, onCancel, onSubmit }: { initialV
   </form>
 }
 
-export function WorkOrdersPanel({ workOrders, canEdit, selectedDate, saving, onCreate, onUpdate }: { workOrders: WorkOrder[]; canEdit: boolean; selectedDate: string; saving: boolean; onCreate: (values: WorkOrderInput) => Promise<void>; onUpdate: (id: number, values: WorkOrderInput) => Promise<void> }) {
+export function WorkOrdersPanel({ workOrders, canEdit, selectedDate, saving, onCreate, onUpdate, onArchive }: { workOrders: WorkOrder[]; canEdit: boolean; selectedDate: string; saving: boolean; onCreate: (values: WorkOrderInput) => Promise<void>; onUpdate: (id: number, values: WorkOrderInput) => Promise<void>; onArchive: (workOrderId: number, archived: boolean) => Promise<void> }) {
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<WorkOrder | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -182,17 +191,20 @@ export function WorkOrdersPanel({ workOrders, canEdit, selectedDate, saving, onC
   const [statusFilter, setStatusFilter] = useState('')
   const [priorityFilter, setPriorityFilter] = useState('')
   const [regionFilter, setRegionFilter] = useState('')
+  const [archiveFilter, setArchiveFilter] = useState<'active' | 'archived' | 'all'>('active')
 
   const filteredWorkOrders = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
     return workOrders.filter((workOrder) => {
       const matchesQuery = !normalizedQuery || [workOrder.external_id, workOrder.client, workOrder.location, workOrder.title, workOrder.description, workOrder.notes].some((value) => value?.toLowerCase().includes(normalizedQuery))
-      return matchesQuery
+      const matchesArchive = archiveFilter === 'all' || (archiveFilter === 'archived' ? workOrder.archived : !workOrder.archived)
+      return matchesArchive
+        && matchesQuery
         && (!statusFilter || workOrder.status === statusFilter)
         && (!priorityFilter || workOrder.normalized_priority === priorityFilter)
         && (!regionFilter || workOrder.region === regionFilter)
     })
-  }, [priorityFilter, query, regionFilter, statusFilter, workOrders])
+  }, [archiveFilter, priorityFilter, query, regionFilter, statusFilter, workOrders])
 
   const formInitialValues = editing ? formFromWorkOrder(editing) : emptyForm(selectedDate)
 
@@ -298,11 +310,16 @@ export function WorkOrdersPanel({ workOrders, canEdit, selectedDate, saving, onC
     {showForm && <WorkOrderForm key={editing?.id || 'new'} initialValues={formInitialValues} saving={saving} onCancel={() => { setShowForm(false); setEditing(null) }} onSubmit={submitForm} />}
 
     <div className="border-b border-[rgba(23,32,51,0.1)] bg-white p-4">
-      <div className="grid gap-3 lg:grid-cols-[1fr_160px_150px_160px]">
+      <div className="grid gap-3 lg:grid-cols-[1fr_150px_160px_150px_160px]">
         <label className="relative block">
           <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#7b8798]" size={16} />
           <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search WO #, location, description, notes..." className="field-control w-full rounded-xl py-2 pl-9 pr-3 text-sm font-semibold text-[#172033]" />
         </label>
+        <select value={archiveFilter} onChange={(event) => setArchiveFilter(event.target.value as 'active' | 'archived' | 'all')} className="field-control rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]">
+          <option value="active">Active queue</option>
+          <option value="archived">Archived</option>
+          <option value="all">All records</option>
+        </select>
         <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="field-control rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]">
           <option value="">All statuses</option>
           {statuses.map((status) => <option key={status} value={status}>{statusLabel(status)}</option>)}
@@ -319,7 +336,7 @@ export function WorkOrdersPanel({ workOrders, canEdit, selectedDate, saving, onC
     </div>
 
     <div className="space-y-2 p-3">
-      {filteredWorkOrders.slice(0, 40).map((wo) => <WorkOrderRow key={wo.id} workOrder={wo} canEdit={canEdit} onEdit={startEdit} />)}
+      {filteredWorkOrders.slice(0, 40).map((wo) => <WorkOrderRow key={wo.id} workOrder={wo} canEdit={canEdit} onEdit={startEdit} onArchive={onArchive} />)}
       {workOrders.length === 0 && <div className="rounded-2xl border border-dashed border-[rgba(36,67,147,0.22)] bg-[#f8faff] p-6">
         <p className="font-display text-lg font-extrabold text-[#172033]">No work orders yet.</p>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-[#526071]">Start by adding the first request John receives from WhatsApp, phone, email, or the work-order system. Once saved, it can be reviewed and scheduled.</p>
@@ -329,7 +346,7 @@ export function WorkOrdersPanel({ workOrders, canEdit, selectedDate, saving, onC
       {filteredWorkOrders.length > 40 && <p className="px-3 pb-2 text-xs font-bold text-[#8a5b18]">Showing the first 40 matching records. Tighten search or filters to narrow the list.</p>}
       {workOrders.length > 0 && <div className="flex items-center justify-between px-3 pb-2 text-xs font-bold uppercase tracking-[0.14em] text-[#7b8798]">
         <span>{filteredWorkOrders.length} shown</span>
-        {(query || statusFilter || priorityFilter || regionFilter) && <button className="inline-flex items-center gap-1 text-[#244393]" onClick={() => { setQuery(''); setStatusFilter(''); setPriorityFilter(''); setRegionFilter('') }}><X size={13} /> Clear filters</button>}
+        {(query || archiveFilter !== 'active' || statusFilter || priorityFilter || regionFilter) && <button className="inline-flex items-center gap-1 text-[#244393]" onClick={() => { setQuery(''); setArchiveFilter('active'); setStatusFilter(''); setPriorityFilter(''); setRegionFilter('') }}><X size={13} /> Clear filters</button>}
       </div>}
     </div>
   </Card>

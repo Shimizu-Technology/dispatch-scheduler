@@ -7,16 +7,16 @@ module Api
         render json: {
           date: date,
           counts: {
-            open_work_orders: WorkOrder.open.count,
-            needs_assessment: WorkOrder.where(status: "needs_assessment").count,
-            approved: WorkOrder.where(status: "approved").count,
-            waiting_for_parts: WorkOrder.where(status: "waiting_for_parts").count,
+            open_work_orders: WorkOrder.active_queue.open.count,
+            needs_assessment: WorkOrder.active_queue.where(status: "needs_assessment").count,
+            approved: WorkOrder.active_queue.where(status: "approved").count,
+            waiting_for_parts: WorkOrder.active_queue.where(status: "waiting_for_parts").count,
             pm_due: PmTask.where(scheduled_date: date).count,
             available_teams: teams.count,
             driver_warnings: teams.reject { |t| t.has_driver?(date) }.count
           },
-          status_breakdown: WorkOrder.group(:status).count,
-          priority_breakdown: WorkOrder.group(:normalized_priority).count
+          status_breakdown: WorkOrder.active_queue.group(:status).count,
+          priority_breakdown: WorkOrder.active_queue.group(:normalized_priority).count
         }
       end
     end

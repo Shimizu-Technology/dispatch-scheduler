@@ -4,7 +4,7 @@ module Api
       def index
         date = date_param
         teams = Team.includes(:technicians)
-        open_work_orders = WorkOrder.active_queue.open.to_a
+        open_work_orders = WorkOrder.active_queue.open
         render json: {
           date: date,
           counts: {
@@ -15,9 +15,9 @@ module Api
             pa_projects: WorkOrder.active_queue.open.where(pa_project: true).count,
             corrective_maintenance: WorkOrder.active_queue.open.where(corrective_maintenance: true).count,
             estimate_required: WorkOrder.active_queue.open.where(estimate_required: true).count,
-            sla_overdue: open_work_orders.count(&:sla_overdue?),
-            sla_due_soon: open_work_orders.count(&:sla_due_soon?),
-            sla_missing: open_work_orders.count(&:sla_missing?),
+            sla_overdue: open_work_orders.sla_overdue_at.count,
+            sla_due_soon: open_work_orders.sla_due_soon_at.count,
+            sla_missing: open_work_orders.sla_missing.count,
             pm_due: PmTask.where(scheduled_date: date).count,
             available_teams: teams.count,
             driver_warnings: teams.reject { |t| t.has_driver?(date) }.count

@@ -26,9 +26,16 @@ class WorkOrder < ApplicationRecord
   scope :archived, -> { where.not(archived_at: nil) }
   scope :open, -> { where.not(status: CLOSED_STATUSES) }
   scope :dispatchable, -> { active_queue.open.where.not(status: BLOCKED_STATUSES) }
+  scope :sla_missing, -> { where(reported_at: nil, assessment_due_at: nil, response_due_at: nil, repair_due_at: nil) }
+  scope :sla_overdue_at, lambda { |reference_time = Time.current|
+    where(sanitize_sql_array([ "#{sla_due_sql} < ?", reference_time ]))
+  }
+  scope :sla_due_soon_at, lambda { |reference_time = Time.current, window: 24.hours|
+    where(sanitize_sql_array([ "#{sla_due_sql} >= ? AND #{sla_due_sql} <= ?", reference_time, reference_time + window ]))
+  }
   scope :sla_dispatchable_for_date, lambda { |date|
     end_of_day = date.end_of_day
-    assessment_statuses = ASSESSMENT_STATUSES.map { |status| connection.quote(status) }.join(", ")
+    assessment_statuses = quoted_assessment_statuses
     sla_due_sql = sanitize_sql_array([
       <<~SQL.squish,
         scheduled_date = :date
@@ -57,6 +64,20 @@ class WorkOrder < ApplicationRecord
 
     where(sla_due_sql)
   }
+
+  def self.quoted_assessment_statuses
+    ASSESSMENT_STATUSES.map { |status| connection.quote(status) }.join(", ")
+  end
+
+  def self.sla_due_sql
+    <<~SQL.squish
+      CASE
+        WHEN status IN (#{quoted_assessment_statuses}) AND assessed_at IS NULL
+          THEN COALESCE(assessment_due_at, response_due_at, repair_due_at)
+        ELSE COALESCE(repair_due_at, assessment_due_at, response_due_at)
+      END
+    SQL
+  end
 
   def archived?
     archived_at.present?
@@ -94,13 +115,6 @@ class WorkOrder < ApplicationRecord
 
   def sla_missing?
     open? && reported_at.blank? && assessment_due_at.blank? && response_due_at.blank? && repair_due_at.blank?
-  end
-
-  def sla_dispatchable_on?(date)
-    return true if scheduled_date == date
-    return true if sla_due_at.blank?
-
-    sla_due_at <= date.end_of_day
   end
 
   def sla_sort_key(reference_date)

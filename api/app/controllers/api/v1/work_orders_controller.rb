@@ -157,6 +157,7 @@ module Api
         else
           existing&.scheduled_date
         end
+        reported_at = datetime_attr(attrs, :reported_at, existing&.reported_at)
 
         {
           client: client,
@@ -171,6 +172,11 @@ module Api
           status: status,
           original_status_text: attrs[:original_status_text].presence || existing&.original_status_text || status,
           trade_category: attrs[:trade_category].presence || existing&.trade_category || "General",
+          requested_at: reported_at || datetime_attr(attrs, :requested_at, existing&.requested_at),
+          reported_at: reported_at,
+          assessment_due_at: datetime_attr(attrs, :assessment_due_at, existing&.assessment_due_at),
+          assessed_at: datetime_attr(attrs, :assessed_at, existing&.assessed_at),
+          repair_due_at: datetime_attr(attrs, :repair_due_at, existing&.repair_due_at),
           scheduled_date: scheduled_date,
           notes: attrs.key?(:notes) ? attrs[:notes] : existing&.notes,
           service_line: service_line_for(attrs, existing),
@@ -195,7 +201,9 @@ module Api
           service_line: work_order.service_line&.name,
           pa_project: work_order.pa_project,
           corrective_maintenance: work_order.corrective_maintenance,
-          estimate_required: work_order.estimate_required
+          estimate_required: work_order.estimate_required,
+          sla_due_at: work_order.sla_due_at&.iso8601,
+          sla_status: Serializers.sla_status(work_order)
         }
       end
 
@@ -207,6 +215,15 @@ module Api
         return service_line if service_line.active? || existing&.service_line_id == service_line.id
 
         raise ArgumentError, "Inactive service lines cannot be assigned to work orders"
+      end
+
+      def datetime_attr(attrs, key, fallback)
+        return fallback unless attrs.key?(key)
+        return nil if attrs[key].blank?
+
+        Time.zone.parse(attrs[key].to_s)
+      rescue ArgumentError, TypeError
+        raise ActionController::BadRequest, "Invalid #{key.to_s.humanize.downcase}"
       end
 
       def boolean_attr(attrs, key, fallback)
@@ -243,6 +260,11 @@ module Api
           :original_status_text,
           :trade_category,
           :scheduled_date,
+          :requested_at,
+          :reported_at,
+          :assessment_due_at,
+          :assessed_at,
+          :repair_due_at,
           :notes,
           :service_line_id,
           :pa_project,

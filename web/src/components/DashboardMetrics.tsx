@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { ArrowRight, CalendarDays, ClipboardList, Clock3, FileText, FolderKanban, ListChecks, Radio, ShieldCheck, Users, Wrench } from 'lucide-react'
+import { AlertTriangle, ArrowRight, CalendarDays, ClipboardList, Clock3, FileText, FolderKanban, ListChecks, Radio, ShieldCheck, Users, Wrench } from 'lucide-react'
 import { Card, PanelHeader } from './ui'
 import type { AuditEvent, Dashboard, DispatchSchedule, PmTask, Team, Technician, WorkOrder } from '../types'
 
@@ -91,6 +91,8 @@ export function DashboardMetrics({ dashboard, workOrders, teams, technicians, pm
   const correctiveMaintenance = workOrders.filter((workOrder) => workOrder.corrective_maintenance).length
   const estimateRequired = workOrders.filter((workOrder) => workOrder.estimate_required).length
   const waitingForParts = workOrders.filter((workOrder) => workOrder.status === 'waiting_for_parts').length
+  const slaOverdue = workOrders.filter((workOrder) => workOrder.sla_status === 'overdue').length
+  const slaDueSoon = workOrders.filter((workOrder) => workOrder.sla_status === 'due_soon').length
   const next = nextAction(schedule, driverIssues, canEdit)
   const scheduleItems = schedule?.items.length || 0
   const recentEvents = auditEvents.slice(0, 4)
@@ -144,6 +146,12 @@ export function DashboardMetrics({ dashboard, workOrders, teams, technicians, pm
       <button type="button" onClick={() => onGoToSection('work-orders')} className="text-left transition hover:-translate-y-0.5">
         <Metric icon={<Clock3 size={20} />} label="Waiting parts" value={dashboard?.counts.waiting_for_parts ?? waitingForParts} detail="Held out of dispatch suggestions" tone={(dashboard?.counts.waiting_for_parts ?? waitingForParts) > 0 ? 'amber' : 'steel'} />
       </button>
+    </div>
+
+    <div className="grid gap-3 sm:grid-cols-3">
+      <Metric icon={<AlertTriangle size={20} />} label="SLA overdue" value={dashboard?.counts.sla_overdue ?? slaOverdue} detail="Needs dispatch/follow-up now" tone={(dashboard?.counts.sla_overdue ?? slaOverdue) > 0 ? 'red' : 'green'} />
+      <Metric icon={<Clock3 size={20} />} label="SLA due soon" value={dashboard?.counts.sla_due_soon ?? slaDueSoon} detail="Within the next 24 hours" tone={(dashboard?.counts.sla_due_soon ?? slaDueSoon) > 0 ? 'amber' : 'steel'} />
+      <Metric icon={<ShieldCheck size={20} />} label="SLA missing" value={dashboard?.counts.sla_missing ?? workOrders.filter((workOrder) => workOrder.sla_status === 'missing').length} detail="Needs reported time/priority cleanup" tone={(dashboard?.counts.sla_missing || 0) > 0 ? 'amber' : 'green'} />
     </div>
 
     <div>

@@ -153,11 +153,19 @@ The work-order status lifecycle PR has merged. The next PR should add the classi
 
 This should ship before changing scheduler SLA behavior because it is mostly additive and gives John immediate follow-up/reporting value.
 
-### Near-term follow-up
+### Current follow-up: SLA/KPI scheduling
 
-5. Start SLA/KPI due-date modeling and scheduler rules.
-6. Improve PM workflow for monthly completion and “while you are there” suggestions.
-7. Add broader waiting-parts/PA/SLA follow-up dashboard polish.
+The operational tracking layer has merged. The next PR should model the real SLA/KPI timing John described:
+
+5. Add reported/assessment/repair due timestamps.
+6. Auto-calculate due dates from P1/P2/P3/P4 contract rules.
+7. Update the scheduler so fresh P4s do not automatically flood today if they are not due.
+8. Add dashboard/work-queue visibility for overdue, due-soon, and missing-SLA work.
+
+### Next after SLA/KPI
+
+9. Improve PM workflow for monthly completion and “while you are there” suggestions.
+10. Add broader waiting-parts/PA/SLA follow-up dashboard polish.
 
 ### Later
 

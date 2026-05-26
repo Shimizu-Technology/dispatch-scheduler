@@ -73,6 +73,29 @@ class DispatchSuggestionServiceTest < ActiveSupport::TestCase
     assert_not_equal other_team.id, item.team_id
   end
 
+  test "does not suggest unscheduled P4 work before SLA pressure" do
+    team(name: "North Crew", skills: [ "General" ])
+    reported_at = Time.zone.local(2026, 5, 5, 8, 0, 0)
+    not_due = work_order(title: "Fresh P4", priority: "P4", status: "needs_assessment", date: nil, reported_at: reported_at)
+    due = work_order(title: "Due P4", priority: "P4", status: "needs_assessment", date: nil, reported_at: reported_at - 4.days)
+
+    schedule = DispatchSuggestionService.new(date: DEFAULT_DATE).call
+    titles = schedule.dispatch_items.map(&:work_order).compact.map(&:title)
+
+    refute_includes titles, not_due.title
+    assert_includes titles, due.title
+  end
+
+  test "orders overdue SLA work before later due work" do
+    team(name: "North Crew", skills: [ "General" ])
+    due_later = work_order(title: "Due later", priority: "P4", status: "needs_assessment", date: nil, reported_at: Time.zone.local(2026, 5, 1, 12, 0, 0))
+    overdue = work_order(title: "Overdue", priority: "P3", status: "needs_assessment", date: nil, reported_at: Time.zone.local(2026, 5, 3, 7, 0, 0))
+
+    schedule = DispatchSuggestionService.new(date: DEFAULT_DATE).call
+
+    assert_equal [ overdue.id, due_later.id ], schedule.dispatch_items.map(&:work_order_id)
+  end
+
   test "pm task id collision does not receive work order carry over context" do
     previous_team = team(name: "Z Previous Crew", skills: [ "General" ])
     pm_team = team(name: "A PM Crew", skills: [ "General" ])

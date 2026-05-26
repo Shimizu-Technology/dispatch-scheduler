@@ -27,6 +27,28 @@ function shortDate(value?: string | null) {
   return value.slice(0, 10)
 }
 
+function datetimeLocalValue(value?: string | null) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value.slice(0, 16)
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
+  return local.toISOString().slice(0, 16)
+}
+
+function shortDateTime(value?: string | null) {
+  if (!value) return 'Not set'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value.slice(0, 16).replace('T', ' ')
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'short', timeStyle: 'short' }).format(date)
+}
+
+function slaLabel(status?: string | null) {
+  if (status === 'overdue') return 'SLA overdue'
+  if (status === 'due_soon') return 'SLA due soon'
+  if (status === 'missing') return 'SLA missing'
+  return 'SLA on track'
+}
+
 function statusTone(status: string) {
   if (status === 'needs_assessment') return 'border-blue-200 bg-blue-50 text-blue-900'
   if (status === 'scheduled') return 'border-indigo-200 bg-indigo-50 text-indigo-900'
@@ -70,6 +92,8 @@ function emptyForm(scheduledDate?: string): WorkOrderInput {
     trade_category: 'General',
     scheduled_date: scheduledDate || '',
     notes: '',
+    reported_at: '',
+    assessed_at: '',
     service_line_id: '',
     pa_project: false,
     pa_project_notes: '',
@@ -94,6 +118,8 @@ function formFromWorkOrder(workOrder: WorkOrder): WorkOrderInput {
     trade_category: workOrder.trade_category || 'General',
     scheduled_date: workOrder.scheduled_date || '',
     notes: workOrder.notes || '',
+    reported_at: datetimeLocalValue(workOrder.reported_at),
+    assessed_at: datetimeLocalValue(workOrder.assessed_at),
     service_line_id: workOrder.service_line_id || '',
     pa_project: workOrder.pa_project,
     pa_project_notes: workOrder.pa_project_notes || '',
@@ -109,6 +135,7 @@ function WorkOrderRow({ workOrder, canEdit, onEdit, onArchive }: { workOrder: Wo
         <Badge kind={workOrder.normalized_priority}>{workOrder.normalized_priority}</Badge>
         <Badge kind={workOrder.status}>{statusLabel(workOrder.status)}</Badge>
         {workOrder.archived && <Badge kind="waiting">Archived</Badge>}
+        <Badge kind={workOrder.sla_status === 'overdue' ? 'p1' : workOrder.sla_status === 'due_soon' ? 'waiting' : 'closed'}>{slaLabel(workOrder.sla_status)}</Badge>
         {workOrder.pa_project && <Badge kind="waiting">PA Project</Badge>}
         {workOrder.corrective_maintenance && <Badge kind="approved">CM</Badge>}
         {workOrder.estimate_required && <Badge kind="scheduled">Estimate</Badge>}
@@ -122,6 +149,7 @@ function WorkOrderRow({ workOrder, canEdit, onEdit, onArchive }: { workOrder: Wo
       <div className="mt-2 grid gap-1 text-xs font-semibold text-[#7b8798] sm:grid-cols-2 lg:grid-cols-4">
         <span>Created: {shortDate(workOrder.created_at)}</span>
         <span>Scheduled: {shortDate(workOrder.scheduled_date)}</span>
+        <span>SLA due: {shortDateTime(workOrder.sla_due_at)}</span>
         <span>Source: {workOrder.source}</span>
         <span>Service line: {workOrder.service_line || 'Unassigned'}</span>
         <span>Last dispatched: {shortDate(workOrder.last_dispatched_on)}{workOrder.last_crew_name ? ` · ${workOrder.last_crew_name}` : ''}</span>
@@ -152,6 +180,8 @@ function WorkOrderForm({ initialValues, serviceLines, saving, onCancel, onSubmit
       normalized_priority: values.priority,
       original_status_text: values.original_status_text || values.status,
       service_line_id: values.service_line_id || null,
+      reported_at: values.reported_at || undefined,
+      assessed_at: values.assessed_at || undefined,
     })
   }
 
@@ -217,6 +247,19 @@ function WorkOrderForm({ initialValues, serviceLines, saving, onCancel, onSubmit
           <option value="">Unassigned</option>
           {serviceLineOptions.map((line) => <option key={line.id} value={line.id}>{line.name}{line.active ? '' : ' (inactive)'}</option>)}
         </select>
+      </label>
+    </div>
+
+    <div className="mt-3 grid gap-3 lg:grid-cols-2">
+      <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
+        Reported at
+        <input type="datetime-local" value={values.reported_at || ''} onChange={(event) => updateField('reported_at', event.target.value)} className="field-control tabular mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]" />
+        <span className="mt-1 block text-xs font-semibold normal-case tracking-normal text-[#64748b]">Used to calculate assessment and repair KPI/SLA due times.</span>
+      </label>
+      <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
+        Assessed at
+        <input type="datetime-local" value={values.assessed_at || ''} onChange={(event) => updateField('assessed_at', event.target.value)} className="field-control tabular mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]" />
+        <span className="mt-1 block text-xs font-semibold normal-case tracking-normal text-[#64748b]">Optional. Once assessed, repair due time becomes the scheduling pressure.</span>
       </label>
     </div>
 

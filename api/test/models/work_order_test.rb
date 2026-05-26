@@ -56,6 +56,32 @@ class WorkOrderTest < ActiveSupport::TestCase
     assert_equal custom_repair_due_at, order.repair_due_at
   end
 
+  test "updates auto-calculated SLA due dates when reported time changes" do
+    reported_at = Time.zone.local(2026, 5, 5, 8, 0, 0)
+    corrected_reported_at = Time.zone.local(2026, 5, 5, 9, 15, 0)
+    order = work_order(title: "Corrected report time", priority: "P2", reported_at: reported_at)
+
+    order.update!(reported_at: corrected_reported_at)
+
+    assert_equal corrected_reported_at + 2.hours, order.assessment_due_at
+    assert_equal corrected_reported_at + 2.hours, order.response_due_at
+    assert_equal corrected_reported_at + 4.hours, order.repair_due_at
+  end
+
+  test "preserves custom SLA due dates when reported time changes" do
+    reported_at = Time.zone.local(2026, 5, 5, 8, 0, 0)
+    custom_assessment_due_at = Time.zone.local(2026, 5, 5, 9, 45, 0)
+    custom_repair_due_at = Time.zone.local(2026, 5, 5, 13, 30, 0)
+    order = work_order(title: "Custom report correction", priority: "P2", reported_at: reported_at)
+    order.update!(assessment_due_at: custom_assessment_due_at, response_due_at: custom_assessment_due_at, repair_due_at: custom_repair_due_at)
+
+    order.update!(reported_at: reported_at + 30.minutes)
+
+    assert_equal custom_assessment_due_at, order.assessment_due_at
+    assert_equal custom_assessment_due_at, order.response_due_at
+    assert_equal custom_repair_due_at, order.repair_due_at
+  end
+
   test "assessment status uses assessment due date and approved work uses repair due date" do
     reported_at = Time.zone.local(2026, 5, 5, 8, 0, 0)
     assessment = work_order(title: "Assess", priority: "P4", status: "needs_assessment", reported_at: reported_at)

@@ -136,8 +136,35 @@ class WorkOrder < ApplicationRecord
     return unless windows && reported_at.present?
 
     calculated_assessment_due_at = reported_at + windows.fetch(:assessment)
-    self.assessment_due_at = calculated_assessment_due_at if assessment_due_at.blank?
-    self.response_due_at = assessment_due_at || calculated_assessment_due_at if response_due_at.blank?
-    self.repair_due_at = reported_at + windows.fetch(:repair) if repair_due_at.blank?
+    calculated_repair_due_at = reported_at + windows.fetch(:repair)
+
+    if assessment_due_at.blank? || previously_auto_calculated_due?(:assessment_due_at)
+      self.assessment_due_at = calculated_assessment_due_at
+    end
+
+    if response_due_at.blank? || previously_auto_calculated_due?(:response_due_at)
+      self.response_due_at = assessment_due_at || calculated_assessment_due_at
+    end
+
+    if repair_due_at.blank? || previously_auto_calculated_due?(:repair_due_at)
+      self.repair_due_at = calculated_repair_due_at
+    end
+  end
+
+  def previously_auto_calculated_due?(field)
+    return false unless persisted?
+    return false unless will_save_change_to_reported_at? || will_save_change_to_requested_at? || will_save_change_to_priority? || will_save_change_to_normalized_priority?
+
+    old_reported_at = reported_at_before_last_save || reported_at_was || requested_at_was
+    old_windows = PRIORITY_SLA_WINDOWS[normalized_priority_was.presence || priority_was]
+    old_value = public_send("#{field}_was")
+    return false unless old_reported_at.present? && old_windows && old_value.present?
+
+    expected_old_value = if field == :repair_due_at
+      old_reported_at + old_windows.fetch(:repair)
+    else
+      old_reported_at + old_windows.fetch(:assessment)
+    end
+    old_value.to_i == expected_old_value.to_i
   end
 end

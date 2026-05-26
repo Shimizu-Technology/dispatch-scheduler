@@ -4,6 +4,7 @@ class WorkOrder < ApplicationRecord
   belongs_to :team, optional: true
   has_many :dispatch_items, dependent: :nullify
 
+  STATUSES = %w[new needs_assessment approved scheduled in_progress carry_over waiting_for_parts waiting_for_approval completed closed cancelled].freeze
   CLOSED_STATUSES = %w[completed closed cancelled].freeze
   BLOCKED_STATUSES = %w[waiting_for_parts waiting_for_approval].freeze
 

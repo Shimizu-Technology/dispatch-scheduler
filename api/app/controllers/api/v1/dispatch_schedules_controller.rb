@@ -47,6 +47,7 @@ module Api
 
         ApplicationRecord.transaction do
           schedule.finalize!(current_user)
+          transition_schedule_work_orders!(schedule, "scheduled")
           AuditEvent.record!(action: "dispatch_schedule.finalized", record: schedule, user: current_user, metadata: { date: schedule.date, status: schedule.status })
         end
         render json: Serializers.schedule(schedule)
@@ -62,6 +63,7 @@ module Api
 
         ApplicationRecord.transaction do
           schedule.mark_sent!(current_user)
+          transition_schedule_work_orders!(schedule, "in_progress")
           AuditEvent.record!(action: "dispatch_schedule.sent", record: schedule, user: current_user, metadata: { date: schedule.date, status: schedule.status })
         end
         render json: Serializers.schedule(schedule)
@@ -93,6 +95,13 @@ module Api
 
       def status_order
         Arel.sql("CASE status WHEN 'sent' THEN 0 WHEN 'finalized' THEN 1 ELSE 2 END")
+      end
+
+      def transition_schedule_work_orders!(schedule, status)
+        work_order_ids = schedule.dispatch_items.where.not(work_order_id: nil).pluck(:work_order_id)
+        return if work_order_ids.empty?
+
+        WorkOrder.active_queue.open.where(id: work_order_ids).update_all(status: status, scheduled_date: schedule.date, updated_at: Time.current)
       end
     end
   end

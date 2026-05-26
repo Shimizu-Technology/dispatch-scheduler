@@ -47,7 +47,8 @@ class DispatchSchedulesControllerTest < ActionDispatch::IntegrationTest
   test "finalizes marks sent and reopens schedule" do
     crew = team(name: "Finalize Crew")
     schedule = DispatchSchedule.create!(date: DEFAULT_DATE, status: "draft")
-    schedule.dispatch_items.create!(team: crew, work_order: work_order(title: "Finalize work"), order_index: 0)
+    work = work_order(title: "Finalize work", status: "needs_assessment", date: DEFAULT_DATE)
+    schedule.dispatch_items.create!(team: crew, work_order: work, order_index: 0)
 
     with_auth_env do
       post "/api/v1/dispatch_schedules/#{schedule.id}/finalize", headers: auth_headers
@@ -58,6 +59,7 @@ class DispatchSchedulesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "finalized", payload.fetch("status")
     assert payload.fetch("finalized_at")
     assert_equal "Test User", payload.fetch("finalized_by")
+    assert_equal "scheduled", work.reload.status
 
     first_finalized_at = payload.fetch("finalized_at")
 
@@ -77,6 +79,7 @@ class DispatchSchedulesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "sent", payload.fetch("status")
     assert payload.fetch("sent_at")
     assert_equal "Test User", payload.fetch("sent_by")
+    assert_equal "in_progress", work.reload.status
     first_sent_at = payload.fetch("sent_at")
 
     with_auth_env do

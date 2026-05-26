@@ -6,7 +6,7 @@ import { postForm } from '../lib/api'
 import type { OcrWorkOrderDraft, WorkOrder, WorkOrderImportPreview, WorkOrderInput } from '../types'
 
 const priorities = ['P1', 'P2', 'P3', 'P4']
-const statuses = ['new', 'needs_assessment', 'approved', 'scheduled', 'carry_over', 'waiting_for_parts', 'waiting_for_approval', 'completed', 'cancelled']
+const statuses = ['new', 'needs_assessment', 'approved', 'scheduled', 'in_progress', 'carry_over', 'waiting_for_parts', 'waiting_for_approval', 'completed', 'cancelled']
 const trades = ['General', 'Plumbing', 'HVAC', 'Electrical', 'Carpentry', 'Painting', 'Landscaping', 'Masonry']
 const regions = ['North', 'Central', 'South', 'Islandwide', 'Unknown']
 const sources = ['whatsapp', 'phone', 'email', 'mywork', 'sodexo', 'manual', 'upload']
@@ -25,6 +25,33 @@ function statusLabel(status: string) {
 function shortDate(value?: string | null) {
   if (!value) return 'Not set'
   return value.slice(0, 10)
+}
+
+function statusTone(status: string) {
+  if (status === 'needs_assessment') return 'border-blue-200 bg-blue-50 text-blue-900'
+  if (status === 'scheduled') return 'border-indigo-200 bg-indigo-50 text-indigo-900'
+  if (status === 'in_progress') return 'border-[#244393]/25 bg-[#eef3ff] text-[#172b63]'
+  if (status === 'carry_over') return 'border-purple-200 bg-purple-50 text-purple-900'
+  if (status === 'waiting_for_parts' || status === 'waiting_for_approval') return 'border-amber-200 bg-amber-50 text-amber-900'
+  if (status === 'completed') return 'border-emerald-200 bg-emerald-50 text-emerald-900'
+  if (status === 'cancelled') return 'border-slate-200 bg-slate-100 text-slate-700'
+  return 'border-slate-200 bg-slate-50 text-slate-700'
+}
+
+function statusSummary(status: string) {
+  const summaries: Record<string, string> = {
+    new: 'New request awaiting review',
+    needs_assessment: 'Needs crew assessment',
+    approved: 'Approved and ready to dispatch',
+    scheduled: 'Assigned to dispatch',
+    in_progress: 'Sent to crew',
+    carry_over: 'Return visit needed',
+    waiting_for_parts: 'Held for parts',
+    waiting_for_approval: 'Held for approval',
+    completed: 'Closed out',
+    cancelled: 'Cancelled',
+  }
+  return summaries[status] || statusLabel(status)
 }
 
 function emptyForm(scheduledDate?: string): WorkOrderInput {
@@ -74,6 +101,9 @@ function WorkOrderRow({ workOrder, canEdit, onEdit, onArchive }: { workOrder: Wo
       </div>
       <h3 className="font-display mt-2 font-extrabold tracking-tight text-[#172033]">{workOrder.location} - {workOrder.title}</h3>
       <p className="mt-1 line-clamp-2 text-sm leading-6 text-[#526071]">{workOrder.description}</p>
+      <div className={`mt-3 inline-flex rounded-xl border px-3 py-2 text-xs font-extrabold ${statusTone(workOrder.status)}`}>
+        {statusSummary(workOrder.status)}
+      </div>
       <div className="mt-2 grid gap-1 text-xs font-semibold text-[#7b8798] sm:grid-cols-2 lg:grid-cols-4">
         <span>Created: {shortDate(workOrder.created_at)}</span>
         <span>Scheduled: {shortDate(workOrder.scheduled_date)}</span>

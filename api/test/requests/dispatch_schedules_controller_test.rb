@@ -133,7 +133,7 @@ class DispatchSchedulesControllerTest < ActionDispatch::IntegrationTest
   test "reopen preserves mid-day work order status changes" do
     crew = team(name: "Midday Status Crew")
     schedule = DispatchSchedule.create!(date: DEFAULT_DATE, status: "draft")
-    work = work_order(title: "Midday status work", status: "needs_assessment", date: DEFAULT_DATE)
+    work = work_order(title: "Midday status work", status: "needs_assessment", date: DEFAULT_DATE - 3.days)
     schedule.dispatch_items.create!(team: crew, work_order: work, order_index: 0)
 
     with_auth_env do
@@ -145,6 +145,7 @@ class DispatchSchedulesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_equal "waiting_for_parts", work.reload.status
+    assert_equal DEFAULT_DATE - 3.days, work.scheduled_date
     item = schedule.dispatch_items.first.reload
     assert_nil item.previous_work_order_status
     assert_nil item.previous_work_order_scheduled_date

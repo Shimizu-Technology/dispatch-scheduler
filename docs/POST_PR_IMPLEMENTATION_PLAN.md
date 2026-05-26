@@ -1,11 +1,13 @@
 # Current Implementation Roadmap
 
-Last updated: 2026-05-12
+Last updated: 2026-05-26
 
 This plan tracks what is done after the dispatch workflow and Clerk-auth PRs
 merged, and what should come next to make the app solid for JMI operations.
 
 ## Current State
+
+Latest product review: see `docs/JOHN_MEETING_2026_05_26.md`.
 
 Implemented in the POC:
 
@@ -19,15 +21,15 @@ Implemented in the POC:
 - Clerk auth with Rails JWT verification, Clerk token-claim setup docs, `admin`/`dispatcher`/`viewer` roles, bootstrap-admin setup, in-app user management, role refresh on sign-in, and viewer-only UI/API mode.
 - Admin-only user management for changing persisted roles in the app, with `CLERK_BOOTSTRAP_ADMIN_EMAILS` reserved for first-admin setup and recovery.
 
-Not implemented yet:
+Not implemented yet / still evolving:
 
 - Production file upload/intake.
-- OCR or OpenRouter extraction.
-- Human review workflow for AI-extracted work orders.
-- Robust work-order edit/search/filter workflow.
-- Finalize/publish schedule state.
-- Audit history of overrides, regenerations, availability changes, and future intake approval.
-- Daily team composition editing by date.
+- Full PDF OCR and source-file storage.
+- Robust PM month setup and completion tracking.
+- PA Project tracking and follow-up workspace.
+- Corrective maintenance / estimate reporting fields.
+- Configurable service lines / contract lines.
+- SLA/KPI due-date modeling and scheduling rules.
 - Production deployment hardening, backups, and monitoring.
 
 ## Completed Phase 1 - Secure Internal Access
@@ -156,12 +158,15 @@ Acceptance criteria:
 
 ## Recommended Next PR Order
 
-1. Work-order create/edit/search improvements.
-2. Private S3 upload storage plus intake draft model.
-3. OpenRouter extraction service and review UI.
-4. Schedule finalize/audit trail.
-5. Daily team composition management.
-6. Production deployment hardening.
+1. Finish work-order status lifecycle and dispatch status visibility.
+2. Add PA Project tracking and follow-up view.
+3. Add corrective maintenance / estimate flags and filters.
+4. Add configurable service lines / contract lines with seeded defaults and admin maintenance.
+5. Add SLA/KPI due-date modeling for P1/P2/P3/P4 scheduling.
+6. Improve PM month setup, completion tracking, and “while you are there” PM suggestions.
+7. Private S3 upload storage plus intake draft model.
+8. OpenRouter extraction service and review UI.
+9. Production deployment hardening.
 
 ## Definition Of Ready For John/JMI Pilot
 

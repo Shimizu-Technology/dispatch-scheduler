@@ -1,6 +1,6 @@
 # John Ilao Dispatch/Scheduling POC Plan
 
-Last updated: 2026-05-12
+Last updated: 2026-05-26
 Owner: Leon / Shimizu Technology
 Working agent: Prime
 
@@ -22,7 +22,7 @@ The scheduler is the product:
 
 Everything else supports that.
 
-See `docs/JMI_WORKFLOW_MODEL.md` for the current product/workflow model, including the important distinction between persistent default crews and selected-date daily crew overrides.
+See `docs/JMI_WORKFLOW_MODEL.md` for the current product/workflow model, including the important distinction between persistent default crews and selected-date daily crew overrides. See `docs/JOHN_MEETING_2026_05_26.md` for the latest John review notes and product implications.
 
 ## 3. What John Sent Us
 
@@ -85,6 +85,9 @@ Principles:
    - Fields: client/project, location, region, WO#, description, priority, status, trade/category, source, assigned team, notes
    - Preserve original imported status text
    - Normalize status for app usage
+   - Show current lifecycle status clearly on work order and dispatch screens
+   - Track PA Project, corrective maintenance, and estimate context for follow-up/reporting
+   - Classify work by configurable service line / contract line
 
 3. **Team / Technician Setup**
    - Technicians from John's schedule workbook
@@ -98,6 +101,8 @@ Principles:
 4. **PM Schedule View**
    - Display sample recurring PMs by location/date
    - Show PM work as schedulable commitments alongside reactive work orders
+   - Track monthly PM completion status
+   - Eventually suggest same-location PMs when a crew is already dispatched to that site
 
 5. **Dispatch Builder**
    - Pick date
@@ -105,8 +110,11 @@ Principles:
    - Suggest daily team schedule using rule-based logic
    - Group by region/location when possible
    - Match skills/trades when possible
+   - Prefer matching service line / contract line when configured
+   - Respect SLA/KPI timing so lower-priority work does not flood today's plan before it is due
    - Warn if assigned team has no driver
    - Allow manual override/editing of crew, time, order, and notes
+   - Allow mid-day work-order status updates separate from end-of-day outcomes
 
 6. **WhatsApp Export**
    - Generate clean copy/paste schedule by team
@@ -150,14 +158,15 @@ Implemented as of May 12, 2026:
 - Viewer mode hides/disables mutating controls and Rails guards mutating endpoints.
 - CI for Rails tests/lint/security, frontend lint/build, and Python importer tests.
 
-Still not implemented:
+Still not implemented / still evolving:
 
 - Production upload/file intake.
-- OCR or OpenRouter extraction.
-- Human review workflow for AI-extracted work orders.
-- Work-order edit/search polish beyond the initial create/list flow.
-- Schedule finalize/publish state.
-- Audit history for overrides, regenerations, availability changes, and future intake approval.
+- Full PDF OCR and source-file storage.
+- Robust PM month setup and completion tracking.
+- PA Project tracking and follow-up workspace.
+- Corrective maintenance / estimate reporting fields.
+- Configurable service lines / contract lines.
+- SLA/KPI due-date modeling and scheduling rules.
 - Production deployment/backups/monitoring.
 
 ## 6. Tech Stack
@@ -365,12 +374,14 @@ Suggested ordering:
 2. Work nearing/over SLA next.
 3. Needs-assessment items before lower-priority approved work if SLA requires it.
 4. Waiting-for-parts items should not be scheduled unless marked parts-ready.
-5. Match required skill/trade to team members.
-6. Ensure every team has at least one driver.
-7. Group by region/location to reduce islandwide bouncing.
-8. Include PM tasks already committed for the day.
-9. Fill gaps with P4/low-priority/PM work.
-10. Let John/admin manually override everything.
+5. PA Project work should be visible for follow-up but not automatically pushed into normal dispatch unless explicitly ready.
+6. Match required skill/trade to team members.
+7. Prefer matching service line / contract line where configured.
+8. Ensure every team has at least one driver.
+9. Group by region/location to reduce islandwide bouncing.
+10. Suggest PM tasks opportunistically when a crew is already at the same location/region.
+11. Fill gaps with P4/low-priority/PM work only when SLA timing and workload make sense.
+12. Let John/admin manually override everything.
 
 Warnings to show:
 
@@ -455,11 +466,13 @@ We can build a POC now, but before production we still need:
 4. How does he estimate job duration?
 5. What makes a P1 vs P2 vs P3 vs P4 in practice?
 6. Does `Level 1` in Sodexo map to P1/P2, or is it a separate client priority scheme?
-7. What does `CM` mean in his Mobil workbook?
-8. What exact WhatsApp format does each team prefer?
-9. What goes into the physical folder, and when?
-10. What is the approval/parts/material-prep lifecycle?
-11. What does his dad/family need to see to approve moving forward?
+7. What exact WhatsApp format does each team prefer?
+8. What goes into the physical folder, and when?
+9. What is the approval/parts/material-prep lifecycle?
+10. Which default service lines / contract lines should be seeded for JMI, and who can maintain them?
+11. What fields are needed for PA Project follow-up beyond a checkbox and notes?
+12. Should “estimate” be a checkbox, status, estimate number, or eventually a full estimate object?
+13. What does his dad/family need to see to approve moving forward?
 
 ## 13. Recommended Message To John After Reviewing Artifacts
 

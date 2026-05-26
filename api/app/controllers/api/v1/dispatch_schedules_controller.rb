@@ -103,14 +103,22 @@ module Api
         timestamp = Time.current
         items.each do |item|
           work_order = item.work_order
-          next unless work_order&.archived_at.nil?
-          next unless work_order.open?
+          next unless transitionable_work_order?(work_order, status)
 
           if item.previous_work_order_status.blank?
             item.update!(previous_work_order_status: work_order.status, previous_work_order_scheduled_date: work_order.scheduled_date)
           end
           work_order.update!(status: status, scheduled_date: schedule.date, updated_at: timestamp)
         end
+      end
+
+      def transitionable_work_order?(work_order, status)
+        return false unless work_order&.archived_at.nil?
+        return false unless work_order.open?
+        return false if WorkOrder::BLOCKED_STATUSES.include?(work_order.status)
+        return work_order.status == "scheduled" if status == "in_progress"
+
+        true
       end
 
       def restore_schedule_work_orders!(schedule)

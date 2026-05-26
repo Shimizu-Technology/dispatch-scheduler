@@ -130,6 +130,36 @@ class DispatchSchedulesControllerTest < ActionDispatch::IntegrationTest
     assert_nil item.previous_work_order_scheduled_date
   end
 
+  test "mark sent preserves work orders blocked after finalize" do
+    crew = team(name: "Blocked Between Transitions Crew")
+    schedule = DispatchSchedule.create!(date: DEFAULT_DATE, status: "draft")
+    work = work_order(title: "Blocked between transitions", status: "needs_assessment", date: DEFAULT_DATE - 4.days)
+    item = schedule.dispatch_items.create!(team: crew, work_order: work, order_index: 0)
+
+    with_auth_env do
+      post "/api/v1/dispatch_schedules/#{schedule.id}/finalize", headers: auth_headers
+      patch "/api/v1/work_orders/#{work.id}/status", params: { status: "waiting_for_parts" }, headers: auth_headers
+      post "/api/v1/dispatch_schedules/#{schedule.id}/mark_sent", headers: auth_headers
+    end
+
+    assert_response :success
+    assert_equal "sent", schedule.reload.status
+    assert_equal "waiting_for_parts", work.reload.status
+    assert_equal DEFAULT_DATE, work.scheduled_date
+    assert_equal "needs_assessment", item.reload.previous_work_order_status
+    assert_equal DEFAULT_DATE - 4.days, item.previous_work_order_scheduled_date
+
+    with_auth_env do
+      post "/api/v1/dispatch_schedules/#{schedule.id}/reopen", headers: auth_headers
+    end
+
+    assert_response :success
+    assert_equal "waiting_for_parts", work.reload.status
+    assert_equal DEFAULT_DATE - 4.days, work.scheduled_date
+    assert_nil item.reload.previous_work_order_status
+    assert_nil item.previous_work_order_scheduled_date
+  end
+
   test "reopen preserves mid-day work order status changes" do
     crew = team(name: "Midday Status Crew")
     schedule = DispatchSchedule.create!(date: DEFAULT_DATE, status: "draft")

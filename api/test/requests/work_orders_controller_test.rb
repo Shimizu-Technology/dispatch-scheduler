@@ -100,6 +100,45 @@ class WorkOrdersControllerTest < ActionDispatch::IntegrationTest
     assert_equal true, payload.fetch("estimate_required")
   end
 
+  test "rejects inactive service line assignment" do
+    inactive = ServiceLine.create!(name: "Retired", position: 90, active: false)
+
+    with_auth_env do
+      post "/api/v1/work_orders", params: {
+        client: "Mobil",
+        location: "Yigo",
+        description: "Retired service line should not be assigned",
+        service_line_id: inactive.id
+      }, headers: auth_headers
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal [ "Inactive service lines cannot be assigned to work orders" ], JSON.parse(response.body).fetch("errors")
+  end
+
+  test "allows existing inactive service line to remain assigned while editing other fields" do
+    inactive = ServiceLine.create!(name: "Retired", position: 90, active: false)
+    wo = work_order(title: "Legacy retired line", service_line_record: inactive)
+
+    with_auth_env do
+      patch "/api/v1/work_orders/#{wo.id}", params: {
+        client: wo.client.name,
+        location: wo.location.name,
+        region: wo.location.region,
+        source: wo.source,
+        description: "Updated notes for legacy service line",
+        status: wo.status,
+        service_line_id: inactive.id,
+        notes: "Keep old line until admin reclassifies"
+      }, headers: auth_headers
+    end
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_equal inactive.id, payload.fetch("service_line_id")
+    assert_equal "Keep old line until admin reclassifies", payload.fetch("notes")
+  end
+
   test "filters by operational tracking fields" do
     mobil = service_line("Mobil / CBRE")
     schools = service_line("Public Schools / Sodexo")

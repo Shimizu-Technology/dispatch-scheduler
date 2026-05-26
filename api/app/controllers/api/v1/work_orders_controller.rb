@@ -39,6 +39,8 @@ module Api
         render json: { errors: [ e.message ] }, status: :not_found
       rescue ActiveRecord::RecordInvalid => e
         render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
+      rescue ArgumentError => e
+        render json: { errors: [ e.message ] }, status: :unprocessable_entity
       end
 
       def update
@@ -201,7 +203,10 @@ module Api
         return existing&.service_line unless attrs.key?(:service_line_id)
         return nil if attrs[:service_line_id].blank?
 
-        ServiceLine.find(attrs[:service_line_id])
+        service_line = ServiceLine.find(attrs[:service_line_id])
+        return service_line if service_line.active? || existing&.service_line_id == service_line.id
+
+        raise ArgumentError, "Inactive service lines cannot be assigned to work orders"
       end
 
       def boolean_attr(attrs, key, fallback)

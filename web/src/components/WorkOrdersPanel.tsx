@@ -138,6 +138,8 @@ function WorkOrderRow({ workOrder, canEdit, onEdit, onArchive }: { workOrder: Wo
 
 function WorkOrderForm({ initialValues, serviceLines, saving, onCancel, onSubmit }: { initialValues: WorkOrderInput; serviceLines: ServiceLine[]; saving: boolean; onCancel: () => void; onSubmit: (values: WorkOrderInput) => Promise<void> }) {
   const [values, setValues] = useState<WorkOrderInput>(initialValues)
+  const selectedServiceLineId = values.service_line_id ? String(values.service_line_id) : ''
+  const serviceLineOptions = useMemo(() => serviceLines.filter((line) => line.active || String(line.id) === selectedServiceLineId), [selectedServiceLineId, serviceLines])
 
   function updateField<K extends keyof WorkOrderInput>(field: K, value: WorkOrderInput[K]) {
     setValues((current) => ({ ...current, [field]: value }))
@@ -213,7 +215,7 @@ function WorkOrderForm({ initialValues, serviceLines, saving, onCancel, onSubmit
         Service line
         <select value={values.service_line_id || ''} onChange={(event) => updateField('service_line_id', event.target.value)} className="field-control mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]">
           <option value="">Unassigned</option>
-          {serviceLines.map((line) => <option key={line.id} value={line.id}>{line.name}</option>)}
+          {serviceLineOptions.map((line) => <option key={line.id} value={line.id}>{line.name}{line.active ? '' : ' (inactive)'}</option>)}
         </select>
       </label>
     </div>

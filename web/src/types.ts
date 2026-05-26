@@ -5,6 +5,8 @@ export type Dashboard = {
   priority_breakdown: Record<string, number>
 }
 
+export type WorkOrderStatus = 'new' | 'needs_assessment' | 'approved' | 'scheduled' | 'in_progress' | 'carry_over' | 'waiting_for_parts' | 'waiting_for_approval' | 'completed' | 'closed' | 'cancelled'
+
 export type WorkOrder = {
   id: number
   external_id: string | null
@@ -16,7 +18,7 @@ export type WorkOrder = {
   created_at: string
   priority: string
   normalized_priority: string
-  status: string
+  status: WorkOrderStatus
   original_status_text: string
   trade_category: string
   scheduled_date: string | null
@@ -50,7 +52,7 @@ export type WorkOrderInput = {
   description: string
   priority: string
   normalized_priority?: string
-  status: string
+  status: WorkOrderStatus
   original_status_text?: string
   trade_category: string
   scheduled_date?: string

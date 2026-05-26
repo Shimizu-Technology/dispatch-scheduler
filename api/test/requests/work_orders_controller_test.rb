@@ -138,6 +138,33 @@ class WorkOrdersControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ match.id ], payload.map { |item| item.fetch("id") }
   end
 
+  test "updates work order status with audit trail" do
+    wo = work_order(title: "Status candidate", status: "needs_assessment")
+
+    with_auth_env do
+      patch "/api/v1/work_orders/#{wo.id}/status", params: { status: "in_progress" }, headers: auth_headers
+    end
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_equal "in_progress", payload.fetch("status")
+    assert_equal "in_progress", wo.reload.status
+    assert_equal "work_order.status_updated", AuditEvent.last.action
+    assert_equal "needs_assessment", AuditEvent.last.metadata_hash.fetch("previous_status")
+    assert_equal "in_progress", AuditEvent.last.metadata_hash.fetch("new_status")
+  end
+
+  test "rejects invalid work order status" do
+    wo = work_order(title: "Bad status candidate")
+
+    with_auth_env do
+      patch "/api/v1/work_orders/#{wo.id}/status", params: { status: "half_done" }, headers: auth_headers
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal [ "Invalid work order status" ], JSON.parse(response.body).fetch("errors")
+  end
+
   test "archives and restores work orders" do
     wo = work_order(title: "Archive candidate")
 

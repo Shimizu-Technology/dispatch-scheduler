@@ -1,6 +1,6 @@
 # JMI Dispatch Workflow Model
 
-Last updated: 2026-05-19
+Last updated: 2026-05-26
 
 This document captures what we currently understand about John Ilao's dispatch workflow and how the Dispatch Scheduler app should model it. It exists to keep product decisions grounded in John's real process instead of drifting into generic CMMS/work-order software.
 
@@ -9,7 +9,9 @@ Primary sources:
 - `docs/PLAN.md`
 - `docs/examples-from-john/`
 - `Brain-Dump/work/shimizu-tech/JMI-John-Ilao/1) Meeting with John - May 7, 2026.md`
+- `Brain-Dump/work/shimizu-tech/JMI-John-Ilao/2) Meeting with John about the Dispatch App.md`
 - John's May 11 operation-details email and attachments/screenshots
+- `docs/JOHN_MEETING_2026_05_26.md`
 
 ## 1. Core Product Thesis
 
@@ -68,9 +70,15 @@ His work includes:
    - No technician app is required for the initial product.
 
 8. Tracking follow-up state.
-   - After assessment, work may need estimate, approval, parts, or repair scheduling.
+   - After assessment, work may need estimate, approval, parts, PA Project tracking, or repair scheduling.
    - John's physical folder/Excel tracking helps him remember what is still open.
    - The app needs to reduce the risk that work gets lost when John is absent.
+
+9. Managing contract/business reporting context.
+   - Some work falls under corrective maintenance.
+   - Some work requires an estimate/approval path.
+   - Some work should be marked as a PA Project so it does not affect Mobil/CBRE KPI while waiting.
+   - John needs these fields for monthly client meetings, KPI conversations, and pricing renegotiation support.
 
 ## 3. Source Artifacts And What They Mean
 
@@ -213,10 +221,15 @@ The app should surface:
 
 - needs assessment
 - approved/ready work
+- scheduled / in progress work
 - waiting for parts/approval/estimate
+- carry-over/follow-up work
+- PA Project work that needs follow-up but may be excluded from KPI pressure
+- corrective maintenance vs estimate context
 - priority/SLA pressure
 - scheduled date/backlog
 - client/location/region/trade
+- configurable service line / contract line
 
 ### Step 3 — Default crew setup
 
@@ -266,7 +279,9 @@ Rules:
 - P1/P2 or Level 1 urgent items first.
 - Needs-assessment items should not be buried.
 - Waiting-for-parts/approval items should be held out unless ready.
+- P4 work should not automatically flood today's plan if it is still within SLA.
 - Match trade/skill where possible.
+- Prefer matching configurable service line / contract line where possible.
 - Keep teams geographically sensible where possible.
 - Warn when assumptions are weak.
 
@@ -319,7 +334,42 @@ After dispatch is sent:
 
 - schedule status becomes sent
 - sent timestamp/user is recorded
+- related work orders can move to in progress
 - activity log shows important changes
+
+### Step 10 — Mid-day status updates
+
+Purpose: reflect real operational changes without pretending the day is over.
+
+A dispatcher should be able to update the work order's current status during the day, for example:
+
+- needs assessment → in progress
+- in progress → waiting for parts
+- in progress → waiting for approval
+- waiting for parts → approved/ready again
+
+This is separate from the end-of-day dispatch outcome.
+
+### Step 11 — End-of-day dispatch outcome
+
+Purpose: record what happened during this specific crew visit.
+
+A dispatch outcome may update the work order status, but it is not the same concept.
+
+Examples:
+
+- Complete → work order completed.
+- Carry Over → work order carry_over with a future scheduled date.
+- Waiting Parts → work order waiting_for_parts.
+- Waiting Approval → work order waiting_for_approval.
+- Unable to Access → work order may return to needs_assessment/follow-up.
+- Pending → work order remains scheduled.
+
+### Step 12 — PA Project / parts follow-up
+
+Purpose: keep long-running blocked work visible.
+
+A PA Project flag should be independent of the normal work order status. Most PA Projects are waiting on parts/materials, but not all. PA Projects should be easy to filter, report, and follow up on.
 
 ## 6. UI Information Architecture Direction
 
@@ -347,17 +397,29 @@ The current top-level sections should evolve toward this mental model:
 
 4. **PM Tasks**
    - due PM commitments by date/location
+   - monthly completion status
+   - future “while you are there” PM suggestions based on work-order locations
 
-5. **Today's Dispatch**
+5. **PA Projects**
+   - work orders marked as PA Projects
+   - parts/materials/follow-up notes
+   - visibility into long-running work that should not be lost
+
+6. **Service Lines / Contract Lines**
+   - admin-configurable list, not hard-coded
+   - seeded defaults may include Mobil / CBRE, HKR, Public Schools / Sodexo, General
+   - used to classify work orders and optionally prefer crews/technicians
+
+7. **Today's Dispatch**
    - schedule suggestion and manual edits
 
-6. **WhatsApp**
+8. **WhatsApp**
    - copy final schedule
 
-7. **Activity**
+9. **Activity**
    - audit trail
 
-8. **Users**
+10. **Users**
    - admin-only access control
 
 ## 7. Data Model Direction
@@ -383,6 +445,12 @@ Likely additions/changes:
 - optional `active`/archived flag for teams
 - optional `crew_type` or `specialty` field
 - optional `preferred_region`/route field beyond current `region_preference`
+- configurable `service_lines` / `contract_lines` table managed by admins
+- optional service-line preference on crews/technicians
+- service-line selection on work orders
+- PA Project fields on work orders, likely `pa_project`, `pa_project_notes`, and future follow-up/ETA fields
+- corrective maintenance and estimate fields on work orders
+- SLA/KPI due fields, likely assessment due and repair due timestamps derived from priority and lifecycle state
 - stronger seed/import distinction between default crews and historical daily assignments
 
 ## 8. Seed/Data Import Guidance
@@ -406,6 +474,9 @@ Better seed strategy:
 - Finalized/sent schedules are locked unless explicitly reopened.
 - WhatsApp export is a core feature, not an afterthought.
 - Audit events should track operational changes.
+- Work order status and dispatch outcome are related but distinct.
+- Service lines / contract lines should be configurable by admins, not hard-coded into scheduling logic.
+- PA Project is a status-independent tracking flag, not just another work order status.
 
 ## 10. Immediate Implementation Implications
 
@@ -435,3 +506,18 @@ A walkthrough should make sense without explanation:
 8. Activity log shows what changed.
 
 If John sees the app and says, "Yes, someone else could use this to help do my morning scheduling," the product is on track.
+
+## 12. May 26 Review Takeaways
+
+John's May 26 walkthrough validated the core POC. He liked the dashboard, understood the dispatch flow, and said the suggested daily work list would already be valuable even before the crew logic becomes perfect.
+
+Important new requirements from that review:
+
+1. PMs need monthly tracking and completion visibility.
+2. Scheduler should eventually suggest PMs opportunistically when crews are already at a location.
+3. Priority/SLA timing must influence scheduling, especially P4 work that does not need same-day dispatch.
+4. PA Projects need first-class tracking with a checkbox and dedicated follow-up view.
+5. Corrective maintenance and estimate tracking are needed for Mobil/CBRE reporting and pricing conversations.
+6. Service lines / contract lines need to be configurable by admins instead of hard-coded.
+7. Work order status needs to be visible and editable on the dispatch page for mid-day changes.
+8. Dispatch outcomes should stay focused on the result of a specific crew visit.

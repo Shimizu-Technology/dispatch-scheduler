@@ -13,6 +13,7 @@ export type WorkOrder = {
   region: string
   title: string
   description: string
+  created_at: string
   priority: string
   normalized_priority: string
   status: string
@@ -20,6 +21,8 @@ export type WorkOrder = {
   trade_category: string
   scheduled_date: string | null
   source: string
+  archived: boolean
+  archived_at: string | null
   team_name: string | null
   notes: string | null
   last_dispatched_on?: string | null

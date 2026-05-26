@@ -138,6 +138,39 @@ class WorkOrdersControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ match.id ], payload.map { |item| item.fetch("id") }
   end
 
+  test "archives and restores work orders" do
+    wo = work_order(title: "Archive candidate")
+
+    with_auth_env do
+      patch "/api/v1/work_orders/#{wo.id}/archive", headers: auth_headers
+    end
+
+    assert_response :success
+    assert wo.reload.archived?
+    assert_equal "work_order.archived", AuditEvent.last.action
+    assert_equal true, JSON.parse(response.body).fetch("archived")
+
+    with_auth_env do
+      get "/api/v1/work_orders", headers: auth_headers
+    end
+    assert_response :success
+    assert_empty JSON.parse(response.body)
+
+    with_auth_env do
+      get "/api/v1/work_orders", params: { archived: "only" }, headers: auth_headers
+    end
+    assert_response :success
+    assert_equal [ wo.id ], JSON.parse(response.body).map { |item| item.fetch("id") }
+
+    with_auth_env do
+      patch "/api/v1/work_orders/#{wo.id}/unarchive", headers: auth_headers
+    end
+
+    assert_response :success
+    refute wo.reload.archived?
+    assert_equal "work_order.unarchived", AuditEvent.last.action
+  end
+
   test "viewer cannot create work order" do
     with_auth_env do
       post "/api/v1/work_orders", params: { description: "New request" }, headers: auth_headers("viewer_work_orders_123", "viewer-work-orders@example.com")

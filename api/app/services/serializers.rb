@@ -47,7 +47,7 @@ module Serializers
   end
 
   def blocked_work_orders_for(date)
-    WorkOrder.open
+    WorkOrder.active_queue.open
       .where(status: WorkOrder::BLOCKED_STATUSES)
       .where("scheduled_date = ? OR scheduled_date IS NULL", date)
   end
@@ -73,6 +73,7 @@ module Serializers
       region: work_order.location.region,
       title: work_order.title,
       description: work_order.description,
+      created_at: work_order.created_at&.iso8601,
       priority: work_order.priority,
       normalized_priority: work_order.normalized_priority,
       status: work_order.status,
@@ -80,7 +81,8 @@ module Serializers
       trade_category: work_order.trade_category,
       scheduled_date: work_order.scheduled_date,
       source: work_order.source,
-      team_id: work_order.team_id,
+      archived_at: work_order.archived_at&.iso8601,
+      archived: work_order.archived?,
       team_name: work_order.team&.name,
       notes: work_order.notes,
       last_dispatched_on: last_dispatch&.dispatch_schedule&.date,

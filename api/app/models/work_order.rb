@@ -7,8 +7,14 @@ class WorkOrder < ApplicationRecord
   CLOSED_STATUSES = %w[completed closed cancelled].freeze
   BLOCKED_STATUSES = %w[waiting_for_parts waiting_for_approval].freeze
 
+  scope :active_queue, -> { where(archived_at: nil) }
+  scope :archived, -> { where.not(archived_at: nil) }
   scope :open, -> { where.not(status: CLOSED_STATUSES) }
-  scope :dispatchable, -> { open.where.not(status: BLOCKED_STATUSES) }
+  scope :dispatchable, -> { active_queue.open.where.not(status: BLOCKED_STATUSES) }
+
+  def archived?
+    archived_at.present?
+  end
 
   def urgent_rank
     { "P1" => 0, "Level 1" => 0, "P2" => 1, "P3" => 2, "P4" => 3 }.fetch(normalized_priority.presence || priority, 4)

@@ -1,10 +1,11 @@
 module Api
   module V1
     class WorkOrdersController < ApplicationController
-      before_action :require_dispatch_edit!, only: [ :create, :update ]
+      before_action :require_dispatch_edit!, only: [ :create, :update, :archive, :unarchive ]
 
       def index
         scope = WorkOrder.includes(:client, :location, :team, dispatch_items: [ :team, :dispatch_schedule ]).order(:scheduled_date, :id)
+        scope = archive_scope(scope)
         scope = scope.left_joins(:client, :location) if joined_filter_params?
         scope = scope.where(status: params[:status]) if params[:status].present?
         scope = scope.where(normalized_priority: params[:priority]) if params[:priority].present?
@@ -54,7 +55,41 @@ module Api
         render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
       end
 
+      def archive
+        wo = WorkOrder.find(params[:id])
+        ApplicationRecord.transaction do
+          wo.update!(archived_at: Time.current)
+          AuditEvent.record!(action: "work_order.archived", record: wo, user: current_user, metadata: work_order_audit_metadata(wo))
+        end
+        render json: Serializers.work_order(wo)
+      rescue ActiveRecord::RecordNotFound => e
+        render json: { errors: [ e.message ] }, status: :not_found
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
+      end
+
+      def unarchive
+        wo = WorkOrder.find(params[:id])
+        ApplicationRecord.transaction do
+          wo.update!(archived_at: nil)
+          AuditEvent.record!(action: "work_order.unarchived", record: wo, user: current_user, metadata: work_order_audit_metadata(wo))
+        end
+        render json: Serializers.work_order(wo)
+      rescue ActiveRecord::RecordNotFound => e
+        render json: { errors: [ e.message ] }, status: :not_found
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
+      end
+
       private
+
+      def archive_scope(scope)
+        case params[:archived]
+        when "all" then scope
+        when "only" then scope.archived
+        else scope.active_queue
+        end
+      end
 
       def joined_filter_params?
         params[:client].present? || params[:region].present? || params[:q].present?

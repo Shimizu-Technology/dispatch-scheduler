@@ -15,6 +15,16 @@ class DispatchSuggestionServiceTest < ActiveSupport::TestCase
     assert_empty first_item_ids & second_schedule.dispatch_items.pluck(:id), "regeneration should rebuild draft items, not append to them"
   end
 
+  test "archived work orders are held out of suggestions" do
+    team(name: "North Crew", skills: [ "General" ])
+    work_order(title: "Active work")
+    work_order(title: "Archived work").update!(archived_at: Time.current)
+
+    schedule = DispatchSuggestionService.new(date: DEFAULT_DATE).call
+
+    assert_equal [ "Active work" ], schedule.dispatch_items.map(&:work_order).compact.map(&:title)
+  end
+
   test "holds date-scoped blocked work out of dispatch summary" do
     team(name: "North Crew", skills: [ "General" ])
     work_order(title: "Schedulable work")

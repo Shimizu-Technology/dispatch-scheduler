@@ -8,7 +8,12 @@ Rails.application.routes.draw do
       resources :users, only: [ :index, :update ]
       resources :audit_events, only: [ :index ]
       post "work_order_imports/preview", to: "work_order_imports#preview"
-      resources :work_orders, only: [ :index, :create, :update ]
+      resources :work_orders, only: [ :index, :create, :update ] do
+        member do
+          patch :archive
+          patch :unarchive
+        end
+      end
       resources :technicians, only: [ :index, :update ]
       resources :teams, only: [ :index, :create, :update ] do
         member do

@@ -93,6 +93,7 @@ export function DashboardMetrics({ dashboard, workOrders, teams, technicians, pm
   const waitingForParts = workOrders.filter((workOrder) => workOrder.status === 'waiting_for_parts').length
   const slaOverdue = workOrders.filter((workOrder) => workOrder.sla_status === 'overdue').length
   const slaDueSoon = workOrders.filter((workOrder) => workOrder.sla_status === 'due_soon').length
+  const slaMissing = workOrders.filter((workOrder) => workOrder.sla_status === 'missing').length
   const next = nextAction(schedule, driverIssues, canEdit)
   const scheduleItems = schedule?.items.length || 0
   const recentEvents = auditEvents.slice(0, 4)
@@ -151,7 +152,7 @@ export function DashboardMetrics({ dashboard, workOrders, teams, technicians, pm
     <div className="grid gap-3 sm:grid-cols-3">
       <Metric icon={<AlertTriangle size={20} />} label="SLA overdue" value={dashboard?.counts.sla_overdue ?? slaOverdue} detail="Needs dispatch/follow-up now" tone={(dashboard?.counts.sla_overdue ?? slaOverdue) > 0 ? 'red' : 'green'} />
       <Metric icon={<Clock3 size={20} />} label="SLA due soon" value={dashboard?.counts.sla_due_soon ?? slaDueSoon} detail="Within the next 24 hours" tone={(dashboard?.counts.sla_due_soon ?? slaDueSoon) > 0 ? 'amber' : 'steel'} />
-      <Metric icon={<ShieldCheck size={20} />} label="SLA missing" value={dashboard?.counts.sla_missing ?? workOrders.filter((workOrder) => workOrder.sla_status === 'missing').length} detail="Needs reported time/priority cleanup" tone={(dashboard?.counts.sla_missing || 0) > 0 ? 'amber' : 'green'} />
+      <Metric icon={<ShieldCheck size={20} />} label="SLA missing" value={dashboard?.counts.sla_missing ?? slaMissing} detail="Needs reported time/priority cleanup" tone={(dashboard?.counts.sla_missing ?? slaMissing) > 0 ? 'amber' : 'green'} />
     </div>
 
     <div>

@@ -1,15 +1,27 @@
 import { useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, Save, Unlock } from 'lucide-react'
 import { Badge, Card, PanelHeader } from './ui'
-import type { DispatchItem, DispatchOutcomeStatus, DispatchSchedule, DispatchSummary, Team } from '../types'
+import type { DispatchItem, DispatchOutcomeStatus, DispatchSchedule, DispatchSummary, Team, WorkOrderStatus } from '../types'
 
-const OUTCOME_OPTIONS: Array<{ status: DispatchOutcomeStatus; label: string }> = [
-  { status: 'pending', label: 'Pending' },
-  { status: 'completed', label: 'Complete' },
+const OUTCOME_OPTIONS: Array<{ status: DispatchOutcomeStatus; label: string; workOrderStatus: WorkOrderStatus; description: string }> = [
+  { status: 'pending', label: 'Pending', workOrderStatus: 'scheduled', description: 'Keep assigned, no final result yet.' },
+  { status: 'completed', label: 'Complete', workOrderStatus: 'completed', description: 'Work finished and closed.' },
+  { status: 'carry_over', label: 'Carry Over', workOrderStatus: 'carry_over', description: 'Return visit needed.' },
+  { status: 'waiting_parts', label: 'Waiting Parts', workOrderStatus: 'waiting_for_parts', description: 'Hold until parts are ready.' },
+  { status: 'waiting_approval', label: 'Waiting Approval', workOrderStatus: 'waiting_for_approval', description: 'Hold until customer approval.' },
+  { status: 'unable_to_access', label: 'Unable to Access', workOrderStatus: 'needs_assessment', description: 'Could not assess or perform work.' },
+  { status: 'cancelled', label: 'Cancelled', workOrderStatus: 'cancelled', description: 'Stop future dispatch.' },
+]
+
+const WORK_ORDER_STATUS_OPTIONS: Array<{ status: WorkOrderStatus; label: string }> = [
+  { status: 'needs_assessment', label: 'Needs Assessment' },
+  { status: 'approved', label: 'Approved' },
+  { status: 'scheduled', label: 'Scheduled' },
+  { status: 'in_progress', label: 'In Progress' },
   { status: 'carry_over', label: 'Carry Over' },
-  { status: 'waiting_parts', label: 'Waiting Parts' },
-  { status: 'waiting_approval', label: 'Waiting Approval' },
-  { status: 'unable_to_access', label: 'Unable to Access' },
+  { status: 'waiting_for_parts', label: 'Waiting For Parts' },
+  { status: 'waiting_for_approval', label: 'Waiting For Approval' },
+  { status: 'completed', label: 'Completed' },
   { status: 'cancelled', label: 'Cancelled' },
 ]
 
@@ -22,6 +34,10 @@ function nextDateString(dateString: string) {
 
 function outcomeLabel(status: DispatchOutcomeStatus) {
   return OUTCOME_OPTIONS.find((option) => option.status === status)?.label || 'Pending'
+}
+
+function statusLabel(status: WorkOrderStatus) {
+  return WORK_ORDER_STATUS_OPTIONS.find((option) => option.status === status)?.label || status.replaceAll('_', ' ')
 }
 
 function ScheduleSummary({ summary }: { summary: DispatchSummary }) {
@@ -46,7 +62,7 @@ function StatusNotice({ schedule }: { schedule: DispatchSchedule }) {
   return <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-900">Sent schedule: this dispatch has been marked as sent to the crews.</div>
 }
 
-function DispatchCard({ item, scheduleDate, teams, disabled, canEdit, canEditOutcomes, canMoveEarlier, canMoveLater, onUpdate, onOutcome }: { item: DispatchItem; scheduleDate: string; teams: Team[]; disabled: boolean; canEdit: boolean; canEditOutcomes: boolean; canMoveEarlier: boolean; canMoveLater: boolean; onUpdate: (itemId: number, changes: Record<string, unknown>) => Promise<void>; onOutcome: (itemId: number, changes: { outcome_status: DispatchOutcomeStatus; outcome_notes?: string; carried_over_to_date?: string }) => Promise<void> }) {
+function DispatchCard({ item, scheduleDate, teams, disabled, canEdit, canEditOutcomes, canMoveEarlier, canMoveLater, onUpdate, onOutcome, onWorkOrderStatus }: { item: DispatchItem; scheduleDate: string; teams: Team[]; disabled: boolean; canEdit: boolean; canEditOutcomes: boolean; canMoveEarlier: boolean; canMoveLater: boolean; onUpdate: (itemId: number, changes: Record<string, unknown>) => Promise<void>; onOutcome: (itemId: number, changes: { outcome_status: DispatchOutcomeStatus; outcome_notes?: string; carried_over_to_date?: string }) => Promise<void>; onWorkOrderStatus: (workOrderId: number, status: WorkOrderStatus) => Promise<void> }) {
   const wo = item.work_order
   const pm = item.pm_task
   const persistedTeamId = String(item.team_id)
@@ -59,6 +75,7 @@ function DispatchCard({ item, scheduleDate, teams, disabled, canEdit, canEditOut
   const [outcomeNotes, setOutcomeNotes] = useState(item.outcome_notes || '')
   const [carryOverDate, setCarryOverDate] = useState(item.carried_over_to_date || nextDateString(scheduleDate))
   const [showDetails, setShowDetails] = useState(false)
+  const [workOrderStatus, setWorkOrderStatus] = useState<WorkOrderStatus>(wo?.status || 'scheduled')
 
   useEffect(() => {
     // Keep each editable card aligned with the last persisted schedule response.
@@ -68,9 +85,11 @@ function DispatchCard({ item, scheduleDate, teams, disabled, canEdit, canEditOut
     setNotes(persistedNotes)
     setOutcomeNotes(item.outcome_notes || '')
     setCarryOverDate(item.carried_over_to_date || nextDateString(scheduleDate))
-  }, [persistedTeamId, persistedTime, persistedNotes, item.outcome_notes, item.carried_over_to_date, scheduleDate])
+    setWorkOrderStatus(wo?.status || 'scheduled')
+  }, [persistedTeamId, persistedTime, persistedNotes, item.outcome_notes, item.carried_over_to_date, scheduleDate, wo?.status])
 
   const isDirty = teamId !== persistedTeamId || scheduledTime !== persistedTime || notes !== persistedNotes
+  const workOrderStatusDirty = Boolean(wo && workOrderStatus !== wo.status)
   const isSaving = disabled || saveState === 'saving'
   const title = wo ? `${wo.location} - ${wo.title}` : `${pm?.location} - ${pm?.task_name}`
   const kind = wo?.normalized_priority || 'pm'
@@ -100,7 +119,7 @@ function DispatchCard({ item, scheduleDate, teams, disabled, canEdit, canEditOut
     </div>
 
     <div className="mt-3 flex flex-wrap gap-2 text-xs font-bold text-[#64748b]">
-      {wo && <><span>Client: {wo.client}</span><span>WO: {wo.external_id || 'N/A'}</span><span>Trade: {wo.trade_category}</span><span>Region: {wo.region}</span><span>Scheduled: {wo.scheduled_date || 'Not set'}</span></>}
+      {wo && <><span>Client: {wo.client}</span><span>WO: {wo.external_id || 'N/A'}</span><span>Trade: {wo.trade_category}</span><span>Region: {wo.region}</span><span>Scheduled: {wo.scheduled_date || 'Not set'}</span><Badge kind={wo.status}>{statusLabel(wo.status)}</Badge></>}
       {pm && <><span>Client: {pm.client}</span><span>Trade: {pm.trade_category}</span><span>Region: {pm.region}</span><span>Scheduled: {pm.scheduled_date}</span></>}
       <button type="button" onClick={() => setShowDetails((current) => !current)} className="font-extrabold text-[#244393] underline-offset-4 hover:underline">{showDetails ? 'Hide details' : 'Details'}</button>
     </div>
@@ -110,6 +129,19 @@ function DispatchCard({ item, scheduleDate, teams, disabled, canEdit, canEditOut
       <p className="mt-1">{wo?.description || pm?.task_name}</p>
       {wo?.notes && <p className="mt-2 text-xs font-semibold text-[#526071]">Work order notes: {wo.notes}</p>}
       {wo?.last_dispatched_on && <p className="mt-2 text-xs font-semibold text-[#526071]">Last dispatched: {wo.last_dispatched_on}{wo.last_crew_name ? ` · ${wo.last_crew_name}` : ''}</p>}
+    </div>}
+
+    {wo && <div className="mt-3 rounded-2xl border border-[rgba(36,67,147,0.12)] bg-[#fbfcff] p-3">
+      <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
+        <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
+          Work order status
+          <select disabled={disabled || !canEditOutcomes} value={workOrderStatus} onChange={(event) => setWorkOrderStatus(event.target.value as WorkOrderStatus)} className="field-control mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]">
+            {WORK_ORDER_STATUS_OPTIONS.map((option) => <option key={option.status} value={option.status}>{option.label}</option>)}
+          </select>
+        </label>
+        <button type="button" disabled={disabled || !canEditOutcomes || !workOrderStatusDirty} onClick={() => void onWorkOrderStatus(wo.id, workOrderStatus)} className="rounded-xl bg-[#244393] px-3 py-2 text-xs font-extrabold text-white transition hover:-translate-y-0.5 hover:bg-[#172b63] disabled:cursor-not-allowed disabled:opacity-50">Update status</button>
+      </div>
+      <p className="mt-2 text-xs font-semibold leading-5 text-[#64748b]">Use this for mid-day status changes. Use the outcome buttons below for the final result of this dispatch stop.</p>
     </div>}
 
     <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_120px]">
@@ -150,7 +182,7 @@ function DispatchCard({ item, scheduleDate, teams, disabled, canEdit, canEditOut
           <p className="mt-1 text-sm font-extrabold text-[#172033]">{outcomeLabel(item.outcome_status)}</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {OUTCOME_OPTIONS.map((option) => <button key={option.status} type="button" disabled={disabled} onClick={() => void onOutcome(item.id, { outcome_status: option.status, outcome_notes: outcomeNotes, carried_over_to_date: option.status === 'carry_over' ? carryOverDate : undefined })} className={`rounded-xl border px-3 py-2 text-xs font-extrabold transition hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-50 ${item.outcome_status === option.status ? 'border-[#244393] bg-[#244393] text-white' : 'border-[rgba(36,67,147,0.16)] bg-white text-[#244393] hover:bg-[#e8eefc]'}`}>{option.label}</button>)}
+          {OUTCOME_OPTIONS.map((option) => <button key={option.status} type="button" title={`Sets work order to ${statusLabel(option.workOrderStatus)}. ${option.description}`} disabled={disabled} onClick={() => void onOutcome(item.id, { outcome_status: option.status, outcome_notes: outcomeNotes, carried_over_to_date: option.status === 'carry_over' ? carryOverDate : undefined })} className={`rounded-xl border px-3 py-2 text-xs font-extrabold transition hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-50 ${item.outcome_status === option.status ? 'border-[#244393] bg-[#244393] text-white' : 'border-[rgba(36,67,147,0.16)] bg-white text-[#244393] hover:bg-[#e8eefc]'}`}>{option.label}</button>)}
         </div>
       </div>
       <div className="mt-3 grid gap-2 sm:grid-cols-[180px_1fr]">
@@ -167,7 +199,7 @@ function DispatchCard({ item, scheduleDate, teams, disabled, canEdit, canEditOut
   </div>
 }
 
-export function DispatchBuilder({ schedule, teams, working, canEdit, onSuggest, onUpdate, onOutcome, onFinalize, onReopen }: { schedule: DispatchSchedule | null; teams: Team[]; working: boolean; canEdit: boolean; onSuggest: () => Promise<void>; onUpdate: (itemId: number, changes: Record<string, unknown>) => Promise<void>; onOutcome: (itemId: number, changes: { outcome_status: DispatchOutcomeStatus; outcome_notes?: string; carried_over_to_date?: string }) => Promise<void>; onFinalize: () => Promise<void>; onReopen: () => Promise<void> }) {
+export function DispatchBuilder({ schedule, teams, working, canEdit, onSuggest, onUpdate, onOutcome, onWorkOrderStatus, onFinalize, onReopen }: { schedule: DispatchSchedule | null; teams: Team[]; working: boolean; canEdit: boolean; onSuggest: () => Promise<void>; onUpdate: (itemId: number, changes: Record<string, unknown>) => Promise<void>; onOutcome: (itemId: number, changes: { outcome_status: DispatchOutcomeStatus; outcome_notes?: string; carried_over_to_date?: string }) => Promise<void>; onWorkOrderStatus: (workOrderId: number, status: WorkOrderStatus) => Promise<void>; onFinalize: () => Promise<void>; onReopen: () => Promise<void> }) {
   const groupedSchedule = useMemo(() => {
     const groups: Record<string, DispatchItem[]> = {}
     schedule?.items.forEach((item) => {
@@ -202,7 +234,7 @@ export function DispatchBuilder({ schedule, teams, working, canEdit, onSuggest, 
           <div key={team} className="rounded-2xl border border-[rgba(36,67,147,0.12)] bg-[#f8faff]/85 p-4">
             <h3 className="font-display font-extrabold tracking-tight text-[#172033]">{team}</h3>
             <div className="mt-3 space-y-3">
-              {items.map((item, index) => <DispatchCard key={item.id} item={item} scheduleDate={schedule.date} teams={teams} disabled={working} canEdit={canEditItems} canEditOutcomes={canEditOutcomes} canMoveEarlier={index > 0} canMoveLater={index < items.length - 1} onUpdate={onUpdate} onOutcome={onOutcome} />)}
+              {items.map((item, index) => <DispatchCard key={item.id} item={item} scheduleDate={schedule.date} teams={teams} disabled={working} canEdit={canEditItems} canEditOutcomes={canEditOutcomes} canMoveEarlier={index > 0} canMoveLater={index < items.length - 1} onUpdate={onUpdate} onOutcome={onOutcome} onWorkOrderStatus={onWorkOrderStatus} />)}
             </div>
           </div>
         ))}

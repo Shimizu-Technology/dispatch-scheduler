@@ -12,7 +12,7 @@ import { WhatsAppExport } from './components/WhatsAppExport'
 import { WorkOrdersPanel } from './components/WorkOrdersPanel'
 import { useAuthContext } from './contexts/useAuthContext'
 import { getJson, patchJson, postJson } from './lib/api'
-import type { AuditEvent, Dashboard, DispatchOutcomeStatus, DispatchSchedule, ManagedUser, PmTask, Team, TeamInput, Technician, WhatsAppCrewExport, WhatsAppExportPayload, WorkOrder, WorkOrderInput } from './types'
+import type { AuditEvent, Dashboard, DispatchOutcomeStatus, DispatchSchedule, ManagedUser, PmTask, Team, TeamInput, Technician, WhatsAppCrewExport, WhatsAppExportPayload, WorkOrder, WorkOrderInput, WorkOrderStatus } from './types'
 import './index.css'
 
 type ActiveSection = 'overview' | 'dispatch' | 'work-orders' | 'teams' | 'pm-tasks' | 'whatsapp' | 'activity' | 'users'
@@ -253,7 +253,7 @@ function DispatchApp() {
       const updated = await postJson<DispatchSchedule>(`/dispatch_schedules/${schedule.id}/${path}`, {})
       setSchedule(updated)
       if (updated.items.length > 0) await refreshWhatsApp(updated.id)
-      await afterAuditedChange()
+      await Promise.allSettled([refreshWorkOrderContext(), afterAuditedChange()])
     } catch (err) {
       setError(err instanceof Error ? err.message : fallbackMessage)
     } finally {
@@ -321,6 +321,28 @@ function DispatchApp() {
       await afterAuditedChange()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to update dispatch item')
+    } finally {
+      setWorking(false)
+    }
+  }
+
+  async function updateWorkOrderStatus(workOrderId: number, status: WorkOrderStatus) {
+    if (!canEditDispatch) {
+      setError('Viewer access cannot update work order status.')
+      return
+    }
+    setWorking(true)
+    setError('')
+    try {
+      const updatedWorkOrder = await patchJson<WorkOrder>(`/work_orders/${workOrderId}/status`, { status })
+      setWorkOrders((current) => current.map((workOrder) => workOrder.id === updatedWorkOrder.id ? updatedWorkOrder : workOrder))
+      setSchedule((currentSchedule) => currentSchedule ? {
+        ...currentSchedule,
+        items: currentSchedule.items.map((item) => item.work_order?.id === updatedWorkOrder.id ? { ...item, work_order: updatedWorkOrder } : item),
+      } : currentSchedule)
+      await Promise.allSettled([refreshWorkOrderContext(), afterAuditedChange()])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to update work order status')
     } finally {
       setWorking(false)
     }
@@ -637,7 +659,7 @@ function DispatchApp() {
 
         {currentSection === 'teams' && (user ? <TeamsPanel teams={teams} technicians={technicians} canEdit={canEditDispatch} savingTechnicianId={availabilitySavingId} savingTeamId={teamSavingId} onToggleAvailability={toggleAvailability} onUpdateDailyCrew={updateDailyCrew} onUpdateDefaultCrew={updateDefaultCrew} onCreateTeam={createTeam} /> : <SignInRequiredPanel title="Sign in to check crews" />)}
 
-        {currentSection === 'dispatch' && (user ? <DispatchBuilder schedule={schedule} teams={teams} working={working} canEdit={canEditDispatch} onSuggest={suggestSchedule} onUpdate={updateDispatchItem} onOutcome={updateDispatchItemOutcome} onFinalize={finalizeSchedule} onReopen={reopenSchedule} /> : <SignInRequiredPanel title="Sign in to build today's dispatch" />)}
+        {currentSection === 'dispatch' && (user ? <DispatchBuilder schedule={schedule} teams={teams} working={working} canEdit={canEditDispatch} onSuggest={suggestSchedule} onUpdate={updateDispatchItem} onOutcome={updateDispatchItemOutcome} onWorkOrderStatus={updateWorkOrderStatus} onFinalize={finalizeSchedule} onReopen={reopenSchedule} /> : <SignInRequiredPanel title="Sign in to build today's dispatch" />)}
 
         {currentSection === 'pm-tasks' && (user ? <PmTasksPanel pmTasks={pmTasks} /> : <SignInRequiredPanel title="Sign in to review PM tasks" />)}
 

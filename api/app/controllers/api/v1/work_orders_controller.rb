@@ -1,7 +1,7 @@
 module Api
   module V1
     class WorkOrdersController < ApplicationController
-      before_action :require_dispatch_edit!, only: [ :create, :update, :archive, :unarchive ]
+      before_action :require_dispatch_edit!, only: [ :create, :update, :archive, :unarchive, :update_status ]
 
       def index
         scope = WorkOrder.includes(:client, :location, :team, dispatch_items: [ :team, :dispatch_schedule ]).order(:scheduled_date, :id)
@@ -53,6 +53,8 @@ module Api
         render json: { errors: [ e.message ] }, status: :not_found
       rescue ActiveRecord::RecordInvalid => e
         render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
+      rescue ArgumentError => e
+        render json: { errors: [ e.message ] }, status: :unprocessable_entity
       end
 
       def archive
@@ -79,6 +81,25 @@ module Api
         render json: { errors: [ e.message ] }, status: :not_found
       rescue ActiveRecord::RecordInvalid => e
         render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
+      end
+
+      def update_status
+        wo = WorkOrder.find(params[:id])
+        status = params[:status].to_s
+        raise ArgumentError, "Invalid work order status" unless WorkOrder::STATUSES.include?(status)
+
+        previous_status = wo.status
+        ApplicationRecord.transaction do
+          wo.update!(status: status)
+          AuditEvent.record!(action: "work_order.status_updated", record: wo, user: current_user, metadata: work_order_audit_metadata(wo).merge(previous_status: previous_status, new_status: wo.status))
+        end
+        render json: Serializers.work_order(wo)
+      rescue ActiveRecord::RecordNotFound => e
+        render json: { errors: [ e.message ] }, status: :not_found
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
+      rescue ArgumentError => e
+        render json: { errors: [ e.message ] }, status: :unprocessable_entity
       end
 
       private
@@ -120,6 +141,8 @@ module Api
 
         priority = attrs[:priority].presence || existing&.priority || "P4"
         status = attrs[:status].presence || existing&.status || "new"
+        raise ArgumentError, "Invalid work order status" unless WorkOrder::STATUSES.include?(status)
+
         description = attrs.key?(:description) ? attrs[:description].to_s.strip : existing&.description.to_s
         scheduled_date = if attrs.key?(:scheduled_date)
           attrs[:scheduled_date].present? ? Date.parse(attrs[:scheduled_date].to_s) : nil

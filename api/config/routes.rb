@@ -12,6 +12,7 @@ Rails.application.routes.draw do
         member do
           patch :archive
           patch :unarchive
+          patch :status, action: :update_status
         end
       end
       resources :technicians, only: [ :index, :update ]

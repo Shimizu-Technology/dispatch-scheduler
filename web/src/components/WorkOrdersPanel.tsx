@@ -34,6 +34,7 @@ function statusTone(status: string) {
   if (status === 'carry_over') return 'border-purple-200 bg-purple-50 text-purple-900'
   if (status === 'waiting_for_parts' || status === 'waiting_for_approval') return 'border-amber-200 bg-amber-50 text-amber-900'
   if (status === 'completed') return 'border-emerald-200 bg-emerald-50 text-emerald-900'
+  if (status === 'closed') return 'border-slate-300 bg-slate-100 text-slate-800'
   if (status === 'cancelled') return 'border-slate-200 bg-slate-100 text-slate-700'
   return 'border-slate-200 bg-slate-50 text-slate-700'
 }
@@ -49,6 +50,7 @@ function statusSummary(status: string) {
     waiting_for_parts: 'Held for parts',
     waiting_for_approval: 'Held for approval',
     completed: 'Closed out',
+    closed: 'Closed out',
     cancelled: 'Cancelled',
   }
   return summaries[status] || statusLabel(status)

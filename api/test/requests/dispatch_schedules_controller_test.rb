@@ -102,6 +102,28 @@ class DispatchSchedulesControllerTest < ActionDispatch::IntegrationTest
     assert_nil schedule.dispatch_items.first.reload.previous_work_order_status
   end
 
+  test "reopen clears archived work order status snapshots" do
+    crew = team(name: "Archived Restore Crew")
+    schedule = DispatchSchedule.create!(date: DEFAULT_DATE, status: "draft")
+    work = work_order(title: "Archived restore work", status: "needs_assessment", date: DEFAULT_DATE)
+    item = schedule.dispatch_items.create!(team: crew, work_order: work, order_index: 0)
+
+    with_auth_env do
+      post "/api/v1/dispatch_schedules/#{schedule.id}/finalize", headers: auth_headers
+    end
+    assert_equal "needs_assessment", item.reload.previous_work_order_status
+
+    work.update!(archived_at: Time.current)
+
+    with_auth_env do
+      post "/api/v1/dispatch_schedules/#{schedule.id}/reopen", headers: auth_headers
+    end
+
+    assert_response :success
+    assert_equal "scheduled", work.reload.status
+    assert_nil item.reload.previous_work_order_status
+  end
+
   test "reopen preserves mid-day work order status changes" do
     crew = team(name: "Midday Status Crew")
     schedule = DispatchSchedule.create!(date: DEFAULT_DATE, status: "draft")

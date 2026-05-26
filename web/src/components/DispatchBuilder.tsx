@@ -14,6 +14,7 @@ const OUTCOME_OPTIONS: Array<{ status: DispatchOutcomeStatus; label: string; wor
 ]
 
 const WORK_ORDER_STATUS_OPTIONS: Array<{ status: WorkOrderStatus; label: string }> = [
+  { status: 'new', label: 'New' },
   { status: 'needs_assessment', label: 'Needs Assessment' },
   { status: 'approved', label: 'Approved' },
   { status: 'scheduled', label: 'Scheduled' },
@@ -22,6 +23,7 @@ const WORK_ORDER_STATUS_OPTIONS: Array<{ status: WorkOrderStatus; label: string 
   { status: 'waiting_for_parts', label: 'Waiting For Parts' },
   { status: 'waiting_for_approval', label: 'Waiting For Approval' },
   { status: 'completed', label: 'Completed' },
+  { status: 'closed', label: 'Closed' },
   { status: 'cancelled', label: 'Cancelled' },
 ]
 

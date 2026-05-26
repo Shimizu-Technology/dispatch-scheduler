@@ -8,6 +8,8 @@ class WorkOrder < ApplicationRecord
   CLOSED_STATUSES = %w[completed closed cancelled].freeze
   BLOCKED_STATUSES = %w[waiting_for_parts waiting_for_approval].freeze
 
+  validates :status, inclusion: { in: STATUSES }
+
   scope :active_queue, -> { where(archived_at: nil) }
   scope :archived, -> { where.not(archived_at: nil) }
   scope :open, -> { where.not(status: CLOSED_STATUSES) }

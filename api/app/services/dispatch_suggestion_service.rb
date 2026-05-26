@@ -56,8 +56,7 @@ class DispatchSuggestionService
   def eligible_work_orders
     scheduled_scope = WorkOrder.includes(:client, :location, :team)
       .dispatchable
-      .where("scheduled_date = ? OR scheduled_date IS NULL", @date)
-      .select { |work_order| work_order.sla_dispatchable_on?(@date) }
+      .sla_dispatchable_for_date(@date)
     carry_over_scope = WorkOrder.includes(:client, :location, :team)
       .dispatchable
       .joins(:dispatch_items)

@@ -22,6 +22,40 @@ class WorkOrderTest < ActiveSupport::TestCase
     assert_equal reported_at + 8.days, p4.repair_due_at
   end
 
+  test "does not mark legacy response-due-only records as SLA missing" do
+    order = work_order(title: "Legacy response due")
+    due_at = Time.zone.local(2026, 5, 5, 10, 0, 0)
+    order.update_columns(reported_at: nil, assessment_due_at: nil, response_due_at: due_at, repair_due_at: nil)
+    order.reload
+
+    refute order.sla_missing?
+    assert_equal due_at, order.sla_due_at
+  end
+
+  test "preserves caller-provided SLA due dates" do
+    reported_at = Time.zone.local(2026, 5, 5, 8, 0, 0)
+    custom_assessment_due_at = Time.zone.local(2026, 5, 5, 9, 30, 0)
+    custom_repair_due_at = Time.zone.local(2026, 5, 5, 11, 45, 0)
+    order = WorkOrder.create!(
+      client: client,
+      location: location,
+      title: "Custom SLA",
+      description: "Custom SLA",
+      priority: "P1",
+      normalized_priority: "P1",
+      status: "needs_assessment",
+      original_status_text: "needs_assessment",
+      trade_category: "General",
+      reported_at: reported_at,
+      assessment_due_at: custom_assessment_due_at,
+      repair_due_at: custom_repair_due_at
+    )
+
+    assert_equal custom_assessment_due_at, order.assessment_due_at
+    assert_equal custom_assessment_due_at, order.response_due_at
+    assert_equal custom_repair_due_at, order.repair_due_at
+  end
+
   test "assessment status uses assessment due date and approved work uses repair due date" do
     reported_at = Time.zone.local(2026, 5, 5, 8, 0, 0)
     assessment = work_order(title: "Assess", priority: "P4", status: "needs_assessment", reported_at: reported_at)

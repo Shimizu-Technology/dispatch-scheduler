@@ -37,11 +37,9 @@ module Serializers
   end
 
   def eligible_work_orders_for(date)
-    scheduled_scope = WorkOrder.dispatchable
-      .where("scheduled_date = ? OR scheduled_date IS NULL", date)
-      .select { |work_order| work_order.sla_dispatchable_on?(date) }
-    carry_over_scope = WorkOrder.dispatchable.joins(:dispatch_items).where(dispatch_items: { outcome_status: "carry_over", carried_over_to_date: date }).to_a
-    WorkOrder.where(id: (scheduled_scope + carry_over_scope).map(&:id).uniq)
+    scheduled_scope = WorkOrder.dispatchable.sla_dispatchable_for_date(date)
+    carry_over_scope = WorkOrder.dispatchable.joins(:dispatch_items).where(dispatch_items: { outcome_status: "carry_over", carried_over_to_date: date })
+    WorkOrder.where(id: scheduled_scope.select(:id)).or(WorkOrder.where(id: carry_over_scope.select(:id)))
   end
 
   def pm_tasks_due_for(date)

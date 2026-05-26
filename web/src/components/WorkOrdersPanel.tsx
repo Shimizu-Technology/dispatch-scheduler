@@ -49,6 +49,12 @@ function slaLabel(status?: string | null) {
   return 'SLA on track'
 }
 
+function slaBadgeKind(status?: string | null) {
+  if (status === 'overdue') return 'p1'
+  if (status === 'due_soon' || status === 'missing') return 'waiting'
+  return 'closed'
+}
+
 function statusTone(status: string) {
   if (status === 'needs_assessment') return 'border-blue-200 bg-blue-50 text-blue-900'
   if (status === 'scheduled') return 'border-indigo-200 bg-indigo-50 text-indigo-900'
@@ -135,7 +141,7 @@ function WorkOrderRow({ workOrder, canEdit, onEdit, onArchive }: { workOrder: Wo
         <Badge kind={workOrder.normalized_priority}>{workOrder.normalized_priority}</Badge>
         <Badge kind={workOrder.status}>{statusLabel(workOrder.status)}</Badge>
         {workOrder.archived && <Badge kind="waiting">Archived</Badge>}
-        <Badge kind={workOrder.sla_status === 'overdue' ? 'p1' : workOrder.sla_status === 'due_soon' ? 'waiting' : 'closed'}>{slaLabel(workOrder.sla_status)}</Badge>
+        <Badge kind={slaBadgeKind(workOrder.sla_status)}>{slaLabel(workOrder.sla_status)}</Badge>
         {workOrder.pa_project && <Badge kind="waiting">PA Project</Badge>}
         {workOrder.corrective_maintenance && <Badge kind="approved">CM</Badge>}
         {workOrder.estimate_required && <Badge kind="scheduled">Estimate</Badge>}

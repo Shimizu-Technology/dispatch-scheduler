@@ -26,6 +26,37 @@ class WorkOrder < ApplicationRecord
   scope :archived, -> { where.not(archived_at: nil) }
   scope :open, -> { where.not(status: CLOSED_STATUSES) }
   scope :dispatchable, -> { active_queue.open.where.not(status: BLOCKED_STATUSES) }
+  scope :sla_dispatchable_for_date, lambda { |date|
+    end_of_day = date.end_of_day
+    assessment_statuses = ASSESSMENT_STATUSES.map { |status| connection.quote(status) }.join(", ")
+    sla_due_sql = sanitize_sql_array([
+      <<~SQL.squish,
+        scheduled_date = :date
+        OR (
+          scheduled_date IS NULL
+          AND (
+            (
+              status IN (#{assessment_statuses})
+              AND assessed_at IS NULL
+              AND COALESCE(assessment_due_at, response_due_at, repair_due_at) <= :end_of_day
+            )
+            OR (
+              (status NOT IN (#{assessment_statuses}) OR assessed_at IS NOT NULL)
+              AND COALESCE(repair_due_at, assessment_due_at, response_due_at) <= :end_of_day
+            )
+            OR (
+              assessment_due_at IS NULL
+              AND response_due_at IS NULL
+              AND repair_due_at IS NULL
+            )
+          )
+        )
+      SQL
+      { date: date, end_of_day: end_of_day }
+    ])
+
+    where(sla_due_sql)
+  }
 
   def archived?
     archived_at.present?
@@ -62,7 +93,7 @@ class WorkOrder < ApplicationRecord
   end
 
   def sla_missing?
-    open? && reported_at.blank? && assessment_due_at.blank? && repair_due_at.blank?
+    open? && reported_at.blank? && assessment_due_at.blank? && response_due_at.blank? && repair_due_at.blank?
   end
 
   def sla_dispatchable_on?(date)
@@ -89,14 +120,10 @@ class WorkOrder < ApplicationRecord
 
     windows = PRIORITY_SLA_WINDOWS[priority_key]
     return unless windows && reported_at.present?
-    return unless sla_due_dates_need_refresh?
 
-    self.assessment_due_at = reported_at + windows.fetch(:assessment)
-    self.response_due_at = assessment_due_at
-    self.repair_due_at = reported_at + windows.fetch(:repair)
-  end
-
-  def sla_due_dates_need_refresh?
-    assessment_due_at.blank? || repair_due_at.blank? || will_save_change_to_reported_at? || will_save_change_to_requested_at? || will_save_change_to_priority? || will_save_change_to_normalized_priority?
+    calculated_assessment_due_at = reported_at + windows.fetch(:assessment)
+    self.assessment_due_at = calculated_assessment_due_at if assessment_due_at.blank?
+    self.response_due_at = assessment_due_at || calculated_assessment_due_at if response_due_at.blank?
+    self.repair_due_at = reported_at + windows.fetch(:repair) if repair_due_at.blank?
   end
 end

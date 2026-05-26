@@ -26,12 +26,12 @@ class WorkOrder < ApplicationRecord
   scope :archived, -> { where.not(archived_at: nil) }
   scope :open, -> { where.not(status: CLOSED_STATUSES) }
   scope :dispatchable, -> { active_queue.open.where.not(status: BLOCKED_STATUSES) }
-  scope :sla_missing, -> { where(reported_at: nil, assessment_due_at: nil, response_due_at: nil, repair_due_at: nil) }
+  scope :sla_missing, -> { active_queue.open.where(reported_at: nil, assessment_due_at: nil, response_due_at: nil, repair_due_at: nil) }
   scope :sla_overdue_at, lambda { |reference_time = Time.current|
-    where(sanitize_sql_array([ "#{sla_due_sql} < ?", reference_time ]))
+    active_queue.open.where(sanitize_sql_array([ "#{sla_due_sql} < ?", reference_time ]))
   }
   scope :sla_due_soon_at, lambda { |reference_time = Time.current, window: 24.hours|
-    where(sanitize_sql_array([ "#{sla_due_sql} >= ? AND #{sla_due_sql} <= ?", reference_time, reference_time + window ]))
+    active_queue.open.where(sanitize_sql_array([ "#{sla_due_sql} >= ? AND #{sla_due_sql} <= ?", reference_time, reference_time + window ]))
   }
   scope :sla_dispatchable_for_date, lambda { |date|
     end_of_day = date.end_of_day
@@ -155,8 +155,10 @@ class WorkOrder < ApplicationRecord
     return false unless persisted?
     return false unless will_save_change_to_reported_at? || will_save_change_to_requested_at? || will_save_change_to_priority? || will_save_change_to_normalized_priority?
 
-    old_reported_at = reported_at_before_last_save || reported_at_was || requested_at_was
-    old_windows = PRIORITY_SLA_WINDOWS[normalized_priority_was.presence || priority_was]
+    old_reported_at = will_save_change_to_reported_at? ? reported_at_was : reported_at
+    old_reported_at ||= will_save_change_to_requested_at? ? requested_at_was : requested_at
+    old_priority_key = (will_save_change_to_normalized_priority? ? normalized_priority_was : normalized_priority).presence || (will_save_change_to_priority? ? priority_was : priority)
+    old_windows = PRIORITY_SLA_WINDOWS[old_priority_key]
     old_value = public_send("#{field}_was")
     return false unless old_reported_at.present? && old_windows && old_value.present?
 

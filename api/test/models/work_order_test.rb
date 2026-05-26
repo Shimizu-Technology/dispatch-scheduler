@@ -68,6 +68,18 @@ class WorkOrderTest < ActiveSupport::TestCase
     assert_equal corrected_reported_at + 4.hours, order.repair_due_at
   end
 
+  test "SLA scopes ignore closed and archived work orders when used directly" do
+    overdue_reported_at = 10.days.ago
+    active = work_order(title: "Active overdue", priority: "P4", reported_at: overdue_reported_at)
+    work_order(title: "Closed overdue", priority: "P4", status: "completed", reported_at: overdue_reported_at)
+    work_order(title: "Archived overdue", priority: "P4", reported_at: overdue_reported_at).update!(archived_at: Time.current)
+    missing = work_order(title: "Missing SLA")
+    missing.update_columns(reported_at: nil, assessment_due_at: nil, response_due_at: nil, repair_due_at: nil)
+
+    assert_equal [ active.id ], WorkOrder.sla_overdue_at.pluck(:id)
+    assert_equal [ missing.id ], WorkOrder.sla_missing.pluck(:id)
+  end
+
   test "preserves custom SLA due dates when reported time changes" do
     reported_at = Time.zone.local(2026, 5, 5, 8, 0, 0)
     custom_assessment_due_at = Time.zone.local(2026, 5, 5, 9, 45, 0)
@@ -80,6 +92,18 @@ class WorkOrderTest < ActiveSupport::TestCase
     assert_equal custom_assessment_due_at, order.assessment_due_at
     assert_equal custom_assessment_due_at, order.response_due_at
     assert_equal custom_repair_due_at, order.repair_due_at
+  end
+
+  test "recalculates auto SLA due dates after separate priority and reported time edits" do
+    reported_at = Time.zone.local(2026, 5, 5, 8, 0, 0)
+    corrected_reported_at = Time.zone.local(2026, 5, 5, 10, 0, 0)
+    order = work_order(title: "Separate edits", priority: "P3", reported_at: reported_at)
+    order.update!(priority: "P4", normalized_priority: "P4")
+
+    order.update!(reported_at: corrected_reported_at)
+
+    assert_equal corrected_reported_at + 4.days, order.assessment_due_at
+    assert_equal corrected_reported_at + 8.days, order.repair_due_at
   end
 
   test "assessment status uses assessment due date and approved work uses repair due date" do

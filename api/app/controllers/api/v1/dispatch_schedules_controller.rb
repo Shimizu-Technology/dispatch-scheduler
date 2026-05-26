@@ -106,7 +106,9 @@ module Api
           next unless work_order&.archived_at.nil?
           next unless work_order.open?
 
-          item.update!(previous_work_order_status: work_order.status) if item.previous_work_order_status.blank?
+          if item.previous_work_order_status.blank?
+            item.update!(previous_work_order_status: work_order.status, previous_work_order_scheduled_date: work_order.scheduled_date)
+          end
           work_order.update!(status: status, scheduled_date: schedule.date, updated_at: timestamp)
         end
       end
@@ -116,10 +118,12 @@ module Api
           next if item.previous_work_order_status.blank?
 
           work_order = item.work_order
-          if work_order&.archived_at.nil? && WorkOrder::STATUSES.include?(item.previous_work_order_status) && %w[scheduled in_progress].include?(work_order.status)
-            work_order.update!(status: item.previous_work_order_status)
+          if work_order&.archived_at.nil? && WorkOrder::STATUSES.include?(item.previous_work_order_status)
+            restored_attrs = { scheduled_date: item.previous_work_order_scheduled_date }
+            restored_attrs[:status] = item.previous_work_order_status if %w[scheduled in_progress].include?(work_order.status)
+            work_order.update!(restored_attrs)
           end
-          item.update!(previous_work_order_status: nil)
+          item.update!(previous_work_order_status: nil, previous_work_order_scheduled_date: nil)
         end
       end
     end

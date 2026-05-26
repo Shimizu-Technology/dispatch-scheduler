@@ -47,7 +47,7 @@ class DispatchSchedulesControllerTest < ActionDispatch::IntegrationTest
   test "finalizes marks sent and reopens schedule" do
     crew = team(name: "Finalize Crew")
     schedule = DispatchSchedule.create!(date: DEFAULT_DATE, status: "draft")
-    work = work_order(title: "Finalize work", status: "needs_assessment", date: DEFAULT_DATE)
+    work = work_order(title: "Finalize work", status: "needs_assessment", date: DEFAULT_DATE - 2.days)
     schedule.dispatch_items.create!(team: crew, work_order: work, order_index: 0)
 
     with_auth_env do
@@ -60,6 +60,7 @@ class DispatchSchedulesControllerTest < ActionDispatch::IntegrationTest
     assert payload.fetch("finalized_at")
     assert_equal "Test User", payload.fetch("finalized_by")
     assert_equal "scheduled", work.reload.status
+    assert_equal DEFAULT_DATE, work.scheduled_date
 
     first_finalized_at = payload.fetch("finalized_at")
 
@@ -80,6 +81,7 @@ class DispatchSchedulesControllerTest < ActionDispatch::IntegrationTest
     assert payload.fetch("sent_at")
     assert_equal "Test User", payload.fetch("sent_by")
     assert_equal "in_progress", work.reload.status
+    assert_equal DEFAULT_DATE, work.scheduled_date
     first_sent_at = payload.fetch("sent_at")
 
     with_auth_env do
@@ -99,7 +101,10 @@ class DispatchSchedulesControllerTest < ActionDispatch::IntegrationTest
     assert_nil payload.fetch("finalized_at")
     assert_nil payload.fetch("sent_at")
     assert_equal "needs_assessment", work.reload.status
-    assert_nil schedule.dispatch_items.first.reload.previous_work_order_status
+    assert_equal DEFAULT_DATE - 2.days, work.scheduled_date
+    item = schedule.dispatch_items.first.reload
+    assert_nil item.previous_work_order_status
+    assert_nil item.previous_work_order_scheduled_date
   end
 
   test "reopen clears archived work order status snapshots" do
@@ -122,6 +127,7 @@ class DispatchSchedulesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_equal "scheduled", work.reload.status
     assert_nil item.reload.previous_work_order_status
+    assert_nil item.previous_work_order_scheduled_date
   end
 
   test "reopen preserves mid-day work order status changes" do
@@ -139,7 +145,9 @@ class DispatchSchedulesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_equal "waiting_for_parts", work.reload.status
-    assert_nil schedule.dispatch_items.first.reload.previous_work_order_status
+    item = schedule.dispatch_items.first.reload
+    assert_nil item.previous_work_order_status
+    assert_nil item.previous_work_order_scheduled_date
   end
 
   test "exports WhatsApp-ready crew assignments with active crew context" do

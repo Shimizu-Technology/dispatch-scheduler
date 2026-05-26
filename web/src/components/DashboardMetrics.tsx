@@ -90,6 +90,7 @@ export function DashboardMetrics({ dashboard, workOrders, teams, technicians, pm
   const paProjects = workOrders.filter((workOrder) => workOrder.pa_project).length
   const correctiveMaintenance = workOrders.filter((workOrder) => workOrder.corrective_maintenance).length
   const estimateRequired = workOrders.filter((workOrder) => workOrder.estimate_required).length
+  const waitingForParts = workOrders.filter((workOrder) => workOrder.status === 'waiting_for_parts').length
   const next = nextAction(schedule, driverIssues, canEdit)
   const scheduleItems = schedule?.items.length || 0
   const recentEvents = auditEvents.slice(0, 4)
@@ -141,7 +142,7 @@ export function DashboardMetrics({ dashboard, workOrders, teams, technicians, pm
       <Metric icon={<Wrench size={20} />} label="Corrective Maint." value={dashboard?.counts.corrective_maintenance ?? correctiveMaintenance} detail="CM-flagged open work" tone="blue" />
       <Metric icon={<FileText size={20} />} label="Estimates" value={dashboard?.counts.estimate_required ?? estimateRequired} detail="Estimate-required open work" tone={estimateRequired > 0 ? 'amber' : 'steel'} />
       <button type="button" onClick={() => onGoToSection('work-orders')} className="text-left transition hover:-translate-y-0.5">
-        <Metric icon={<Clock3 size={20} />} label="Waiting parts" value={dashboard?.counts.waiting_for_parts} detail="Held out of dispatch suggestions" tone={(dashboard?.counts.waiting_for_parts || 0) > 0 ? 'amber' : 'steel'} />
+        <Metric icon={<Clock3 size={20} />} label="Waiting parts" value={dashboard?.counts.waiting_for_parts ?? waitingForParts} detail="Held out of dispatch suggestions" tone={(dashboard?.counts.waiting_for_parts ?? waitingForParts) > 0 ? 'amber' : 'steel'} />
       </button>
     </div>
 

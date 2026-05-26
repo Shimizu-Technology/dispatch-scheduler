@@ -106,7 +106,9 @@ module Api
           next unless transitionable_work_order?(work_order, status)
 
           if item.previous_work_order_status.blank?
-            item.update!(previous_work_order_status: work_order.status, previous_work_order_scheduled_date: work_order.scheduled_date)
+            item.update!(previous_work_order_status: work_order.status, previous_work_order_scheduled_date: work_order.scheduled_date, auto_work_order_status: status)
+          else
+            item.update!(auto_work_order_status: status)
           end
           work_order.update!(status: status, scheduled_date: schedule.date, updated_at: timestamp)
         end
@@ -128,10 +130,10 @@ module Api
           work_order = item.work_order
           if work_order&.archived_at.nil? && WorkOrder::STATUSES.include?(item.previous_work_order_status)
             restored_attrs = { scheduled_date: item.previous_work_order_scheduled_date }
-            restored_attrs[:status] = item.previous_work_order_status if %w[scheduled in_progress].include?(work_order.status)
+            restored_attrs[:status] = item.previous_work_order_status if item.auto_work_order_status == work_order.status
             work_order.update!(restored_attrs)
           end
-          item.update!(previous_work_order_status: nil, previous_work_order_scheduled_date: nil)
+          item.update!(previous_work_order_status: nil, previous_work_order_scheduled_date: nil, auto_work_order_status: nil)
         end
       end
     end

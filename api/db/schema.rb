@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_26_204000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_26_212000) do
   create_table "audit_events", force: :cascade do |t|
     t.string "action", null: false
     t.datetime "created_at", null: false
@@ -33,6 +33,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_26_204000) do
   end
 
   create_table "dispatch_items", force: :cascade do |t|
+    t.string "auto_work_order_status"
     t.date "carried_over_to_date"
     t.datetime "completed_at"
     t.datetime "created_at", null: false

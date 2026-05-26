@@ -4,13 +4,17 @@ module Api
       before_action :require_dispatch_edit!, only: [ :create, :update, :archive, :unarchive, :update_status ]
 
       def index
-        scope = WorkOrder.includes(:client, :location, :team, dispatch_items: [ :team, :dispatch_schedule ]).order(:scheduled_date, :id)
+        scope = WorkOrder.includes(:client, :location, :team, :service_line, dispatch_items: [ :team, :dispatch_schedule ]).order(:scheduled_date, :id)
         scope = archive_scope(scope)
         scope = scope.left_joins(:client, :location) if joined_filter_params?
         scope = scope.where(status: params[:status]) if params[:status].present?
         scope = scope.where(normalized_priority: params[:priority]) if params[:priority].present?
         scope = scope.where(trade_category: params[:trade_category]) if params[:trade_category].present?
         scope = scope.where(source: params[:source]) if params[:source].present?
+        scope = scope.where(service_line_id: params[:service_line_id]) if params[:service_line_id].present?
+        scope = scope.where(pa_project: true) if truthy_param?(:pa_project)
+        scope = scope.where(corrective_maintenance: true) if truthy_param?(:corrective_maintenance)
+        scope = scope.where(estimate_required: true) if truthy_param?(:estimate_required)
         scope = scope.where(scheduled_date: scheduled_date_param) if params[:scheduled_date].present?
         scope = scope.where("clients.name LIKE ?", "%#{ActiveRecord::Base.sanitize_sql_like(params[:client])}%") if params[:client].present?
         scope = scope.where(locations: { region: params[:region] }) if params[:region].present?
@@ -31,6 +35,8 @@ module Api
           AuditEvent.record!(action: "work_order.created", record: wo, user: current_user, metadata: work_order_audit_metadata(wo))
         end
         render json: Serializers.work_order(wo), status: :created
+      rescue ActiveRecord::RecordNotFound => e
+        render json: { errors: [ e.message ] }, status: :not_found
       rescue ActiveRecord::RecordInvalid => e
         render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
       end
@@ -164,7 +170,12 @@ module Api
           original_status_text: attrs[:original_status_text].presence || existing&.original_status_text || status,
           trade_category: attrs[:trade_category].presence || existing&.trade_category || "General",
           scheduled_date: scheduled_date,
-          notes: attrs.key?(:notes) ? attrs[:notes] : existing&.notes
+          notes: attrs.key?(:notes) ? attrs[:notes] : existing&.notes,
+          service_line: service_line_for(attrs, existing),
+          pa_project: boolean_attr(attrs, :pa_project, existing&.pa_project),
+          pa_project_notes: attrs.key?(:pa_project_notes) ? attrs[:pa_project_notes] : existing&.pa_project_notes,
+          corrective_maintenance: boolean_attr(attrs, :corrective_maintenance, existing&.corrective_maintenance),
+          estimate_required: boolean_attr(attrs, :estimate_required, existing&.estimate_required)
         }
       rescue Date::Error
         raise ActionController::BadRequest, "Invalid scheduled date"
@@ -178,8 +189,29 @@ module Api
           location: work_order.location.name,
           status: work_order.status,
           priority: work_order.normalized_priority,
-          trade_category: work_order.trade_category
+          trade_category: work_order.trade_category,
+          service_line: work_order.service_line&.name,
+          pa_project: work_order.pa_project,
+          corrective_maintenance: work_order.corrective_maintenance,
+          estimate_required: work_order.estimate_required
         }
+      end
+
+      def service_line_for(attrs, existing)
+        return existing&.service_line unless attrs.key?(:service_line_id)
+        return nil if attrs[:service_line_id].blank?
+
+        ServiceLine.find(attrs[:service_line_id])
+      end
+
+      def boolean_attr(attrs, key, fallback)
+        return fallback || false unless attrs.key?(key)
+
+        ActiveModel::Type::Boolean.new.cast(attrs[key])
+      end
+
+      def truthy_param?(key)
+        ActiveModel::Type::Boolean.new.cast(params[key])
       end
 
       def duplicate_work_order(source, external_id, excluding_id: nil)
@@ -206,7 +238,12 @@ module Api
           :original_status_text,
           :trade_category,
           :scheduled_date,
-          :notes
+          :notes,
+          :service_line_id,
+          :pa_project,
+          :pa_project_notes,
+          :corrective_maintenance,
+          :estimate_required
         )
       end
     end

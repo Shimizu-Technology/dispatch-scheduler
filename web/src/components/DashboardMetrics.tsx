@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { ArrowRight, CalendarDays, ClipboardList, Clock3, ListChecks, Radio, ShieldCheck, Users, Wrench } from 'lucide-react'
+import { ArrowRight, CalendarDays, ClipboardList, Clock3, FileText, FolderKanban, ListChecks, Radio, ShieldCheck, Users, Wrench } from 'lucide-react'
 import { Card, PanelHeader } from './ui'
 import type { AuditEvent, Dashboard, DispatchSchedule, PmTask, Team, Technician, WorkOrder } from '../types'
 
@@ -13,7 +13,7 @@ type DashboardMetricsProps = {
   auditEvents: AuditEvent[]
   canEdit: boolean
   working: boolean
-  onGoToSection: (section: 'work-orders' | 'teams' | 'dispatch' | 'whatsapp' | 'activity') => void
+  onGoToSection: (section: 'work-orders' | 'pa-projects' | 'teams' | 'dispatch' | 'whatsapp' | 'activity') => void
   onSuggest: () => Promise<void>
 }
 
@@ -87,6 +87,8 @@ export function DashboardMetrics({ dashboard, workOrders, teams, technicians, pm
   const dailyOverrides = teams.filter((team) => team.daily_override).length
   const highPriority = priorityCount(workOrders)
   const unscheduledApproved = workOrders.filter((workOrder) => workOrder.status === 'approved' && !workOrder.scheduled_date).length
+  const paProjects = workOrders.filter((workOrder) => workOrder.pa_project).length
+  const estimateRequired = workOrders.filter((workOrder) => workOrder.estimate_required).length
   const next = nextAction(schedule, driverIssues, canEdit)
   const scheduleItems = schedule?.items.length || 0
   const recentEvents = auditEvents.slice(0, 4)
@@ -129,6 +131,17 @@ export function DashboardMetrics({ dashboard, workOrders, teams, technicians, pm
       <Metric icon={<Clock3 size={20} />} label="Needs assessment" value={dashboard?.counts.needs_assessment} detail={`${unscheduledApproved} approved without date`} tone={unscheduledApproved > 0 ? 'amber' : 'steel'} />
       <Metric icon={<Users size={20} />} label="Crews ready" value={`${Math.max(teams.length - driverIssues, 0)}/${teams.length}`} detail={`${dailyOverrides} daily override${dailyOverrides === 1 ? '' : 's'}`} tone={driverIssues > 0 ? 'red' : 'green'} />
       <Metric icon={<Radio size={20} />} label="Call-outs" value={callOuts.length} detail={callOuts.slice(0, 2).map((tech) => tech.name).join(', ') || 'No call-outs marked'} tone={callOuts.length > 0 ? 'red' : 'green'} />
+    </div>
+
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <button type="button" onClick={() => onGoToSection('pa-projects')} className="text-left transition hover:-translate-y-0.5">
+        <Metric icon={<FolderKanban size={20} />} label="PA Projects" value={dashboard?.counts.pa_projects ?? paProjects} detail="Long-lead follow-up workspace" tone={paProjects > 0 ? 'amber' : 'steel'} />
+      </button>
+      <Metric icon={<Wrench size={20} />} label="Corrective Maint." value={dashboard?.counts.corrective_maintenance} detail="CM-flagged open work" tone="blue" />
+      <Metric icon={<FileText size={20} />} label="Estimates" value={dashboard?.counts.estimate_required ?? estimateRequired} detail="Estimate-required open work" tone={estimateRequired > 0 ? 'amber' : 'steel'} />
+      <button type="button" onClick={() => onGoToSection('work-orders')} className="text-left transition hover:-translate-y-0.5">
+        <Metric icon={<Clock3 size={20} />} label="Waiting parts" value={dashboard?.counts.waiting_for_parts} detail="Held out of dispatch suggestions" tone={(dashboard?.counts.waiting_for_parts || 0) > 0 ? 'amber' : 'steel'} />
+      </button>
     </div>
 
     <div>

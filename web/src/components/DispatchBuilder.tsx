@@ -121,7 +121,7 @@ function DispatchCard({ item, scheduleDate, teams, disabled, canEdit, canEditOut
     </div>
 
     <div className="mt-3 flex flex-wrap gap-2 text-xs font-bold text-[#64748b]">
-      {wo && <><span>Client: {wo.client}</span><span>WO: {wo.external_id || 'N/A'}</span><span>Trade: {wo.trade_category}</span><span>Region: {wo.region}</span><span>Scheduled: {wo.scheduled_date || 'Not set'}</span><Badge kind={wo.status}>{statusLabel(wo.status)}</Badge></>}
+      {wo && <><span>Client: {wo.client}</span><span>WO: {wo.external_id || 'N/A'}</span><span>Trade: {wo.trade_category}</span><span>Region: {wo.region}</span><span>Service line: {wo.service_line || 'Unassigned'}</span><span>Scheduled: {wo.scheduled_date || 'Not set'}</span><Badge kind={wo.status}>{statusLabel(wo.status)}</Badge>{wo.pa_project && <Badge kind="waiting">PA Project</Badge>}{wo.corrective_maintenance && <Badge kind="approved">CM</Badge>}{wo.estimate_required && <Badge kind="scheduled">Estimate</Badge>}</>}
       {pm && <><span>Client: {pm.client}</span><span>Trade: {pm.trade_category}</span><span>Region: {pm.region}</span><span>Scheduled: {pm.scheduled_date}</span></>}
       <button type="button" onClick={() => setShowDetails((current) => !current)} className="font-extrabold text-[#244393] underline-offset-4 hover:underline">{showDetails ? 'Hide details' : 'Details'}</button>
     </div>

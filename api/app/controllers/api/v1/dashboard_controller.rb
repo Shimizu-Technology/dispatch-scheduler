@@ -18,7 +18,9 @@ module Api
             sla_overdue: open_work_orders.sla_overdue_at.count,
             sla_due_soon: open_work_orders.sla_due_soon_at.count,
             sla_missing: open_work_orders.sla_missing.count,
-            pm_due: PmTask.where(scheduled_date: date).count,
+            pm_due: PmTask.dispatchable_for_date(date).count,
+            pm_incomplete_month: PmTask.for_month(date).incomplete.count,
+            pm_completed_month: PmTask.for_month(date).where(status: "completed").count,
             available_teams: teams.count,
             driver_warnings: teams.reject { |t| t.has_driver?(date) }.count
           },

@@ -131,6 +131,8 @@ export type TeamInput = {
   technician_ids: number[]
 }
 
+export type PmTaskStatus = 'pending' | 'scheduled' | 'completed' | 'deferred'
+
 export type PmTask = {
   id: number
   client: string
@@ -139,6 +141,10 @@ export type PmTask = {
   task_name: string
   trade_category: string
   scheduled_date: string
+  status: PmTaskStatus
+  completed_at: string | null
+  deferred_until: string | null
+  notes: string | null
 }
 
 export type DispatchOutcomeStatus = 'pending' | 'completed' | 'carry_over' | 'waiting_parts' | 'waiting_approval' | 'unable_to_access' | 'cancelled'

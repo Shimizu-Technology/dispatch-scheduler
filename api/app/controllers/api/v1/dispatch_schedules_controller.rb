@@ -48,6 +48,7 @@ module Api
         ApplicationRecord.transaction do
           schedule.finalize!(current_user)
           transition_schedule_work_orders!(schedule, "scheduled")
+          transition_schedule_pm_tasks!(schedule, "scheduled")
           AuditEvent.record!(action: "dispatch_schedule.finalized", record: schedule, user: current_user, metadata: { date: schedule.date, status: schedule.status })
         end
         render json: Serializers.schedule(schedule)
@@ -111,6 +112,17 @@ module Api
             item.update!(auto_work_order_status: status)
           end
           work_order.update!(status: status, scheduled_date: schedule.date, updated_at: timestamp)
+        end
+      end
+
+      def transition_schedule_pm_tasks!(schedule, status)
+        return unless status == "scheduled"
+
+        schedule.dispatch_items.includes(:pm_task).where.not(pm_task_id: nil).find_each do |item|
+          pm_task = item.pm_task
+          next unless pm_task&.status == "pending"
+
+          pm_task.update!(status: "scheduled")
         end
       end
 

@@ -26,8 +26,8 @@ Not implemented yet / still evolving:
 - Production file upload/intake.
 - Full PDF OCR and source-file storage.
 - Robust PM month setup and completion tracking.
-- PM month setup and completion tracking.
-- “While you are there” PM suggestions.
+- Full production file upload/intake.
+- OpenRouter OCR review workflow.
 - Service-line-aware crew/technician preferences and scheduler scoring.
 - Production deployment hardening, backups, and monitoring.
 
@@ -157,23 +157,24 @@ Acceptance criteria:
 
 ## Recommended Next PR Order
 
-1. Improve PM month setup, completion tracking, and “while you are there” PM suggestions.
-2. Private S3 upload storage plus intake draft model.
-3. OpenRouter extraction service and review UI.
-4. Service-line-aware crew/technician preferences and scheduler scoring.
-5. Production deployment hardening.
+1. Private S3 upload storage plus intake draft model.
+2. OpenRouter extraction service and review UI.
+3. Service-line-aware crew/technician preferences and scheduler scoring.
+4. Production deployment hardening.
+5. Reporting for monthly client/KPI meetings.
 
 ## Current Milestone Branch
 
-Branch: `codex/jmi-sla-scheduling`
+Branch: `codex/jmi-pm-operations`
 
 Scope implemented by this milestone:
 
-- Add SLA/KPI timestamps for reported time, assessment due time, assessed time, and repair due time.
-- Auto-calculate P1/P2/P3/P4 assessment and repair deadlines from John’s contract rules.
-- Surface SLA status and due time in work-order rows, dispatch cards, and dashboard cards.
-- Update dispatch suggestions so unscheduled work is pulled when it is due/overdue instead of blindly pulling fresh P4 work into today.
-- Keep PM month workflow and “while you are there” PM suggestions out of this PR; those are the next product layer.
+- Add monthly PM workflow statuses: pending, scheduled, completed, deferred.
+- Add completion/defer metadata and PM task notes.
+- Add month-level PM workspace with filters, incomplete/completed counts, and status actions.
+- Add dashboard PM completion metrics for the selected month.
+- Update dispatch suggestions to include incomplete same-location PMs as “while you’re there” suggestions when a crew is already going to that location.
+- Keep file storage/OCR intake, reporting, and service-line-aware crew preference scoring for follow-up PRs.
 
 ## Definition Of Ready For John/JMI Pilot
 

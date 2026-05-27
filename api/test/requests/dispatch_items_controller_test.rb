@@ -68,6 +68,54 @@ class DispatchItemsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "dispatch_item.outcome_updated", AuditEvent.last.action
   end
 
+  test "completed PM dispatch outcome marks PM task completed" do
+    crew = team(name: "PM Outcome Crew")
+    pm = pm_task(task_name: "Outcome PM", date: DEFAULT_DATE)
+    schedule = DispatchSchedule.create!(date: DEFAULT_DATE, status: "sent")
+    item = schedule.dispatch_items.create!(pm_task: pm, team: crew, order_index: 0)
+
+    with_auth_env do
+      patch "/api/v1/dispatch_items/#{item.id}/outcome", params: { outcome_status: "completed", outcome_notes: "PM done" }, headers: auth_headers
+    end
+
+    assert_response :success
+    assert_equal "completed", pm.reload.status
+    assert_not_nil pm.completed_at
+  end
+
+  test "carry-over PM dispatch outcome defers PM task" do
+    crew = team(name: "PM Carry Crew")
+    pm = pm_task(task_name: "Deferred PM", date: DEFAULT_DATE)
+    schedule = DispatchSchedule.create!(date: DEFAULT_DATE, status: "sent")
+    item = schedule.dispatch_items.create!(pm_task: pm, team: crew, order_index: 0)
+
+    with_auth_env do
+      patch "/api/v1/dispatch_items/#{item.id}/outcome", params: { outcome_status: "carry_over", carried_over_to_date: (DEFAULT_DATE + 2.days).to_s }, headers: auth_headers
+    end
+
+    assert_response :success
+    assert_equal "deferred", pm.reload.status
+    assert_equal DEFAULT_DATE + 2.days, pm.deferred_until
+  end
+
+  test "non-lifecycle PM dispatch outcomes leave PM status metadata unchanged" do
+    crew = team(name: "PM Waiting Crew")
+    pm = pm_task(task_name: "Waiting PM", date: DEFAULT_DATE)
+    pm.update!(status: "scheduled")
+    schedule = DispatchSchedule.create!(date: DEFAULT_DATE, status: "sent")
+    item = schedule.dispatch_items.create!(pm_task: pm, team: crew, order_index: 0)
+
+    with_auth_env do
+      patch "/api/v1/dispatch_items/#{item.id}/outcome", params: { outcome_status: "waiting_parts", outcome_notes: "Need filter" }, headers: auth_headers
+    end
+
+    assert_response :success
+    assert_equal "waiting_parts", item.reload.outcome_status
+    assert_equal "scheduled", pm.reload.status
+    assert_nil pm.completed_at
+    assert_nil pm.deferred_until
+  end
+
   test "resetting outcome to pending restores scheduled work order state" do
     crew = team(name: "Reset Crew", skills: [ "General" ])
     schedule = DispatchSchedule.create!(date: DEFAULT_DATE, status: "sent")

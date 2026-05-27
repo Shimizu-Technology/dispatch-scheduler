@@ -58,6 +58,7 @@ module DispatchTestData
       trade_category: trade,
       frequency: "monthly",
       scheduled_date: date,
+      status: "pending",
       source_file: "test.xlsx"
     )
   end

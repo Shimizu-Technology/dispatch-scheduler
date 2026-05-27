@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_27_110000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_27_130000) do
   create_table "audit_events", force: :cascade do |t|
     t.string "action", null: false
     t.datetime "created_at", null: false
@@ -96,16 +96,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_27_110000) do
 
   create_table "pm_tasks", force: :cascade do |t|
     t.integer "client_id", null: false
+    t.datetime "completed_at"
     t.datetime "created_at", null: false
+    t.date "deferred_until"
     t.string "frequency"
     t.integer "location_id", null: false
+    t.text "notes"
     t.date "scheduled_date"
     t.string "source_file"
+    t.string "status", default: "pending", null: false
     t.string "task_name"
     t.string "trade_category"
     t.datetime "updated_at", null: false
     t.index ["client_id"], name: "index_pm_tasks_on_client_id"
+    t.index ["deferred_until"], name: "index_pm_tasks_on_deferred_until"
     t.index ["location_id"], name: "index_pm_tasks_on_location_id"
+    t.index ["scheduled_date", "status"], name: "index_pm_tasks_on_scheduled_date_and_status"
+    t.index ["status"], name: "index_pm_tasks_on_status"
   end
 
   create_table "service_lines", force: :cascade do |t|

@@ -21,6 +21,7 @@ type ActiveSection = 'overview' | 'dispatch' | 'work-orders' | 'pa-projects' | '
 
 const SECTION_IDS: ActiveSection[] = ['overview', 'dispatch', 'work-orders', 'pa-projects', 'teams', 'pm-tasks', 'service-lines', 'whatsapp', 'activity', 'users']
 const SELECTED_DATE_STORAGE_KEY = 'dispatch-scheduler:selected-date'
+const DEFAULT_WORK_ORDER_QUERY = 'archived=all&page=1&per_page=50&sort=scheduled_date&direction=asc'
 
 function localDateString(date = new Date()) {
   const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
@@ -44,7 +45,8 @@ function DispatchApp() {
   const [dashboard, setDashboard] = useState<Dashboard | null>(null)
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([])
   const [workOrderMeta, setWorkOrderMeta] = useState<PaginationMeta | null>(null)
-  const [workOrderQuery, setWorkOrderQuery] = useState('archived=all&page=1&per_page=50')
+  const [paProjectWorkOrders, setPaProjectWorkOrders] = useState<WorkOrder[]>([])
+  const [paProjectMeta, setPaProjectMeta] = useState<PaginationMeta | null>(null)
   const [teams, setTeams] = useState<Team[]>([])
   const [technicians, setTechnicians] = useState<Technician[]>([])
   const [pmTasks, setPmTasks] = useState<PmTask[]>([])
@@ -81,7 +83,7 @@ function DispatchApp() {
     setError('')
     const [dash, orders, teamData, technicianData, pms, lines, schedulePayload] = await Promise.all([
       getJson<Dashboard>(`/dashboard?date=${date}`),
-      getJson<WorkOrderListPayload>(`/work_orders?${workOrderQuery}`),
+      getJson<WorkOrderListPayload>(`/work_orders?${DEFAULT_WORK_ORDER_QUERY}`),
       getJson<Team[]>(`/teams?date=${date}`),
       getJson<Technician[]>(`/technicians?date=${date}&include_inactive=true`),
       getJson<PmTask[]>(`/pm_tasks?month=${date.slice(0, 7)}`),
@@ -104,7 +106,7 @@ function DispatchApp() {
       setWhatsAppCrews([])
     }
     setLoading(false)
-  }, [refreshAuditEvents, refreshWhatsApp, workOrderQuery])
+  }, [refreshAuditEvents, refreshWhatsApp])
 
   useEffect(() => {
     window.localStorage.setItem(SELECTED_DATE_STORAGE_KEY, selectedDate)
@@ -124,7 +126,7 @@ function DispatchApp() {
   useEffect(() => {
     if (!user?.id || activeSection !== 'pa-projects') return
 
-    void fetchWorkOrders('archived=active&page=1&per_page=50&sort=scheduled_date&direction=asc&pa_project=true')
+    void fetchPaProjects(1)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSection, user?.id])
 
@@ -224,7 +226,7 @@ function DispatchApp() {
     }
   }
 
-  async function refreshWorkOrderContext(nextQuery = workOrderQuery) {
+  async function refreshWorkOrderContext(nextQuery = DEFAULT_WORK_ORDER_QUERY) {
     const [dash, orders] = await Promise.all([
       getJson<Dashboard>(`/dashboard?date=${selectedDate}`),
       getJson<WorkOrderListPayload>(`/work_orders?${nextQuery}`),
@@ -235,8 +237,13 @@ function DispatchApp() {
   }
 
   async function fetchWorkOrders(query: string) {
-    setWorkOrderQuery(query)
     await refreshWorkOrderContext(query)
+  }
+
+  async function fetchPaProjects(page: number) {
+    const payload = await getJson<WorkOrderListPayload>(`/work_orders?archived=active&page=${page}&per_page=${paProjectMeta?.per_page || 50}&sort=scheduled_date&direction=asc&pa_project=true`)
+    setPaProjectWorkOrders(payload.work_orders)
+    setPaProjectMeta(payload.meta)
   }
 
   async function createWorkOrder(values: WorkOrderInput) {
@@ -878,7 +885,7 @@ function DispatchApp() {
 
         {currentSection === 'work-orders' && (user ? <WorkOrdersPanel workOrders={workOrders} meta={workOrderMeta} serviceLines={serviceLines} canEdit={canEditDispatch} selectedDate={selectedDate} saving={workOrderSaving} onFetch={fetchWorkOrders} onCreate={createWorkOrder} onUpdate={updateWorkOrder} onArchive={archiveWorkOrder} /> : <SignInRequiredPanel title="Sign in to review work orders" />)}
 
-        {currentSection === 'pa-projects' && (user ? <PaProjectsPanel workOrders={workOrders} meta={workOrderMeta} canEdit={canEditDispatch} onPage={(page) => fetchWorkOrders(`archived=active&page=${page}&per_page=${workOrderMeta?.per_page || 50}&sort=scheduled_date&direction=asc&pa_project=true`)} onEdit={() => goToSection('work-orders')} /> : <SignInRequiredPanel title="Sign in to review PA Projects" />)}
+        {currentSection === 'pa-projects' && (user ? <PaProjectsPanel workOrders={paProjectWorkOrders} meta={paProjectMeta} canEdit={canEditDispatch} onPage={fetchPaProjects} onEdit={() => goToSection('work-orders')} /> : <SignInRequiredPanel title="Sign in to review PA Projects" />)}
 
         {currentSection === 'teams' && (user ? <TeamsPanel teams={teams} technicians={technicians} serviceLines={serviceLines} canEdit={canEditDispatch} savingTechnicianId={availabilitySavingId} savingTeamId={teamSavingId} onToggleAvailability={toggleAvailability} onUpdateDailyCrew={updateDailyCrew} onUpdateDefaultCrew={updateDefaultCrew} onCreateTeam={createTeam} onArchiveTeam={archiveTeam} onCreateTechnician={createTechnician} onUpdateTechnician={updateTechnician} onArchiveTechnician={archiveTechnician} /> : <SignInRequiredPanel title="Sign in to check crews" />)}
 

@@ -53,6 +53,10 @@ export async function postJson<T>(path: string, body: Record<string, unknown>): 
   })
 }
 
+export async function deleteJson<T>(path: string): Promise<T> {
+  return requestJson<T>(path, { method: 'DELETE' })
+}
+
 export async function postForm<T>(path: string, body: FormData): Promise<T> {
   return requestForm<T>(path, body)
 }

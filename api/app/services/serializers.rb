@@ -133,9 +133,14 @@ module Serializers
       role: user.role,
       auth_mode: user.auth_mode,
       last_seen_at: user.respond_to?(:last_seen_at) ? user.last_seen_at&.iso8601 : nil,
+      active: user.respond_to?(:active?) ? user.active? : true,
+      invitation_status: user.respond_to?(:invitation_status) ? user.invitation_status : "accepted",
+      invitation_pending: user.respond_to?(:invitation_pending?) ? user.invitation_pending? : false,
+      invited_at: user.respond_to?(:invited_at) ? user.invited_at&.iso8601 : nil,
+      invitation_accepted_at: user.respond_to?(:invitation_accepted_at) ? user.invitation_accepted_at&.iso8601 : nil,
       permissions: {
         can_edit_dispatch: user.can_edit_dispatch?,
-        can_admin: user.admin?
+        can_admin: user.active? && user.admin?
       }
     }
   end

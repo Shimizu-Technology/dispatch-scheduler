@@ -34,17 +34,33 @@ module Auth
         raise AccessDenied, "Missing Clerk user id" if clerk_id.blank?
         raise AccessDenied, "Missing Clerk email. Set CLERK_SECRET_KEY or configure Clerk token email claims." if email.blank?
 
-        user = User.find_or_initialize_by(clerk_id: clerk_id)
-        if user.new_record? && (existing = User.find_by(email: email.downcase))
-          user = existing
-          user.clerk_id = clerk_id
+        user = User.find_by(clerk_id: clerk_id)
+        existing_by_email = User.find_by(email: email.downcase)
+
+        if user.nil?
+          if existing_by_email
+            user = existing_by_email
+            user.clerk_id = clerk_id
+          elsif RoleResolver.bootstrap_admin?(email)
+            user = User.new(clerk_id: clerk_id, email: email, role: "admin")
+          else
+            raise AccessDenied, "Your account has not been invited yet. Ask a JMI dispatch admin to invite #{email}."
+          end
+        elsif existing_by_email && existing_by_email.id != user.id
+          raise AccessDenied, "This Clerk account is already linked to another dispatch user."
         end
+
+        raise AccessDenied, "This dispatch user has been deactivated." if user.respond_to?(:active?) && !user.active?
 
         user.email = email
         user.name = name if name.present?
         resolved_role = RoleResolver.role_for(email)
         user.role = resolved_role if user.new_record? || user.role.blank? || resolved_role == "admin"
         user.last_seen_at = Time.current if touch_last_seen?(user)
+        if user.respond_to?(:invitation_status) && user.invitation_pending?
+          user.invitation_status = "accepted"
+          user.invitation_accepted_at ||= Time.current
+        end
         user.save! if user.changed?
         user
       end

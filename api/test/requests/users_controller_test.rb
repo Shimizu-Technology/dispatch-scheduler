@@ -14,6 +14,27 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "admin can invite a user" do
+    with_auth_env do
+      admin = User.create!(clerk_id: "admin_123", email: "admin@example.com", role: "admin")
+
+      post "/api/v1/users", params: { email: "dispatcher@example.com", name: "Dispatch Lead", role: "dispatcher" }, headers: auth_headers(admin)
+
+      assert_response :created
+      payload = JSON.parse(response.body)
+      assert_equal "dispatcher@example.com", payload.dig("user", "email")
+      assert_equal "pending", payload.dig("user", "invitation_status")
+      assert_equal false, payload.fetch("invitation_sent")
+      assert_equal "CLERK_SECRET_KEY is not configured", payload.fetch("invitation_error")
+
+      invited = User.find_by!(email: "dispatcher@example.com")
+      assert_equal "pending", invited.invitation_status
+      assert_match(/\Apending_/, invited.clerk_id)
+      assert_equal admin, invited.invited_by
+      assert_equal "user.invited", AuditEvent.last.action
+    end
+  end
+
   test "admin can update a user role" do
     with_auth_env do
       admin = User.create!(clerk_id: "admin_123", email: "admin@example.com", role: "admin")
@@ -24,6 +45,23 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
       assert_response :success
       assert_equal "dispatcher", viewer.reload.role
       assert_equal "dispatcher", JSON.parse(response.body).dig("user", "role")
+    end
+  end
+
+  test "admin can deactivate and delete invited user" do
+    with_auth_env do
+      admin = User.create!(clerk_id: "admin_123", email: "admin@example.com", role: "admin")
+      invited = User.create!(clerk_id: "pending_123", email: "pending@example.com", role: "viewer", invitation_status: "pending")
+
+      patch "/api/v1/users/#{invited.id}", params: { active: false }, headers: auth_headers(admin)
+
+      assert_response :success
+      assert_equal false, invited.reload.active?
+
+      delete "/api/v1/users/#{invited.id}", headers: auth_headers(admin)
+
+      assert_response :no_content
+      assert_nil User.find_by(id: invited.id)
     end
   end
 

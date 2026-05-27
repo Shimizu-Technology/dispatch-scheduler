@@ -90,15 +90,25 @@ Supported roles:
 - `dispatcher`: can create/regenerate schedules, edit dispatch items, and update availability.
 - `viewer`: can read dashboard/work-order/team/PM data but cannot change dispatch data.
 
-New Clerk sign-ins are created as `viewer` by default unless their email is listed in `CLERK_BOOTSTRAP_ADMIN_EMAILS`.
+Dispatch Scheduler is invite-only after the bootstrap admin is established. A Clerk user can sign in only when their email matches an existing invited Rails user, or when their email is listed in `CLERK_BOOTSTRAP_ADMIN_EMAILS`.
 
-`CLERK_BOOTSTRAP_ADMIN_EMAILS` is for first-admin setup and emergency recovery only. Set it to Leon's or the primary owner email before the first real sign-in so that person can open the `Users` section and promote John or other staff to `dispatcher` or `admin`.
+`CLERK_BOOTSTRAP_ADMIN_EMAILS` is for first-admin setup and emergency recovery only. Set it to Leon's or the primary owner email before the first real sign-in so that person can open the `Users` section and invite John or other staff.
 
-After the first admin is in, normal role changes should happen in the app:
+After the first admin is in, normal access changes should happen in the app:
 
 - Admin opens the `Users` section.
-- Admin changes a user role to `admin`, `dispatcher`, or `viewer`.
-- The API prevents removing the last admin.
+- Admin invites a user by email and chooses `admin`, `dispatcher`, or `viewer`.
+- Admin can resend pending invitations, deactivate users, delete pending/inactive users, and change roles.
+- The API prevents removing the last admin, changing your own role, or deactivating/deleting yourself.
+
+Optional invite email delivery:
+
+```bash
+RESEND_API_KEY=re_...
+RESEND_FROM_EMAIL="JMI Dispatch <dispatch@your-domain.com>"
+```
+
+If Resend is not configured, the user row is still pre-provisioned and can be resent after email is configured.
 
 ## API Protection
 
@@ -117,7 +127,10 @@ Mutating dispatch endpoints also require `admin` or `dispatcher`:
 User management endpoints require `admin`:
 
 - `GET /api/v1/users`
+- `POST /api/v1/users`
 - `PATCH /api/v1/users/:id`
+- `DELETE /api/v1/users/:id`
+- `POST /api/v1/users/:id/resend_invitation`
 
 `GET /api/v1/me` returns the current role and permissions for the frontend.
 

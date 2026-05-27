@@ -203,13 +203,20 @@ export type DispatchSchedule = {
   items: DispatchItem[]
 }
 
+export type UserRole = 'admin' | 'dispatcher' | 'viewer'
+
 export type CurrentUser = {
   id: number | null
   clerk_id: string
   email: string
   name: string
-  role: 'admin' | 'dispatcher' | 'viewer'
+  role: UserRole
   auth_mode?: string
+  active?: boolean
+  invitation_status?: 'pending' | 'accepted'
+  invitation_pending?: boolean
+  invited_at?: string | null
+  invitation_accepted_at?: string | null
   permissions: {
     can_edit_dispatch: boolean
     can_admin: boolean
@@ -219,6 +226,11 @@ export type CurrentUser = {
 export type ManagedUser = CurrentUser & {
   id: number
   last_seen_at: string | null
+  active: boolean
+  invitation_status: 'pending' | 'accepted'
+  invitation_pending: boolean
+  invited_at: string | null
+  invitation_accepted_at: string | null
 }
 
 export type AuditEvent = {

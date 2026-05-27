@@ -19,12 +19,26 @@ module Auth
       assert_equal 2, calls
     end
 
-    test "non-bootstrap users default to viewer" do
+    test "invited non-bootstrap users are linked and accepted" do
+      invited = User.create!(clerk_id: "pending_123", email: "viewer@example.com", role: "viewer", invitation_status: "pending")
+
       user = UserSync.call({ "sub" => "viewer_123", "email" => "viewer@example.com", "name" => "Viewer User" })
 
+      assert_equal invited.id, user.id
+      assert_equal "viewer_123", user.clerk_id
       assert_equal "viewer", user.role
       assert_equal "viewer@example.com", user.email
       assert_equal "Viewer User", user.name
+      assert_equal "accepted", user.invitation_status
+      assert_not_nil user.invitation_accepted_at
+    end
+
+    test "uninvited non-bootstrap users are denied" do
+      error = assert_raises(UserSync::AccessDenied) do
+        UserSync.call({ "sub" => "viewer_123", "email" => "viewer@example.com", "name" => "Viewer User" })
+      end
+
+      assert_includes error.message, "has not been invited"
     end
 
     test "bootstrap admin email is resolved from the dedicated env var" do
@@ -40,6 +54,8 @@ module Auth
 
     test "recently seen users are not touched on every authenticated request" do
       now = Time.zone.parse("2026-05-15 09:00:00")
+      User.create!(clerk_id: "pending_viewer", email: "viewer@example.com", role: "viewer", invitation_status: "pending")
+
       travel_to now do
         UserSync.call({ "sub" => "viewer_123", "email" => "viewer@example.com", "name" => "Viewer User" })
       end
@@ -59,6 +75,8 @@ module Auth
 
     test "falls back to Clerk profile when token omits email" do
       fetched_clerk_ids = []
+
+      User.create!(clerk_id: "pending_profile", email: "profile@example.com", role: "viewer", invitation_status: "pending")
 
       with_profile_fetch_override(->(clerk_id) do
         fetched_clerk_ids << clerk_id

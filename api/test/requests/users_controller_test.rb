@@ -78,6 +78,19 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "cannot deactivate the last active admin" do
+    with_auth_env do
+      last_active_admin = User.create!(clerk_id: "last_active_admin_123", email: "last-active-admin@example.com", role: "admin")
+      User.create!(clerk_id: "inactive_admin_123", email: "inactive-admin@example.com", role: "admin", active: false)
+
+      patch "/api/v1/users/#{last_active_admin.id}", params: { active: false }, headers: auth_headers(last_active_admin)
+
+      assert_response :unprocessable_entity
+      assert_equal true, last_active_admin.reload.active?
+      assert_equal [ "At least one admin is required" ], JSON.parse(response.body).fetch("errors")
+    end
+  end
+
   test "cannot demote the last active admin when other admins are inactive" do
     with_auth_env do
       last_active_admin = User.create!(clerk_id: "last_active_admin_123", email: "last-active-admin@example.com", role: "admin")

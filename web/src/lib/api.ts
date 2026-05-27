@@ -22,6 +22,7 @@ async function requestJson<T>(path: string, options: RequestInit = {}): Promise<
 
   const res = await fetch(`${API}${path}`, { ...options, headers })
   if (!res.ok) throw new Error(await errorMessage(res))
+  if (res.status === 204) return undefined as T
   return res.json()
 }
 

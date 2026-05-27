@@ -48,7 +48,7 @@ module Api
           @user.active = ActiveModel::Type::Boolean.new.cast(attrs[:active])
         end
 
-        if removing_last_admin?(@user)
+        if removing_last_admin?(@user) || deactivating_last_admin?(@user)
           return render json: { errors: [ "At least one admin is required" ] }, status: :unprocessable_entity
         end
 
@@ -126,6 +126,10 @@ module Api
 
       def removing_last_admin?(user)
         user.will_save_change_to_role? && user.role_was == "admin" && user.role != "admin" && User.where(role: "admin", active: true).where.not(id: user.id).none?
+      end
+
+      def deactivating_last_admin?(user)
+        user.will_save_change_to_active? && !user.active? && user.role == "admin" && User.where(role: "admin", active: true).where.not(id: user.id).none?
       end
 
       def demoting_bootstrap_admin?(user)

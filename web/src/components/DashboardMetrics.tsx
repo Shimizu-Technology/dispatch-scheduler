@@ -13,7 +13,7 @@ type DashboardMetricsProps = {
   auditEvents: AuditEvent[]
   canEdit: boolean
   working: boolean
-  onGoToSection: (section: 'work-orders' | 'pa-projects' | 'teams' | 'dispatch' | 'whatsapp' | 'activity') => void
+  onGoToSection: (section: 'work-orders' | 'pa-projects' | 'teams' | 'dispatch' | 'pm-tasks' | 'whatsapp' | 'activity') => void
   onSuggest: () => Promise<void>
 }
 
@@ -91,6 +91,7 @@ export function DashboardMetrics({ dashboard, workOrders, teams, technicians, pm
   const correctiveMaintenance = workOrders.filter((workOrder) => workOrder.corrective_maintenance).length
   const estimateRequired = workOrders.filter((workOrder) => workOrder.estimate_required).length
   const waitingForParts = workOrders.filter((workOrder) => workOrder.status === 'waiting_for_parts').length
+  const incompletePmTasks = pmTasks.filter((pm) => pm.status !== 'completed').length
   const slaOverdue = workOrders.filter((workOrder) => workOrder.sla_status === 'overdue').length
   const slaDueSoon = workOrders.filter((workOrder) => workOrder.sla_status === 'due_soon').length
   const slaMissing = workOrders.filter((workOrder) => workOrder.sla_status === 'missing').length
@@ -126,7 +127,7 @@ export function DashboardMetrics({ dashboard, workOrders, teams, technicians, pm
         <div className="grid grid-cols-3 gap-3 p-4">
           <Metric icon={<ShieldCheck size={20} />} label="Status" value={statusLabel(schedule)} tone={statusTone(schedule)} />
           <Metric icon={<ListChecks size={20} />} label="Stops" value={scheduleItems} tone="blue" />
-          <Metric icon={<CalendarDays size={20} />} label="PM Due" value={pmTasks.length} tone="steel" />
+          <Metric icon={<CalendarDays size={20} />} label="PM Due" value={dashboard?.counts.pm_due ?? pmTasks.filter((pm) => pm.scheduled_date === dashboard?.date && pm.status !== 'completed').length} tone="steel" />
         </div>
       </Card>
     </div>
@@ -153,6 +154,13 @@ export function DashboardMetrics({ dashboard, workOrders, teams, technicians, pm
       <Metric icon={<AlertTriangle size={20} />} label="SLA overdue" value={dashboard?.counts.sla_overdue ?? slaOverdue} detail="Needs dispatch/follow-up now" tone={(dashboard?.counts.sla_overdue ?? slaOverdue) > 0 ? 'red' : 'green'} />
       <Metric icon={<Clock3 size={20} />} label="SLA due soon" value={dashboard?.counts.sla_due_soon ?? slaDueSoon} detail="Within the next 24 hours" tone={(dashboard?.counts.sla_due_soon ?? slaDueSoon) > 0 ? 'amber' : 'steel'} />
       <Metric icon={<ShieldCheck size={20} />} label="SLA missing" value={dashboard?.counts.sla_missing ?? slaMissing} detail="Needs reported time/priority cleanup" tone={(dashboard?.counts.sla_missing ?? slaMissing) > 0 ? 'amber' : 'green'} />
+    </div>
+
+    <div className="grid gap-3 sm:grid-cols-2">
+      <button type="button" onClick={() => onGoToSection('pm-tasks')} className="text-left transition hover:-translate-y-0.5">
+        <Metric icon={<CalendarDays size={20} />} label="PM incomplete" value={dashboard?.counts.pm_incomplete_month ?? incompletePmTasks} detail="Not completed this month" tone={(dashboard?.counts.pm_incomplete_month ?? incompletePmTasks) > 0 ? 'amber' : 'green'} />
+      </button>
+      <Metric icon={<ListChecks size={20} />} label="PM completed" value={dashboard?.counts.pm_completed_month ?? pmTasks.filter((pm) => pm.status === 'completed').length} detail="Completed this month" tone="green" />
     </div>
 
     <div>

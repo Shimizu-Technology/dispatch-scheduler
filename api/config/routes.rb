@@ -26,7 +26,7 @@ Rails.application.routes.draw do
           patch :daily_memberships
         end
       end
-      resources :pm_tasks, only: [ :index ]
+      resources :pm_tasks, only: [ :index, :update ]
       resources :dispatch_items, only: [ :update ] do
         member do
           patch :outcome

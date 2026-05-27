@@ -65,6 +65,42 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "cannot demote the last active admin when other admins are inactive" do
+    with_auth_env do
+      last_active_admin = User.create!(clerk_id: "last_active_admin_123", email: "last-active-admin@example.com", role: "admin")
+      User.create!(clerk_id: "inactive_admin_123", email: "inactive-admin@example.com", role: "admin", active: false)
+
+      patch "/api/v1/users/#{last_active_admin.id}", params: { role: "viewer" }, headers: auth_headers(last_active_admin)
+
+      assert_response :unprocessable_entity
+      assert_equal "admin", last_active_admin.reload.role
+      assert_equal [ "At least one admin is required" ], JSON.parse(response.body).fetch("errors")
+    end
+  end
+
+  test "Clerk invitation is not revoked when local delete rolls back" do
+    with_auth_env do
+      admin = User.create!(clerk_id: "admin_123", email: "admin@example.com", role: "admin")
+      invited = User.create!(clerk_id: "pending_123", email: "pending@example.com", role: "viewer", invitation_status: "pending", clerk_invitation_id: "inv_123")
+      revoked = []
+
+      with_revoke_override(->(invitation_id) { revoked << invitation_id }) do
+        invalid_event = AuditEvent.new
+        original_record = AuditEvent.method(:record!)
+        begin
+          AuditEvent.define_singleton_method(:record!) { |**| raise ActiveRecord::RecordInvalid.new(invalid_event) }
+          delete "/api/v1/users/#{invited.id}", headers: auth_headers(admin)
+        ensure
+          AuditEvent.define_singleton_method(:record!, original_record)
+        end
+      end
+
+      assert_response :unprocessable_entity
+      assert_empty revoked
+      assert User.exists?(invited.id)
+    end
+  end
+
   test "viewer cannot manage users" do
     with_auth_env do
       viewer = User.create!(clerk_id: "viewer_123", email: "viewer@example.com", role: "viewer")
@@ -131,5 +167,14 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
 
   def auth_headers(user)
     { "Authorization" => "Bearer test_token:#{user.clerk_id}:#{user.email}" }
+  end
+
+  def with_revoke_override(override)
+    klass = Auth::ClerkInvitationService
+    original = klass.instance_method(:revoke_invitation)
+    klass.define_method(:revoke_invitation, &override)
+    yield
+  ensure
+    klass.define_method(:revoke_invitation, original)
   end
 end

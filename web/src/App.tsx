@@ -58,6 +58,7 @@ function DispatchApp() {
   const [teamSavingId, setTeamSavingId] = useState<number | null>(null)
   const [workOrderSaving, setWorkOrderSaving] = useState(false)
   const [serviceLineSaving, setServiceLineSaving] = useState(false)
+  const [pmTaskSavingId, setPmTaskSavingId] = useState<number | null>(null)
   const [savingUserId, setSavingUserId] = useState<number | null>(null)
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState('')
@@ -81,7 +82,7 @@ function DispatchApp() {
       getJson<WorkOrder[]>('/work_orders?archived=all'),
       getJson<Team[]>(`/teams?date=${date}`),
       getJson<Technician[]>(`/technicians?date=${date}`),
-      getJson<PmTask[]>(`/pm_tasks?date=${date}`),
+      getJson<PmTask[]>(`/pm_tasks?month=${date.slice(0, 7)}`),
       getJson<{ service_lines: ServiceLine[] }>('/service_lines?include_inactive=true'),
       getJson<{ schedule: DispatchSchedule | null }>(`/dispatch_schedules?date=${date}`),
     ])
@@ -313,6 +314,33 @@ function DispatchApp() {
     }
   }
 
+  async function refreshPmContext() {
+    const [dash, pms] = await Promise.all([
+      getJson<Dashboard>(`/dashboard?date=${selectedDate}`),
+      getJson<PmTask[]>(`/pm_tasks?month=${selectedDate.slice(0, 7)}`),
+    ])
+    setDashboard(dash)
+    setPmTasks(pms)
+  }
+
+  async function updatePmTask(pmTaskId: number, changes: Record<string, unknown>) {
+    if (!canEditDispatch) {
+      setError('Viewer access cannot update PM tasks.')
+      return
+    }
+    setPmTaskSavingId(pmTaskId)
+    setError('')
+    try {
+      const updated = await patchJson<PmTask>(`/pm_tasks/${pmTaskId}`, changes)
+      setPmTasks((current) => current.map((pm) => pm.id === updated.id ? updated : pm))
+      await Promise.allSettled([refreshPmContext(), afterAuditedChange()])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to update PM task')
+    } finally {
+      setPmTaskSavingId(null)
+    }
+  }
+
   async function archiveWorkOrder(workOrderId: number, archived: boolean) {
     if (!canEditDispatch) {
       setError('Viewer access cannot archive work orders.')
@@ -346,7 +374,7 @@ function DispatchApp() {
       const updated = await postJson<DispatchSchedule>(`/dispatch_schedules/${schedule.id}/${path}`, {})
       setSchedule(updated)
       if (updated.items.length > 0) await refreshWhatsApp(updated.id)
-      await Promise.allSettled([refreshWorkOrderContext(), afterAuditedChange()])
+      await Promise.allSettled([refreshWorkOrderContext(), refreshPmContext(), afterAuditedChange()])
     } catch (err) {
       setError(err instanceof Error ? err.message : fallbackMessage)
     } finally {
@@ -387,6 +415,7 @@ function DispatchApp() {
       setSchedule(created)
       goToSection('dispatch')
       await refreshWhatsApp(created.id)
+      await refreshPmContext()
       await afterAuditedChange()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to suggest schedule')
@@ -452,7 +481,7 @@ function DispatchApp() {
     try {
       const updated = await patchJson<DispatchSchedule>(`/dispatch_items/${itemId}/outcome`, changes)
       setSchedule(updated)
-      await Promise.allSettled([refreshWhatsApp(updated.id), refreshWorkOrderContext(), afterAuditedChange()])
+      await Promise.allSettled([refreshWhatsApp(updated.id), refreshWorkOrderContext(), refreshPmContext(), afterAuditedChange()])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to update dispatch outcome')
     } finally {
@@ -758,7 +787,7 @@ function DispatchApp() {
 
         {currentSection === 'dispatch' && (user ? <DispatchBuilder schedule={schedule} teams={teams} working={working} canEdit={canEditDispatch} onSuggest={suggestSchedule} onUpdate={updateDispatchItem} onOutcome={updateDispatchItemOutcome} onWorkOrderStatus={updateWorkOrderStatus} onFinalize={finalizeSchedule} onReopen={reopenSchedule} /> : <SignInRequiredPanel title="Sign in to build today's dispatch" />)}
 
-        {currentSection === 'pm-tasks' && (user ? <PmTasksPanel pmTasks={pmTasks} /> : <SignInRequiredPanel title="Sign in to review PM tasks" />)}
+        {currentSection === 'pm-tasks' && (user ? <PmTasksPanel pmTasks={pmTasks} canEdit={canEditDispatch} savingPmTaskId={pmTaskSavingId} selectedDate={selectedDate} onUpdate={updatePmTask} /> : <SignInRequiredPanel title="Sign in to review PM tasks" />)}
 
         {currentSection === 'service-lines' && (user ? <ServiceLinesPanel serviceLines={serviceLines} canAdmin={Boolean(user.permissions.can_admin)} saving={serviceLineSaving} onCreate={createServiceLine} onUpdate={updateServiceLine} /> : <SignInRequiredPanel title="Sign in to review service lines" />)}
 

@@ -78,11 +78,11 @@ module Api
           return render json: { errors: [ "At least one active admin is required" ] }, status: :unprocessable_entity
         end
 
-        revoke_clerk_invitation(@user)
         ApplicationRecord.transaction do
           AuditEvent.record!(action: "user.deleted", record: @user, user: current_user, metadata: user_audit_metadata(@user))
           @user.destroy!
         end
+        revoke_clerk_invitation(@user)
         head :no_content
       end
 
@@ -118,7 +118,7 @@ module Api
       end
 
       def removing_last_admin?(user)
-        user.will_save_change_to_role? && user.role_was == "admin" && user.role != "admin" && User.where(role: "admin").where.not(id: user.id).none?
+        user.will_save_change_to_role? && user.role_was == "admin" && user.role != "admin" && User.where(role: "admin", active: true).where.not(id: user.id).none?
       end
 
       def demoting_bootstrap_admin?(user)

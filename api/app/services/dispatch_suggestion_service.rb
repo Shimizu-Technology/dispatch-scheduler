@@ -50,7 +50,8 @@ class DispatchSuggestionService
   private
 
   def schedulables
-    eligible_work_orders + pm_tasks_due
+    work_orders = eligible_work_orders
+    work_orders + pm_tasks_due(work_orders)
   end
 
   def eligible_work_orders
@@ -66,10 +67,17 @@ class DispatchSuggestionService
       .sort_by { |wo| [ wo.status == "carry_over" ? 0 : 1, *wo.sla_sort_key(@date), wo.urgent_rank, region_rank(wo.location.region), wo.status == "needs_assessment" ? 0 : 1, wo.location.name.to_s, wo.id ] }
   end
 
-  def pm_tasks_due
-    PmTask.includes(:client, :location)
-      .where(scheduled_date: @date)
-      .sort_by { |pm| [ region_rank(pm.location.region), pm.location.name.to_s, pm.task_name.to_s, pm.id ] }
+  def pm_tasks_due(work_orders = [])
+    explicit_due = PmTask.includes(:client, :location).dispatchable_for_date(@date).to_a
+    location_ids = work_orders.map(&:location_id).uniq
+    opportunistic = if location_ids.any?
+      PmTask.includes(:client, :location).opportunistic_for_locations(@date, location_ids).to_a
+    else
+      []
+    end
+    (explicit_due + opportunistic)
+      .uniq(&:id)
+      .sort_by { |pm| [ pm.scheduled_date == @date ? 0 : 1, region_rank(pm.location.region), pm.location.name.to_s, pm.task_name.to_s, pm.id ] }
   end
 
   def choose_team(item, teams, counters, team_skills, team_driver_status, carry_over_context = nil)
@@ -96,6 +104,7 @@ class DispatchSuggestionService
       warnings << "Previous crew unavailable" if previous != team
       warnings << carry_over_context.outcome_notes if carry_over_context.outcome_notes.present?
     end
+    warnings << "While you're there PM suggestion" if item.is_a?(PmTask) && item.scheduled_date != @date
     warnings << (has_driver ? "Driver OK" : "No driver warning")
     warnings << "Check skill match: #{item.trade_category}" unless skills.include?(item.trade_category) || item.trade_category == "General"
     warnings << "Keep in #{item.location.region} route if possible"

@@ -162,17 +162,21 @@ The operational tracking layer has merged. The next PR should model the real SLA
 7. Update the scheduler so fresh P4s do not automatically flood today if they are not due.
 8. Add dashboard/work-queue visibility for overdue, due-soon, and missing-SLA work.
 
-### Next after SLA/KPI
+### Current follow-up: PM operations
 
-9. Improve PM workflow for monthly completion and “while you are there” suggestions.
-10. Add broader waiting-parts/PA/SLA follow-up dashboard polish.
+The SLA/KPI scheduling layer has merged. The next PR should model John's paper/highlighter PM workflow:
+
+9. Add monthly PM statuses: pending, scheduled, completed, deferred.
+10. Add completion/defer actions and incomplete-this-month visibility.
+11. Update the scheduler to suggest incomplete same-location PMs when a crew is already going there for a work order.
+12. Add dashboard PM completion counts for the selected month.
 
 ### Later
 
-8. Real data import for John's open work orders.
-9. Real PM month setup for June.
-10. More robust reporting for client/KPI/monthly meetings.
-11. Optional technician-facing workflow only if JMI asks for it later.
+13. Real data import for John's open work orders.
+14. Real PM month setup for June/current pilot month.
+15. More robust reporting for client/KPI/monthly meetings.
+16. Optional technician-facing workflow only if JMI asks for it later.
 
 ## Product Guardrails
 

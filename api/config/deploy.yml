@@ -40,7 +40,7 @@ registry:
 env:
   secret:
     - RAILS_MASTER_KEY
-  clear:
+  clear: {}
     # Background jobs currently run inline in production. Add a durable queue
     # backend with database tables and a dedicated worker before changing that.
 

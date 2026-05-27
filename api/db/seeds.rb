@@ -93,6 +93,7 @@ data["pm_tasks"].each do |attrs|
     trade_category: attrs["trade_category"],
     frequency: attrs["frequency"],
     scheduled_date: attrs["scheduled_date"],
+    status: "pending",
     source_file: attrs["source_file"]
   )
 end

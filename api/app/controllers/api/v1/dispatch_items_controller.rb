@@ -27,7 +27,7 @@ module Api
       end
 
       def outcome
-        item = DispatchItem.includes(:dispatch_schedule, :work_order, :team).find(params[:id])
+        item = DispatchItem.includes(:dispatch_schedule, :work_order, :pm_task, :team).find(params[:id])
         update_outcome(item, outcome_params)
         render json: Serializers.schedule(item.dispatch_schedule)
       rescue ActiveRecord::RecordNotFound => e
@@ -87,8 +87,20 @@ module Api
             completed_at: status == "completed" ? Time.current : nil
           )
           update_work_order_from_outcome(item) if item.work_order
+          update_pm_task_from_outcome(item) if item.pm_task
           AuditEvent.record!(action: "dispatch_item.outcome_updated", record: item, user: current_user, metadata: dispatch_item_audit_metadata(item).merge(outcome_status: item.outcome_status, outcome_notes: item.outcome_notes, carried_over_to_date: item.carried_over_to_date))
         end
+      end
+
+      def update_pm_task_from_outcome(item)
+        attrs = case item.outcome_status
+        when "completed" then { status: "completed", completed_at: Time.current, deferred_until: nil }
+        when "carry_over" then { status: "deferred", completed_at: nil, deferred_until: item.carried_over_to_date }
+        when "cancelled" then { status: "deferred", completed_at: nil, deferred_until: item.dispatch_schedule.date.next_month.beginning_of_month }
+        when "pending" then { status: "scheduled", completed_at: nil, deferred_until: nil }
+        else { status: item.pm_task.status }
+        end
+        item.pm_task.update!(attrs)
       end
 
       def update_work_order_from_outcome(item)

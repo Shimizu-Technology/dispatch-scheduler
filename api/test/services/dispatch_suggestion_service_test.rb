@@ -126,6 +126,20 @@ class DispatchSuggestionServiceTest < ActiveSupport::TestCase
     assert_empty schedule.dispatch_items
   end
 
+  test "suggests incomplete monthly PMs when crew is already going to the same location" do
+    team(name: "North Crew", skills: [ "General" ])
+    site = location(name: "Yigo Station", region: "North")
+    work_order(title: "Due work", priority: "P4", status: "needs_assessment", date: nil, location_record: site, reported_at: Time.zone.local(2026, 5, 1, 8, 0, 0))
+    opportunistic_pm = pm_task(task_name: "Monthly station PM", date: DEFAULT_DATE + 10.days, location_record: site)
+    pm_task(task_name: "Completed station PM", date: DEFAULT_DATE + 11.days, location_record: site).update!(status: "completed", completed_at: Time.current)
+
+    schedule = DispatchSuggestionService.new(date: DEFAULT_DATE).call
+
+    assert_includes schedule.dispatch_items.map(&:pm_task_id).compact, opportunistic_pm.id
+    pm_item = schedule.dispatch_items.find_by!(pm_task_id: opportunistic_pm.id)
+    assert_includes pm_item.notes, "While you're there PM suggestion"
+  end
+
   test "skill matching only uses technicians available on the schedule date" do
     hvac_team = team(name: "Unavailable HVAC", skills: [ "HVAC" ], driver: false, unavailable: true)
     general_team = team(name: "Available General", skills: [ "General" ])

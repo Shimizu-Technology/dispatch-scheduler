@@ -43,7 +43,7 @@ module Serializers
   end
 
   def pm_tasks_due_for(date)
-    PmTask.where(scheduled_date: date)
+    PmTask.dispatchable_for_date(date)
   end
 
   def blocked_work_orders_for(date)
@@ -216,6 +216,10 @@ module Serializers
       trade_category: pm_task.trade_category,
       frequency: pm_task.frequency,
       scheduled_date: pm_task.scheduled_date,
+      status: pm_task.status,
+      completed_at: pm_task.completed_at&.iso8601,
+      deferred_until: pm_task.deferred_until,
+      notes: pm_task.notes,
       source_file: pm_task.source_file
     }
   end

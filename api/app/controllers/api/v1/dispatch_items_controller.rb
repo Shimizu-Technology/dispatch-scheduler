@@ -98,7 +98,9 @@ module Api
         when "carry_over" then { status: "deferred", completed_at: nil, deferred_until: item.carried_over_to_date }
         when "cancelled" then { status: "deferred", completed_at: nil, deferred_until: item.dispatch_schedule.date.next_month.beginning_of_month }
         when "pending" then { status: "scheduled", completed_at: nil, deferred_until: nil }
-        else { status: item.pm_task.status }
+        else
+          # Waiting-parts/approval/access outcomes do not alter PM lifecycle state.
+          return
         end
         item.pm_task.update!(attrs)
       end

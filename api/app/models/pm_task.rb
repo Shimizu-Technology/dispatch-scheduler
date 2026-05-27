@@ -5,6 +5,7 @@ class PmTask < ApplicationRecord
   belongs_to :location
 
   validates :status, inclusion: { in: STATUSES }
+  validates :deferred_until, presence: true, if: :deferred?
 
   scope :for_month, ->(date) { where(scheduled_date: date.beginning_of_month..date.end_of_month) }
   scope :incomplete, -> { where.not(status: "completed") }

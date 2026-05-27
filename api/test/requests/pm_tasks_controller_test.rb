@@ -30,6 +30,18 @@ class PmTasksControllerTest < ActionDispatch::IntegrationTest
     assert_equal "pm_task.updated", AuditEvent.last.action
   end
 
+  test "deferred PM update requires deferred until date" do
+    pm = pm_task(task_name: "Missing defer date PM", date: DEFAULT_DATE)
+
+    with_auth_env do
+      patch "/api/v1/pm_tasks/#{pm.id}", params: { status: "deferred" }, headers: auth_headers
+    end
+
+    assert_response :unprocessable_entity
+    assert_includes JSON.parse(response.body).fetch("errors").join(", "), "Deferred until can't be blank"
+    assert_equal "pending", pm.reload.status
+  end
+
   test "viewer cannot update PM task" do
     pm = pm_task(task_name: "Read only PM", date: DEFAULT_DATE)
 

@@ -30,6 +30,20 @@ class TechniciansControllerTest < ActionDispatch::IntegrationTest
     assert_equal false, technician.reload.active?
   end
 
+  test "partial technician roster update does not reset driver or active state" do
+    technician = Technician.create!(name: "Partial Driver", primary_trade: "HVAC", is_driver: true, active: false)
+
+    with_auth_env do
+      patch "/api/v1/technicians/#{technician.id}", params: { notes: "Keep archived driver metadata" }, headers: auth_headers
+    end
+
+    assert_response :success
+    technician.reload
+    assert_equal false, technician.active?
+    assert_equal true, technician.is_driver?
+    assert_equal "Keep archived driver metadata", technician.notes
+  end
+
   test "updates technician availability" do
     technician = Technician.create!(name: "Availability Tech", primary_trade: "General", is_driver: true, active: true)
 

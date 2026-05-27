@@ -334,6 +334,7 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, selec
   const [direction, setDirection] = useState<'asc' | 'desc'>('asc')
 
   const filteredWorkOrders = workOrders
+  const hasActiveFilters = Boolean(query || archiveFilter !== 'active' || statusFilter || priorityFilter || regionFilter || serviceLineFilter || paProjectFilter || correctiveMaintenanceFilter || estimateRequiredFilter)
 
   function queryFor(page = 1) {
     const params = new URLSearchParams()
@@ -524,18 +525,18 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, selec
 
     <div className="space-y-2 p-3">
       {filteredWorkOrders.map((wo) => <WorkOrderRow key={wo.id} workOrder={wo} canEdit={canEdit} onEdit={startEdit} onArchive={onArchive} />)}
-      {workOrders.length === 0 && <div className="rounded-2xl border border-dashed border-[rgba(36,67,147,0.22)] bg-[#f8faff] p-6">
+      {workOrders.length === 0 && hasActiveFilters && <p className="rounded-xl border border-dashed border-[rgba(23,32,51,0.18)] bg-[#f8faff] p-5 text-sm font-semibold text-[#526071]">No work orders match the current filters.</p>}
+      {workOrders.length === 0 && !hasActiveFilters && <div className="rounded-2xl border border-dashed border-[rgba(36,67,147,0.22)] bg-[#f8faff] p-6">
         <p className="font-display text-lg font-extrabold text-[#172033]">No work orders yet.</p>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-[#526071]">Start by adding the first request John receives from WhatsApp, phone, email, or the work-order system. Once saved, it can be reviewed and scheduled.</p>
         {canEdit && <button onClick={startCreate} className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-[#244393] px-4 py-2.5 font-display text-sm font-extrabold text-white transition hover:-translate-y-0.5 hover:bg-[#172b63]"><Plus size={16} /> Add First Work Order</button>}
       </div>}
-      {workOrders.length > 0 && filteredWorkOrders.length === 0 && <p className="rounded-xl border border-dashed border-[rgba(23,32,51,0.18)] bg-[#f8faff] p-5 text-sm font-semibold text-[#526071]">No work orders match the current filters.</p>}
       {workOrders.length > 0 && <div className="flex flex-wrap items-center justify-between gap-3 px-3 pb-2 text-xs font-bold uppercase tracking-[0.14em] text-[#7b8798]">
         <span>{meta ? `${workOrders.length} shown · ${meta.total_count} total · page ${meta.page} of ${Math.max(meta.total_pages, 1)}` : `${workOrders.length} shown`}</span>
         <div className="flex items-center gap-2">
           <button type="button" disabled={!meta || meta.page <= 1} onClick={() => void onFetch(queryFor((meta?.page || 1) - 1))} className="rounded-full border border-[rgba(23,32,51,0.12)] bg-white px-3 py-1.5 text-[#334155] disabled:cursor-not-allowed disabled:opacity-50">Previous</button>
           <button type="button" disabled={!meta || meta.page >= meta.total_pages} onClick={() => void onFetch(queryFor((meta?.page || 1) + 1))} className="rounded-full border border-[rgba(23,32,51,0.12)] bg-white px-3 py-1.5 text-[#334155] disabled:cursor-not-allowed disabled:opacity-50">Next</button>
-          {(query || archiveFilter !== 'active' || statusFilter || priorityFilter || regionFilter || serviceLineFilter || paProjectFilter || correctiveMaintenanceFilter || estimateRequiredFilter) && <button className="inline-flex items-center gap-1 text-[#244393]" onClick={clearFilters}><X size={13} /> Clear filters</button>}
+          {hasActiveFilters && <button className="inline-flex items-center gap-1 text-[#244393]" onClick={clearFilters}><X size={13} /> Clear filters</button>}
         </div>
       </div>}
     </div>

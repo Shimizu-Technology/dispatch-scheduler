@@ -13,7 +13,7 @@ module Api
       def create
         technician = nil
         ApplicationRecord.transaction do
-          technician = Technician.create!(roster_attrs)
+          technician = Technician.create!(roster_attrs(for_create: true))
           replace_skills!(technician, skill_names) if params.key?(:skills)
           AuditEvent.record!(action: "technician.created", record: technician, user: current_user, metadata: technician_audit_metadata(technician))
         end
@@ -67,15 +67,17 @@ module Api
         [ :name, :primary_trade, :is_driver, :active, :notes, :skills ].any? { |key| params.key?(key) }
       end
 
-      def roster_attrs
+      def roster_attrs(for_create: false)
         attrs = {}
         attrs[:name] = params[:name].to_s.strip if params.key?(:name)
         attrs[:primary_trade] = params[:primary_trade].presence || "General" if params.key?(:primary_trade)
         attrs[:is_driver] = ActiveModel::Type::Boolean.new.cast(params[:is_driver]) if params.key?(:is_driver)
         attrs[:active] = ActiveModel::Type::Boolean.new.cast(params[:active]) if params.key?(:active)
         attrs[:notes] = params[:notes] if params.key?(:notes)
-        attrs[:active] = true unless attrs.key?(:active)
-        attrs[:is_driver] = false unless attrs.key?(:is_driver)
+        if for_create
+          attrs[:active] = true unless attrs.key?(:active)
+          attrs[:is_driver] = false unless attrs.key?(:is_driver)
+        end
         attrs
       end
 

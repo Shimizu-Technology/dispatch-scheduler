@@ -22,6 +22,7 @@ class AuthenticationTest < ActionDispatch::IntegrationTest
   test "viewer can read but cannot mutate dispatch data" do
     with_auth_env("CLERK_JWKS_URL" => "https://clerk.example.test/.well-known/jwks.json") do
       crew = team(name: "Viewer Test Crew")
+      User.create!(clerk_id: "pending_viewer", email: "viewer@example.com", role: "viewer", invitation_status: "pending")
 
       get "/api/v1/dashboard", headers: auth_headers("viewer_123", "viewer@example.com")
       assert_response :success
@@ -58,13 +59,13 @@ class AuthenticationTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "new non-bootstrap Clerk users start as viewers" do
+  test "uninvited non-bootstrap Clerk users are rejected" do
     with_auth_env("CLERK_JWKS_URL" => "https://clerk.example.test/.well-known/jwks.json") do
       get "/api/v1/me", headers: auth_headers("new_viewer_123", "new-viewer@example.com")
 
-      assert_response :success
-      assert_equal "viewer", JSON.parse(response.body).dig("user", "role")
-      assert_equal "viewer", User.find_by!(clerk_id: "new_viewer_123").role
+      assert_response :forbidden
+      assert_includes JSON.parse(response.body).fetch("errors").first, "has not been invited"
+      assert_nil User.find_by(clerk_id: "new_viewer_123")
     end
   end
 

@@ -14,6 +14,27 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "admin can invite a user" do
+    with_auth_env do
+      admin = User.create!(clerk_id: "admin_123", email: "admin@example.com", role: "admin")
+
+      post "/api/v1/users", params: { email: "dispatcher@example.com", name: "Dispatch Lead", role: "dispatcher" }, headers: auth_headers(admin)
+
+      assert_response :created
+      payload = JSON.parse(response.body)
+      assert_equal "dispatcher@example.com", payload.dig("user", "email")
+      assert_equal "pending", payload.dig("user", "invitation_status")
+      assert_equal false, payload.fetch("invitation_sent")
+      assert_equal "CLERK_SECRET_KEY is not configured", payload.fetch("invitation_error")
+
+      invited = User.find_by!(email: "dispatcher@example.com")
+      assert_equal "pending", invited.invitation_status
+      assert_match(/\Apending_/, invited.clerk_id)
+      assert_equal admin, invited.invited_by
+      assert_equal "user.invited", AuditEvent.last.action
+    end
+  end
+
   test "admin can update a user role" do
     with_auth_env do
       admin = User.create!(clerk_id: "admin_123", email: "admin@example.com", role: "admin")
@@ -24,6 +45,132 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
       assert_response :success
       assert_equal "dispatcher", viewer.reload.role
       assert_equal "dispatcher", JSON.parse(response.body).dig("user", "role")
+    end
+  end
+
+  test "active cannot be set to nil" do
+    with_auth_env do
+      admin = User.create!(clerk_id: "admin_123", email: "admin@example.com", role: "admin")
+      viewer = User.create!(clerk_id: "viewer_123", email: "viewer@example.com", role: "viewer")
+
+      patch "/api/v1/users/#{viewer.id}", params: { active: nil }, headers: auth_headers(admin)
+
+      assert_response :unprocessable_entity
+      assert_equal [ "Active must be true or false" ], JSON.parse(response.body).fetch("errors")
+      assert_equal true, viewer.reload.active?
+    end
+  end
+
+  test "admin can deactivate and delete invited user" do
+    with_auth_env do
+      admin = User.create!(clerk_id: "admin_123", email: "admin@example.com", role: "admin")
+      invited = User.create!(clerk_id: "pending_123", email: "pending@example.com", role: "viewer", invitation_status: "pending")
+
+      patch "/api/v1/users/#{invited.id}", params: { active: false }, headers: auth_headers(admin)
+
+      assert_response :success
+      assert_equal false, invited.reload.active?
+
+      delete "/api/v1/users/#{invited.id}", headers: auth_headers(admin)
+
+      assert_response :no_content
+      assert_nil User.find_by(id: invited.id)
+    end
+  end
+
+  test "cannot deactivate the last active admin" do
+    with_auth_env do
+      last_active_admin = User.create!(clerk_id: "last_active_admin_123", email: "last-active-admin@example.com", role: "admin")
+      User.create!(clerk_id: "inactive_admin_123", email: "inactive-admin@example.com", role: "admin", active: false)
+
+      patch "/api/v1/users/#{last_active_admin.id}", params: { active: false }, headers: auth_headers(last_active_admin)
+
+      assert_response :unprocessable_entity
+      assert_equal true, last_active_admin.reload.active?
+      assert_equal [ "At least one admin is required" ], JSON.parse(response.body).fetch("errors")
+    end
+  end
+
+  test "cannot demote the last active admin when other admins are inactive" do
+    with_auth_env do
+      last_active_admin = User.create!(clerk_id: "last_active_admin_123", email: "last-active-admin@example.com", role: "admin")
+      User.create!(clerk_id: "inactive_admin_123", email: "inactive-admin@example.com", role: "admin", active: false)
+
+      patch "/api/v1/users/#{last_active_admin.id}", params: { role: "viewer" }, headers: auth_headers(last_active_admin)
+
+      assert_response :unprocessable_entity
+      assert_equal "admin", last_active_admin.reload.role
+      assert_equal [ "At least one admin is required" ], JSON.parse(response.body).fetch("errors")
+    end
+  end
+
+  test "Clerk invitation is not revoked when local delete rolls back" do
+    with_auth_env do
+      admin = User.create!(clerk_id: "admin_123", email: "admin@example.com", role: "admin")
+      invited = User.create!(clerk_id: "pending_123", email: "pending@example.com", role: "viewer", invitation_status: "pending", clerk_invitation_id: "inv_123")
+      revoked = []
+
+      with_revoke_override(->(invitation_id) { revoked << invitation_id }) do
+        invalid_event = AuditEvent.new
+        original_record = AuditEvent.method(:record!)
+        begin
+          AuditEvent.define_singleton_method(:record!) { |**| raise ActiveRecord::RecordInvalid.new(invalid_event) }
+          delete "/api/v1/users/#{invited.id}", headers: auth_headers(admin)
+        ensure
+          AuditEvent.define_singleton_method(:record!, original_record)
+        end
+      end
+
+      assert_response :unprocessable_entity
+      assert_empty revoked
+      assert User.exists?(invited.id)
+    end
+  end
+
+  test "cannot resend invitation for inactive user" do
+    with_auth_env do
+      admin = User.create!(clerk_id: "admin_123", email: "admin@example.com", role: "admin")
+      invited = User.create!(clerk_id: "pending_123", email: "pending@example.com", role: "viewer", invitation_status: "pending", active: false)
+
+      post "/api/v1/users/#{invited.id}/resend_invitation", headers: auth_headers(admin)
+
+      assert_response :unprocessable_entity
+      assert_equal [ "Cannot resend an invitation for an inactive user" ], JSON.parse(response.body).fetch("errors")
+    end
+  end
+
+  test "failed resend keeps previous Clerk invitation intact" do
+    with_auth_env do
+      admin = User.create!(clerk_id: "admin_123", email: "admin@example.com", role: "admin")
+      invited = User.create!(clerk_id: "pending_123", email: "pending@example.com", role: "viewer", invitation_status: "pending", clerk_invitation_id: "inv_old")
+      revoked = []
+
+      with_revoke_override(->(invitation_id) { revoked << invitation_id }) do
+        post "/api/v1/users/#{invited.id}/resend_invitation", headers: auth_headers(admin)
+      end
+
+      assert_response :success
+      assert_empty revoked
+      assert_equal "inv_old", invited.reload.clerk_invitation_id
+      assert_equal "CLERK_SECRET_KEY is not configured", JSON.parse(response.body).fetch("invitation_error")
+    end
+  end
+
+  test "successful resend revokes previous Clerk invitation after saving replacement" do
+    with_auth_env do
+      admin = User.create!(clerk_id: "admin_123", email: "admin@example.com", role: "admin")
+      invited = User.create!(clerk_id: "pending_123", email: "pending@example.com", role: "viewer", invitation_status: "pending", clerk_invitation_id: "inv_old")
+      revoked = []
+
+      with_create_invitation_override(->(**) { { success: true, invitation_id: "inv_new", url: "https://clerk.example.test/invite" } }) do
+        with_revoke_override(->(invitation_id) { revoked << invitation_id }) do
+          post "/api/v1/users/#{invited.id}/resend_invitation", headers: auth_headers(admin)
+        end
+      end
+
+      assert_response :success
+      assert_equal "inv_new", invited.reload.clerk_invitation_id
+      assert_equal [ "inv_old" ], revoked
     end
   end
 
@@ -93,5 +240,23 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
 
   def auth_headers(user)
     { "Authorization" => "Bearer test_token:#{user.clerk_id}:#{user.email}" }
+  end
+
+  def with_revoke_override(override)
+    klass = Auth::ClerkInvitationService
+    original = klass.instance_method(:revoke_invitation)
+    klass.define_method(:revoke_invitation, &override)
+    yield
+  ensure
+    klass.define_method(:revoke_invitation, original)
+  end
+
+  def with_create_invitation_override(override)
+    klass = Auth::ClerkInvitationService
+    original = klass.instance_method(:create_invitation)
+    klass.define_method(:create_invitation, &override)
+    yield
+  ensure
+    klass.define_method(:create_invitation, original)
   end
 end

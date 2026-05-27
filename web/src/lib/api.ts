@@ -22,6 +22,7 @@ async function requestJson<T>(path: string, options: RequestInit = {}): Promise<
 
   const res = await fetch(`${API}${path}`, { ...options, headers })
   if (!res.ok) throw new Error(await errorMessage(res))
+  if (res.status === 204) return undefined as T
   return res.json()
 }
 
@@ -51,6 +52,10 @@ export async function postJson<T>(path: string, body: Record<string, unknown>): 
     method: 'POST',
     body: JSON.stringify(body),
   })
+}
+
+export async function deleteJson<T>(path: string): Promise<T> {
+  return requestJson<T>(path, { method: 'DELETE' })
 }
 
 export async function postForm<T>(path: string, body: FormData): Promise<T> {

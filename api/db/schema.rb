@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_27_130000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_27_150000) do
   create_table "audit_events", force: :cascade do |t|
     t.string "action", null: false
     t.datetime "created_at", null: false
@@ -181,15 +181,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_27_130000) do
   end
 
   create_table "users", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
     t.string "clerk_id", null: false
+    t.string "clerk_invitation_id"
     t.datetime "created_at", null: false
     t.string "email", null: false
+    t.datetime "invitation_accepted_at"
+    t.string "invitation_status", default: "accepted", null: false
+    t.datetime "invited_at"
+    t.integer "invited_by_id"
     t.datetime "last_seen_at"
     t.string "name"
     t.string "role", default: "viewer", null: false
     t.datetime "updated_at", null: false
+    t.index ["active"], name: "index_users_on_active"
     t.index ["clerk_id"], name: "index_users_on_clerk_id", unique: true
+    t.index ["clerk_invitation_id"], name: "index_users_on_clerk_invitation_id"
     t.index ["email"], name: "index_users_on_email", unique: true
+    t.index ["invitation_status"], name: "index_users_on_invitation_status"
+    t.index ["invited_by_id"], name: "index_users_on_invited_by_id"
     t.index ["role"], name: "index_users_on_role"
   end
 
@@ -253,6 +263,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_27_130000) do
   add_foreign_key "team_memberships", "technicians"
   add_foreign_key "technician_availabilities", "technicians"
   add_foreign_key "technician_skills", "technicians"
+  add_foreign_key "users", "users", column: "invited_by_id"
   add_foreign_key "work_orders", "clients"
   add_foreign_key "work_orders", "locations"
   add_foreign_key "work_orders", "service_lines"

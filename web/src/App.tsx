@@ -13,7 +13,7 @@ import { UserManagementPanel } from './components/UserManagementPanel'
 import { WhatsAppExport } from './components/WhatsAppExport'
 import { WorkOrdersPanel } from './components/WorkOrdersPanel'
 import { useAuthContext } from './contexts/useAuthContext'
-import { getJson, patchJson, postJson } from './lib/api'
+import { deleteJson, getJson, patchJson, postJson } from './lib/api'
 import type { AuditEvent, Dashboard, DispatchOutcomeStatus, DispatchSchedule, ManagedUser, PmTask, ServiceLine, ServiceLineInput, Team, TeamInput, Technician, WhatsAppCrewExport, WhatsAppExportPayload, WorkOrder, WorkOrderInput, WorkOrderStatus } from './types'
 import './index.css'
 
@@ -151,15 +151,64 @@ function DispatchApp() {
     }
   }
 
-  async function updateUserRole(userId: number, role: ManagedUser['role']) {
+  async function createManagedUser(values: { email: string; name?: string; role: ManagedUser['role'] }) {
+    setSavingUserId(0)
+    setError('')
+    try {
+      const payload = await postJson<{ user: ManagedUser; invitation_sent: boolean; invitation_error?: string | null }>('/users', values)
+      setManagedUsers((currentUsers) => [...currentUsers, payload.user].sort((a, b) => a.email.localeCompare(b.email)))
+      if (payload.invitation_error) setError(`User invited, but email delivery needs attention: ${payload.invitation_error}`)
+      await afterAuditedChange()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to invite user')
+      throw err
+    } finally {
+      setSavingUserId(null)
+    }
+  }
+
+  async function updateManagedUser(userId: number, changes: Partial<Pick<ManagedUser, 'name' | 'role' | 'active'>>) {
     setSavingUserId(userId)
     setError('')
     try {
-      const payload = await patchJson<{ user: ManagedUser }>(`/users/${userId}`, { role })
+      const payload = await patchJson<{ user: ManagedUser }>(`/users/${userId}`, changes)
       setManagedUsers((currentUsers) => currentUsers.map((candidate) => candidate.id === userId ? payload.user : candidate))
       if (user?.id === userId) await refreshUser()
+      await afterAuditedChange()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to update user role')
+      setError(err instanceof Error ? err.message : 'Unable to update user')
+      throw err
+    } finally {
+      setSavingUserId(null)
+    }
+  }
+
+  async function resendManagedUserInvitation(userId: number) {
+    setSavingUserId(userId)
+    setError('')
+    try {
+      const payload = await postJson<{ user: ManagedUser; invitation_sent: boolean; invitation_error?: string | null }>(`/users/${userId}/resend_invitation`, {})
+      setManagedUsers((currentUsers) => currentUsers.map((candidate) => candidate.id === userId ? payload.user : candidate))
+      if (payload.invitation_error) setError(`Invitation recreated, but email delivery needs attention: ${payload.invitation_error}`)
+      await afterAuditedChange()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to resend invitation')
+      throw err
+    } finally {
+      setSavingUserId(null)
+    }
+  }
+
+  async function deleteManagedUser(userId: number) {
+    setSavingUserId(userId)
+    setError('')
+    try {
+      await deleteJson<void>(`/users/${userId}`)
+      setManagedUsers((currentUsers) => currentUsers.filter((candidate) => candidate.id !== userId))
+      await afterAuditedChange()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to delete user')
+      throw err
     } finally {
       setSavingUserId(null)
     }
@@ -746,7 +795,7 @@ function DispatchApp() {
 
         {currentSection === 'activity' && (user ? <ActivityPanel events={auditEvents} /> : <SignInRequiredPanel title="Sign in to review activity" />)}
 
-        {currentSection === 'users' && user?.permissions.can_admin && <UserManagementPanel users={managedUsers} currentUserId={user.id} savingUserId={savingUserId} onRoleChange={updateUserRole} />}
+        {currentSection === 'users' && user?.permissions.can_admin && <UserManagementPanel users={managedUsers} currentUserId={user.id} savingUserId={savingUserId} onCreate={createManagedUser} onUpdate={updateManagedUser} onResendInvitation={resendManagedUserInvitation} onDelete={deleteManagedUser} />}
       </div>
     </main>
   )

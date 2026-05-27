@@ -42,7 +42,11 @@ module Api
           @user.role = role
         end
         @user.name = attrs[:name] if attrs.key?(:name)
-        @user.active = ActiveModel::Type::Boolean.new.cast(attrs[:active]) if attrs.key?(:active)
+        if attrs.key?(:active)
+          return render json: { errors: [ "Active must be true or false" ] }, status: :unprocessable_entity if attrs[:active].nil?
+
+          @user.active = ActiveModel::Type::Boolean.new.cast(attrs[:active])
+        end
 
         if removing_last_admin?(@user)
           return render json: { errors: [ "At least one admin is required" ] }, status: :unprocessable_entity
@@ -91,8 +95,11 @@ module Api
           return render json: { errors: [ "User has already accepted their invitation" ] }, status: :unprocessable_entity
         end
 
-        revoke_clerk_invitation(@user)
+        previous_invitation_id = @user.clerk_invitation_id
         invitation_result = issue_invitation(@user)
+        if invitation_result.dig(:clerk, :success)
+          revoke_clerk_invitation_id(previous_invitation_id) if previous_invitation_id.present? && previous_invitation_id != @user.reload.clerk_invitation_id
+        end
         render json: invite_response(@user.reload, invitation_result)
       end
 
@@ -154,9 +161,13 @@ module Api
       end
 
       def revoke_clerk_invitation(user)
-        return if user.clerk_invitation_id.blank?
+        revoke_clerk_invitation_id(user.clerk_invitation_id)
+      end
 
-        Auth::ClerkInvitationService.new.revoke_invitation(user.clerk_invitation_id)
+      def revoke_clerk_invitation_id(invitation_id)
+        return if invitation_id.blank?
+
+        Auth::ClerkInvitationService.new.revoke_invitation(invitation_id)
       end
 
       def invite_response(user, invitation_result)

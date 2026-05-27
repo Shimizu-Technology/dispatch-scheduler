@@ -48,6 +48,19 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "active cannot be set to nil" do
+    with_auth_env do
+      admin = User.create!(clerk_id: "admin_123", email: "admin@example.com", role: "admin")
+      viewer = User.create!(clerk_id: "viewer_123", email: "viewer@example.com", role: "viewer")
+
+      patch "/api/v1/users/#{viewer.id}", params: { active: nil }, headers: auth_headers(admin)
+
+      assert_response :unprocessable_entity
+      assert_equal [ "Active must be true or false" ], JSON.parse(response.body).fetch("errors")
+      assert_equal true, viewer.reload.active?
+    end
+  end
+
   test "admin can deactivate and delete invited user" do
     with_auth_env do
       admin = User.create!(clerk_id: "admin_123", email: "admin@example.com", role: "admin")
@@ -98,6 +111,41 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
       assert_response :unprocessable_entity
       assert_empty revoked
       assert User.exists?(invited.id)
+    end
+  end
+
+  test "failed resend keeps previous Clerk invitation intact" do
+    with_auth_env do
+      admin = User.create!(clerk_id: "admin_123", email: "admin@example.com", role: "admin")
+      invited = User.create!(clerk_id: "pending_123", email: "pending@example.com", role: "viewer", invitation_status: "pending", clerk_invitation_id: "inv_old")
+      revoked = []
+
+      with_revoke_override(->(invitation_id) { revoked << invitation_id }) do
+        post "/api/v1/users/#{invited.id}/resend_invitation", headers: auth_headers(admin)
+      end
+
+      assert_response :success
+      assert_empty revoked
+      assert_equal "inv_old", invited.reload.clerk_invitation_id
+      assert_equal "CLERK_SECRET_KEY is not configured", JSON.parse(response.body).fetch("invitation_error")
+    end
+  end
+
+  test "successful resend revokes previous Clerk invitation after saving replacement" do
+    with_auth_env do
+      admin = User.create!(clerk_id: "admin_123", email: "admin@example.com", role: "admin")
+      invited = User.create!(clerk_id: "pending_123", email: "pending@example.com", role: "viewer", invitation_status: "pending", clerk_invitation_id: "inv_old")
+      revoked = []
+
+      with_create_invitation_override(->(**) { { success: true, invitation_id: "inv_new", url: "https://clerk.example.test/invite" } }) do
+        with_revoke_override(->(invitation_id) { revoked << invitation_id }) do
+          post "/api/v1/users/#{invited.id}/resend_invitation", headers: auth_headers(admin)
+        end
+      end
+
+      assert_response :success
+      assert_equal "inv_new", invited.reload.clerk_invitation_id
+      assert_equal [ "inv_old" ], revoked
     end
   end
 
@@ -176,5 +224,14 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
     yield
   ensure
     klass.define_method(:revoke_invitation, original)
+  end
+
+  def with_create_invitation_override(override)
+    klass = Auth::ClerkInvitationService
+    original = klass.instance_method(:create_invitation)
+    klass.define_method(:create_invitation, &override)
+    yield
+  ensure
+    klass.define_method(:create_invitation, original)
   end
 end

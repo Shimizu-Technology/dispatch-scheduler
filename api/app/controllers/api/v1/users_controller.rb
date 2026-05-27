@@ -83,8 +83,8 @@ module Api
         end
 
         ApplicationRecord.transaction do
-          AuditEvent.record!(action: "user.deleted", record: @user, user: current_user, metadata: user_audit_metadata(@user))
-          @user.destroy!
+          @user.update!(active: false)
+          AuditEvent.record!(action: "user.access_removed", record: @user, user: current_user, metadata: user_audit_metadata(@user))
         end
         revoke_clerk_invitation(@user)
         head :no_content

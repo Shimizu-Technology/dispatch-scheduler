@@ -3,7 +3,7 @@ module Api
     class DashboardController < ApplicationController
       def index
         date = date_param
-        teams = Team.includes(:technicians)
+        teams = Team.active.includes(:technicians)
         open_work_orders = WorkOrder.active_queue.open
         render json: {
           date: date,

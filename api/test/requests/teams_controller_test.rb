@@ -36,6 +36,30 @@ class TeamsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "unavailable", payload.fetch("technicians").find { |tech| tech.fetch("name") == "Out Helper" }.fetch("availability")
   end
 
+  test "dispatcher creates archives and assigns service line preferences to a default crew" do
+    driver = Technician.create!(name: "Preference Driver", primary_trade: "General", is_driver: true, active: true)
+    service_line = ServiceLine.create!(name: "Mobil / CBRE", position: 1)
+
+    with_auth_env do
+      post "/api/v1/teams", params: { technician_ids: [ driver.id ], region_preference: "North", crew_type: "PM", service_line_ids: [ service_line.id ] }, headers: auth_headers
+    end
+
+    assert_response :created
+    payload = JSON.parse(response.body)
+    assert_equal "PM", payload.fetch("crew_type")
+    assert_equal [ service_line.id ], payload.fetch("service_line_ids")
+    assert_equal [ "Mobil / CBRE" ], payload.fetch("service_line_names")
+
+    team = Team.find(payload.fetch("id"))
+    with_auth_env do
+      delete "/api/v1/teams/#{team.id}", headers: auth_headers
+    end
+
+    assert_response :success
+    assert_equal false, team.reload.active?
+    assert team.archived_at.present?
+  end
+
   test "dispatcher creates a default crew" do
     driver = Technician.create!(name: "New Crew Driver", primary_trade: "General", is_driver: true, active: true)
     helper = Technician.create!(name: "New Crew Helper", primary_trade: "Helper", is_driver: false, active: true)

@@ -3,7 +3,7 @@ import type { FormEvent } from 'react'
 import { Archive, ArchiveRestore, Edit3, FileUp, Plus, Search, Sparkles, X } from 'lucide-react'
 import { Badge, Card, PanelHeader } from './ui'
 import { postForm } from '../lib/api'
-import type { OcrWorkOrderDraft, ServiceLine, WorkOrder, WorkOrderImportPreview, WorkOrderInput, WorkOrderStatus } from '../types'
+import type { OcrWorkOrderDraft, PaginationMeta, ServiceLine, WorkOrder, WorkOrderImportPreview, WorkOrderInput, WorkOrderStatus } from '../types'
 
 const priorities = ['P1', 'P2', 'P3', 'P4']
 const statuses: WorkOrderStatus[] = ['new', 'needs_assessment', 'approved', 'scheduled', 'in_progress', 'carry_over', 'waiting_for_parts', 'waiting_for_approval', 'completed', 'closed', 'cancelled']
@@ -314,7 +314,7 @@ function WorkOrderForm({ initialValues, serviceLines, saving, onCancel, onSubmit
   </form>
 }
 
-export function WorkOrdersPanel({ workOrders, serviceLines, canEdit, selectedDate, saving, onCreate, onUpdate, onArchive }: { workOrders: WorkOrder[]; serviceLines: ServiceLine[]; canEdit: boolean; selectedDate: string; saving: boolean; onCreate: (values: WorkOrderInput) => Promise<void>; onUpdate: (id: number, values: WorkOrderInput) => Promise<void>; onArchive: (workOrderId: number, archived: boolean) => Promise<void> }) {
+export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, selectedDate, saving, onFetch, onCreate, onUpdate, onArchive }: { workOrders: WorkOrder[]; meta: PaginationMeta | null; serviceLines: ServiceLine[]; canEdit: boolean; selectedDate: string; saving: boolean; onFetch: (query: string) => Promise<void>; onCreate: (values: WorkOrderInput) => Promise<void>; onUpdate: (id: number, values: WorkOrderInput) => Promise<void>; onArchive: (workOrderId: number, archived: boolean) => Promise<void> }) {
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<WorkOrder | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -330,23 +330,41 @@ export function WorkOrdersPanel({ workOrders, serviceLines, canEdit, selectedDat
   const [paProjectFilter, setPaProjectFilter] = useState(false)
   const [correctiveMaintenanceFilter, setCorrectiveMaintenanceFilter] = useState(false)
   const [estimateRequiredFilter, setEstimateRequiredFilter] = useState(false)
+  const [sort, setSort] = useState('scheduled_date')
+  const [direction, setDirection] = useState<'asc' | 'desc'>('asc')
 
-  const filteredWorkOrders = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase()
-    return workOrders.filter((workOrder) => {
-      const matchesQuery = !normalizedQuery || [workOrder.external_id, workOrder.client, workOrder.location, workOrder.title, workOrder.description, workOrder.notes].some((value) => value?.toLowerCase().includes(normalizedQuery))
-      const matchesArchive = archiveFilter === 'all' || (archiveFilter === 'archived' ? workOrder.archived : !workOrder.archived)
-      return matchesArchive
-        && matchesQuery
-        && (!statusFilter || workOrder.status === statusFilter)
-        && (!priorityFilter || workOrder.normalized_priority === priorityFilter)
-        && (!regionFilter || workOrder.region === regionFilter)
-        && (!serviceLineFilter || String(workOrder.service_line_id || '') === serviceLineFilter)
-        && (!paProjectFilter || workOrder.pa_project)
-        && (!correctiveMaintenanceFilter || workOrder.corrective_maintenance)
-        && (!estimateRequiredFilter || workOrder.estimate_required)
-    })
-  }, [archiveFilter, correctiveMaintenanceFilter, estimateRequiredFilter, paProjectFilter, priorityFilter, query, regionFilter, serviceLineFilter, statusFilter, workOrders])
+  const filteredWorkOrders = workOrders
+
+  function queryFor(page = 1) {
+    const params = new URLSearchParams()
+    params.set('archived', archiveFilter === 'archived' ? 'only' : archiveFilter === 'all' ? 'all' : 'active')
+    params.set('page', String(page))
+    params.set('per_page', String(meta?.per_page || 50))
+    params.set('sort', sort)
+    params.set('direction', direction)
+    if (query.trim()) params.set('q', query.trim())
+    if (statusFilter) params.set('status', statusFilter)
+    if (priorityFilter) params.set('priority', priorityFilter)
+    if (regionFilter) params.set('region', regionFilter)
+    if (serviceLineFilter) params.set('service_line_id', serviceLineFilter)
+    if (paProjectFilter) params.set('pa_project', 'true')
+    if (correctiveMaintenanceFilter) params.set('corrective_maintenance', 'true')
+    if (estimateRequiredFilter) params.set('estimate_required', 'true')
+    return params.toString()
+  }
+
+  function clearFilters() {
+    setQuery('')
+    setArchiveFilter('active')
+    setStatusFilter('')
+    setPriorityFilter('')
+    setRegionFilter('')
+    setServiceLineFilter('')
+    setPaProjectFilter(false)
+    setCorrectiveMaintenanceFilter(false)
+    setEstimateRequiredFilter(false)
+    void onFetch('archived=active&page=1&per_page=50&sort=scheduled_date&direction=asc')
+  }
 
   const formInitialValues = editing ? formFromWorkOrder(editing) : emptyForm(selectedDate)
 
@@ -479,6 +497,24 @@ export function WorkOrdersPanel({ workOrders, serviceLines, canEdit, selectedDat
           {serviceLines.map((line) => <option key={line.id} value={line.id}>{line.name}</option>)}
         </select>
       </div>
+      <div className="mt-3 grid gap-3 md:grid-cols-[180px_150px_auto]">
+        <select value={sort} onChange={(event) => setSort(event.target.value)} className="field-control rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]">
+          <option value="scheduled_date">Sort scheduled</option>
+          <option value="created_at">Sort created</option>
+          <option value="sla_due_at">Sort SLA due</option>
+          <option value="priority">Sort priority</option>
+          <option value="status">Sort status</option>
+          <option value="location">Sort location</option>
+        </select>
+        <select value={direction} onChange={(event) => setDirection(event.target.value as 'asc' | 'desc')} className="field-control rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]">
+          <option value="asc">Ascending</option>
+          <option value="desc">Descending</option>
+        </select>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => void onFetch(queryFor(1))} className="rounded-xl bg-[#244393] px-4 py-2 font-display text-sm font-extrabold text-white transition hover:-translate-y-0.5 hover:bg-[#172b63]">Apply filters</button>
+          <button type="button" onClick={clearFilters} className="rounded-xl border border-[rgba(23,32,51,0.12)] bg-white px-4 py-2 font-display text-sm font-extrabold text-[#334155] transition hover:-translate-y-0.5 hover:bg-slate-50">Clear</button>
+        </div>
+      </div>
       <div className="mt-3 flex flex-wrap gap-2">
         <button type="button" onClick={() => setPaProjectFilter((current) => !current)} className={`rounded-full px-3 py-1.5 text-xs font-extrabold uppercase tracking-[0.1em] ${paProjectFilter ? 'bg-[#244393] text-white' : 'border border-[rgba(36,67,147,0.16)] bg-white text-[#244393]'}`}>PA Projects</button>
         <button type="button" onClick={() => setCorrectiveMaintenanceFilter((current) => !current)} className={`rounded-full px-3 py-1.5 text-xs font-extrabold uppercase tracking-[0.1em] ${correctiveMaintenanceFilter ? 'bg-[#244393] text-white' : 'border border-[rgba(36,67,147,0.16)] bg-white text-[#244393]'}`}>CM</button>
@@ -487,17 +523,20 @@ export function WorkOrdersPanel({ workOrders, serviceLines, canEdit, selectedDat
     </div>
 
     <div className="space-y-2 p-3">
-      {filteredWorkOrders.slice(0, 40).map((wo) => <WorkOrderRow key={wo.id} workOrder={wo} canEdit={canEdit} onEdit={startEdit} onArchive={onArchive} />)}
+      {filteredWorkOrders.map((wo) => <WorkOrderRow key={wo.id} workOrder={wo} canEdit={canEdit} onEdit={startEdit} onArchive={onArchive} />)}
       {workOrders.length === 0 && <div className="rounded-2xl border border-dashed border-[rgba(36,67,147,0.22)] bg-[#f8faff] p-6">
         <p className="font-display text-lg font-extrabold text-[#172033]">No work orders yet.</p>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-[#526071]">Start by adding the first request John receives from WhatsApp, phone, email, or the work-order system. Once saved, it can be reviewed and scheduled.</p>
         {canEdit && <button onClick={startCreate} className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-[#244393] px-4 py-2.5 font-display text-sm font-extrabold text-white transition hover:-translate-y-0.5 hover:bg-[#172b63]"><Plus size={16} /> Add First Work Order</button>}
       </div>}
       {workOrders.length > 0 && filteredWorkOrders.length === 0 && <p className="rounded-xl border border-dashed border-[rgba(23,32,51,0.18)] bg-[#f8faff] p-5 text-sm font-semibold text-[#526071]">No work orders match the current filters.</p>}
-      {filteredWorkOrders.length > 40 && <p className="px-3 pb-2 text-xs font-bold text-[#8a5b18]">Showing the first 40 matching records. Tighten search or filters to narrow the list.</p>}
-      {workOrders.length > 0 && <div className="flex items-center justify-between px-3 pb-2 text-xs font-bold uppercase tracking-[0.14em] text-[#7b8798]">
-        <span>{filteredWorkOrders.length} shown</span>
-        {(query || archiveFilter !== 'active' || statusFilter || priorityFilter || regionFilter || serviceLineFilter || paProjectFilter || correctiveMaintenanceFilter || estimateRequiredFilter) && <button className="inline-flex items-center gap-1 text-[#244393]" onClick={() => { setQuery(''); setArchiveFilter('active'); setStatusFilter(''); setPriorityFilter(''); setRegionFilter(''); setServiceLineFilter(''); setPaProjectFilter(false); setCorrectiveMaintenanceFilter(false); setEstimateRequiredFilter(false) }}><X size={13} /> Clear filters</button>}
+      {workOrders.length > 0 && <div className="flex flex-wrap items-center justify-between gap-3 px-3 pb-2 text-xs font-bold uppercase tracking-[0.14em] text-[#7b8798]">
+        <span>{meta ? `${workOrders.length} shown · ${meta.total_count} total · page ${meta.page} of ${Math.max(meta.total_pages, 1)}` : `${workOrders.length} shown`}</span>
+        <div className="flex items-center gap-2">
+          <button type="button" disabled={!meta || meta.page <= 1} onClick={() => void onFetch(queryFor((meta?.page || 1) - 1))} className="rounded-full border border-[rgba(23,32,51,0.12)] bg-white px-3 py-1.5 text-[#334155] disabled:cursor-not-allowed disabled:opacity-50">Previous</button>
+          <button type="button" disabled={!meta || meta.page >= meta.total_pages} onClick={() => void onFetch(queryFor((meta?.page || 1) + 1))} className="rounded-full border border-[rgba(23,32,51,0.12)] bg-white px-3 py-1.5 text-[#334155] disabled:cursor-not-allowed disabled:opacity-50">Next</button>
+          {(query || archiveFilter !== 'active' || statusFilter || priorityFilter || regionFilter || serviceLineFilter || paProjectFilter || correctiveMaintenanceFilter || estimateRequiredFilter) && <button className="inline-flex items-center gap-1 text-[#244393]" onClick={clearFilters}><X size={13} /> Clear filters</button>}
+        </div>
       </div>}
     </div>
   </Card>

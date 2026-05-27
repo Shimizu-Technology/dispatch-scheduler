@@ -16,7 +16,7 @@ class DispatchSuggestionService
       schedule.save! if schedule.new_record?
       schedule.dispatch_items.destroy_all
 
-      teams = Team.includes(technicians: :technician_skills).order(:name).to_a
+      teams = Team.active.includes(:service_lines, technicians: :technician_skills).order(:name).to_a
       counters = Hash.new(0)
       team_skills = teams.to_h { |team| [ team.id, team.skills(@date) ] }
       team_driver_status = teams.to_h { |team| [ team.id, team.has_driver?(@date) ] }
@@ -88,7 +88,8 @@ class DispatchSuggestionService
     available = teams.select { |team| team_driver_status[team.id] }
     skill_match = available.select { |team| team_skills[team.id].include?(trade) || trade == "General" }
     regional = skill_match.select { |team| team.region_preference.blank? || team.region_preference == region }
-    candidates = regional.presence || skill_match.presence || available.presence || teams
+    service_line_matched = regional.select { |team| service_line_match?(team, item) }
+    candidates = service_line_matched.presence || regional.presence || skill_match.presence || available.presence || teams
     previous_team = carry_over_context&.team
     return previous_team if previous_team && candidates.include?(previous_team)
 
@@ -159,6 +160,13 @@ class DispatchSuggestionService
 
   def blocked_statuses
     WorkOrder::BLOCKED_STATUSES
+  end
+
+  def service_line_match?(team, item)
+    return true unless item.respond_to?(:service_line_id) && item.service_line_id.present?
+    return true if team.service_line_ids.empty?
+
+    team.service_line_ids.include?(item.service_line_id)
   end
 
   def region_penalty(team, region)

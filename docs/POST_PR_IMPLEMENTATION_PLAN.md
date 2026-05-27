@@ -28,7 +28,7 @@ Not implemented yet / still evolving:
 - Robust PM month setup and completion tracking.
 - Full production file upload/intake.
 - OpenRouter OCR review workflow.
-- Service-line-aware crew/technician preferences and scheduler scoring.
+- Deeper technician-level service-line preferences beyond crew-level service-line preferences.
 - Production deployment hardening, backups, and monitoring.
 
 ## Completed Phase 1 - Secure Internal Access
@@ -159,8 +159,8 @@ Acceptance criteria:
 
 1. Private S3 upload storage plus intake draft model.
 2. OpenRouter extraction service and review UI.
-3. Service-line-aware crew/technician preferences and scheduler scoring.
-4. Production deployment hardening.
+3. Production deployment hardening and real JMI data loading.
+4. Technician-level service-line preferences if John needs person-specific contract affinity.
 5. Reporting for monthly client/KPI meetings.
 
 ## Current Milestone Branch

@@ -4,7 +4,7 @@ module Api
       before_action :require_dispatch_edit!, only: [ :create, :update, :archive, :unarchive, :update_status ]
 
       def index
-        scope = WorkOrder.includes(:client, :location, :team, :service_line, dispatch_items: [ :team, :dispatch_schedule ]).order(:scheduled_date, :id)
+        scope = WorkOrder.includes(:client, :location, :team, :service_line, dispatch_items: [ :team, :dispatch_schedule ])
         scope = archive_scope(scope)
         scope = scope.left_joins(:client, :location) if joined_filter_params?
         scope = scope.where(status: params[:status]) if params[:status].present?
@@ -19,7 +19,27 @@ module Api
         scope = scope.where("clients.name LIKE ?", "%#{ActiveRecord::Base.sanitize_sql_like(params[:client])}%") if params[:client].present?
         scope = scope.where(locations: { region: params[:region] }) if params[:region].present?
         scope = apply_search(scope, params[:q]) if params[:q].present?
-        render json: scope.distinct.limit(200).map { |wo| Serializers.work_order(wo) }
+        scope = apply_sort(scope.distinct)
+        unless paginated_request?
+          return render json: scope.limit(200).map { |wo| Serializers.work_order(wo) }
+        end
+
+        total_count = scope.count
+        page = pagination_page
+        per_page = pagination_per_page
+        work_orders = scope.offset((page - 1) * per_page).limit(per_page).map { |wo| Serializers.work_order(wo) }
+
+        render json: {
+          work_orders: work_orders,
+          meta: {
+            page: page,
+            per_page: per_page,
+            total_count: total_count,
+            total_pages: (total_count.to_f / per_page).ceil,
+            sort: sort_param,
+            direction: sort_direction
+          }
+        }
       end
 
       def create
@@ -130,6 +150,51 @@ module Api
           "work_orders.external_id LIKE :q OR work_orders.title LIKE :q OR work_orders.description LIKE :q OR work_orders.notes LIKE :q OR clients.name LIKE :q OR locations.name LIKE :q",
           q: pattern
         )
+      end
+
+      def apply_sort(scope)
+        direction = sort_direction_symbol
+        case sort_param
+        when "priority"
+          scope.order(normalized_priority: direction, scheduled_date: :asc, id: :asc)
+        when "status"
+          scope.order(status: direction, scheduled_date: :asc, id: :asc)
+        when "location"
+          scope.left_joins(:location).order(locations: { name: direction }).order(id: :asc)
+        when "sla_due_at"
+          scope.order(Arel.sql(direction == :desc ? "COALESCE(work_orders.repair_due_at, work_orders.assessment_due_at, work_orders.response_due_at) DESC" : "COALESCE(work_orders.repair_due_at, work_orders.assessment_due_at, work_orders.response_due_at) ASC"), id: :asc)
+        when "created_at"
+          scope.order(created_at: direction, id: :asc)
+        else
+          scope.order(scheduled_date: direction, id: :asc)
+        end
+      end
+
+      def paginated_request?
+        params.key?(:page) || params.key?(:per_page) || params.key?(:sort) || params.key?(:direction)
+      end
+
+      def sort_param
+        allowed = %w[scheduled_date created_at priority status location sla_due_at]
+        allowed.include?(params[:sort].to_s) ? params[:sort].to_s : "scheduled_date"
+      end
+
+      def sort_direction
+        params[:direction].to_s.downcase == "desc" ? "DESC" : "ASC"
+      end
+
+      def sort_direction_symbol
+        params[:direction].to_s.downcase == "desc" ? :desc : :asc
+      end
+
+      def pagination_page
+        [ params[:page].to_i, 1 ].max
+      end
+
+      def pagination_per_page
+        requested = params[:per_page].to_i
+        requested = 50 if requested <= 0
+        requested.clamp(10, 100)
       end
 
       def scheduled_date_param

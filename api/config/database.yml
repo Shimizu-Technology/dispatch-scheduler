@@ -27,14 +27,8 @@ test:
 # Production uses PostgreSQL via DATABASE_URL, for example Neon on Render.
 # If using Neon's pooled connection string, keep prepared_statements disabled.
 production:
-  primary: &production_postgresql
+  primary:
     adapter: postgresql
     url: <%= ENV.fetch("DATABASE_URL", nil) %>
     prepared_statements: false
     pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
-  cache:
-    <<: *production_postgresql
-    migrations_paths: db/cache_migrate
-  queue:
-    <<: *production_postgresql
-    migrations_paths: db/queue_migrate

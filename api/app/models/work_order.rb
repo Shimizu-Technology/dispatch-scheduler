@@ -52,6 +52,8 @@ class WorkOrder < ApplicationRecord
               AND COALESCE(repair_due_at, assessment_due_at, response_due_at) <= :end_of_day
             )
             OR (
+              /* Keep legacy/unclassified work visible until a dispatcher supplies
+                 reported time/priority data that lets the SLA rules take over. */
               assessment_due_at IS NULL
               AND response_due_at IS NULL
               AND repair_due_at IS NULL

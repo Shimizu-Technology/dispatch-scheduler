@@ -45,7 +45,10 @@ Rails.application.configure do
   # Solid Cache here requires extra cache tables and can break authentication
   # if those tables are not prepared before the first request.
   # Keep Render WEB_CONCURRENCY at 1 until a shared cache backend is introduced.
-  if ENV.fetch("WEB_CONCURRENCY", "1").to_i > 1
+  # Reject "auto" too; Puma can expand it to multiple isolated workers.
+  web_concurrency = ENV.fetch("WEB_CONCURRENCY", "1").to_s.strip
+  web_concurrency = "1" if web_concurrency.empty?
+  unless web_concurrency == "1"
     raise "WEB_CONCURRENCY must be 1 while production uses memory_store cache"
   end
   config.cache_store = :memory_store

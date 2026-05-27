@@ -52,6 +52,19 @@ module Auth
       previous.nil? ? ENV.delete("CLERK_BOOTSTRAP_ADMIN_EMAILS") : ENV["CLERK_BOOTSTRAP_ADMIN_EMAILS"] = previous
     end
 
+    test "inactive bootstrap admin can sign in for emergency recovery" do
+      previous = ENV["CLERK_BOOTSTRAP_ADMIN_EMAILS"]
+      ENV["CLERK_BOOTSTRAP_ADMIN_EMAILS"] = "owner@example.com"
+      User.create!(clerk_id: "owner_123", email: "owner@example.com", role: "admin", active: false)
+
+      user = UserSync.call({ "sub" => "owner_123", "email" => "owner@example.com" })
+
+      assert_equal "admin", user.role
+      assert_equal false, user.active?
+    ensure
+      previous.nil? ? ENV.delete("CLERK_BOOTSTRAP_ADMIN_EMAILS") : ENV["CLERK_BOOTSTRAP_ADMIN_EMAILS"] = previous
+    end
+
     test "recently seen users are not touched on every authenticated request" do
       now = Time.zone.parse("2026-05-15 09:00:00")
       User.create!(clerk_id: "pending_viewer", email: "viewer@example.com", role: "viewer", invitation_status: "pending")

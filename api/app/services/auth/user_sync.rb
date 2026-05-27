@@ -50,7 +50,7 @@ module Auth
           raise AccessDenied, "This Clerk account is already linked to another dispatch user."
         end
 
-        raise AccessDenied, "This dispatch user has been deactivated." if user.respond_to?(:active?) && !user.active?
+        raise AccessDenied, "This dispatch user has been deactivated." if user.respond_to?(:active?) && !user.active? && !RoleResolver.bootstrap_admin?(user.email)
 
         user.email = email
         user.name = name if name.present?

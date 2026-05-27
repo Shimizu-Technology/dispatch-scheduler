@@ -40,12 +40,24 @@ Rails.application.configure do
   # Don't log any deprecations.
   config.active_support.report_deprecations = false
 
-  # Replace the default in-process memory cache store with a durable alternative.
-  config.cache_store = :solid_cache_store
+  # Keep cache process-local for the initial Render/Neon deployment.
+  # The app only uses cache for short-lived Clerk JWKS caching today; using
+  # Solid Cache here requires extra cache tables and can break authentication
+  # if those tables are not prepared before the first request.
+  # Keep Render WEB_CONCURRENCY at 1 until a shared cache backend is introduced.
+  # Reject "auto" too; Puma can expand it to multiple isolated workers.
+  web_concurrency = ENV.fetch("WEB_CONCURRENCY", "1").to_s.strip
+  web_concurrency = "1" if web_concurrency.empty?
+  unless web_concurrency == "1"
+    raise "WEB_CONCURRENCY must be 1 while production uses memory_store cache"
+  end
+  config.cache_store = :memory_store
 
-  # Replace the default in-process and non-durable queuing backend for Active Job.
-  config.active_job.queue_adapter = :solid_queue
-  config.solid_queue.connects_to = { database: { writing: :queue } }
+  # No production background jobs are required yet. Run any accidental jobs
+  # inline so deploys/restarts cannot silently drop in-flight async work.
+  # Introduce Solid Queue with dedicated migrations/workers before adding
+  # deliver_later, Active Storage analysis, or other real background work.
+  config.active_job.queue_adapter = :inline
 
   # Enable locale fallbacks for I18n (makes lookups for any locale fall back to
   # the I18n.default_locale when a translation cannot be found).

@@ -22,6 +22,8 @@ See `docs/JMI_WORKFLOW_MODEL.md` for the current understanding of John's real wo
 See `docs/POST_PR_IMPLEMENTATION_PLAN.md` for the current phased implementation plan.
 See `docs/AUTHENTICATION.md` for Clerk setup, required env vars, roles, and user management.
 
+Production deploy note: keep `WEB_CONCURRENCY=1` while the API uses process-local cache for Clerk JWKS. Background jobs run inline until Solid Queue tables/workers are intentionally added.
+
 AI-assisted work-order upload uses OpenRouter vision models. Configure these API env vars when enabling it:
 
 - `OPENROUTER_API_KEY` - required for upload preview extraction.

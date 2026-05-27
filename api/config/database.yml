@@ -1,3 +1,7 @@
+<% if ENV.fetch("RAILS_ENV", nil) == "production" && ENV["DATABASE_URL"].to_s.empty? %>
+<% raise "DATABASE_URL must be set in production" %>
+<% end %>
+
 # SQLite. Versions 3.8.0 and up are supported.
 #   gem install sqlite3
 #
@@ -20,17 +24,11 @@ test:
   <<: *default
   database: storage/test.sqlite3
 
-# Store production database in the storage/ directory, which by default
-# is mounted as a persistent Docker volume in config/deploy.yml.
+# Production uses PostgreSQL via DATABASE_URL, for example Neon on Render.
+# If using Neon's pooled connection string, keep prepared_statements disabled.
 production:
   primary:
-    <<: *default
-    database: storage/production.sqlite3
-  cache:
-    <<: *default
-    database: storage/production_cache.sqlite3
-    migrations_paths: db/cache_migrate
-  queue:
-    <<: *default
-    database: storage/production_queue.sqlite3
-    migrations_paths: db/queue_migrate
+    adapter: postgresql
+    url: <%= ENV.fetch("DATABASE_URL", nil) %>
+    prepared_statements: false
+    pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>

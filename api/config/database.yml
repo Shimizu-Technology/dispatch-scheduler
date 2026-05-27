@@ -20,17 +20,20 @@ test:
   <<: *default
   database: storage/test.sqlite3
 
-# Store production database in the storage/ directory, which by default
-# is mounted as a persistent Docker volume in config/deploy.yml.
+# Production uses PostgreSQL via DATABASE_URL, for example Neon on Render.
+# If using Neon's pooled connection string, keep prepared_statements disabled.
 production:
   primary:
-    <<: *default
-    database: storage/production.sqlite3
+    adapter: postgresql
+    url: <%= ENV["DATABASE_URL"] %>
+    prepared_statements: false
   cache:
-    <<: *default
-    database: storage/production_cache.sqlite3
+    adapter: postgresql
+    url: <%= ENV["DATABASE_URL"] %>
+    prepared_statements: false
     migrations_paths: db/cache_migrate
   queue:
-    <<: *default
-    database: storage/production_queue.sqlite3
+    adapter: postgresql
+    url: <%= ENV["DATABASE_URL"] %>
+    prepared_statements: false
     migrations_paths: db/queue_migrate

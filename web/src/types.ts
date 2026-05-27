@@ -21,6 +21,14 @@ export type WorkOrder = {
   status: WorkOrderStatus
   original_status_text: string
   trade_category: string
+  requested_at: string | null
+  reported_at: string | null
+  assessment_due_at: string | null
+  response_due_at: string | null
+  repair_due_at: string | null
+  assessed_at: string | null
+  sla_due_at: string | null
+  sla_status: 'missing' | 'overdue' | 'due_soon' | 'on_track'
   scheduled_date: string | null
   source: string
   archived: boolean
@@ -61,6 +69,12 @@ export type WorkOrderInput = {
   status: WorkOrderStatus
   original_status_text?: string
   trade_category: string
+  requested_at?: string
+  reported_at?: string
+  assessment_due_at?: string
+  response_due_at?: string
+  repair_due_at?: string
+  assessed_at?: string
   scheduled_date?: string
   notes?: string
   service_line_id?: number | string | null

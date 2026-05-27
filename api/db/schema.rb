@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_27_091000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_27_110000) do
   create_table "audit_events", force: :cascade do |t|
     t.string "action", null: false
     t.datetime "created_at", null: false
@@ -188,6 +188,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_27_091000) do
 
   create_table "work_orders", force: :cascade do |t|
     t.datetime "archived_at"
+    t.datetime "assessed_at"
+    t.datetime "assessment_due_at"
     t.integer "client_id", null: false
     t.boolean "corrective_maintenance", default: false, null: false
     t.datetime "created_at", null: false
@@ -203,6 +205,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_27_091000) do
     t.text "pa_project_notes"
     t.string "priority"
     t.datetime "repair_due_at"
+    t.datetime "reported_at"
     t.datetime "requested_at"
     t.datetime "response_due_at"
     t.date "scheduled_date"
@@ -215,11 +218,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_27_091000) do
     t.string "trade_category"
     t.datetime "updated_at", null: false
     t.index ["archived_at"], name: "index_work_orders_on_archived_at"
+    t.index ["assessment_due_at"], name: "index_work_orders_on_assessment_due_at"
     t.index ["client_id"], name: "index_work_orders_on_client_id"
     t.index ["corrective_maintenance"], name: "index_work_orders_on_corrective_maintenance"
     t.index ["estimate_required"], name: "index_work_orders_on_estimate_required"
     t.index ["location_id"], name: "index_work_orders_on_location_id"
     t.index ["pa_project"], name: "index_work_orders_on_pa_project"
+    t.index ["repair_due_at"], name: "index_work_orders_on_repair_due_at"
+    t.index ["reported_at"], name: "index_work_orders_on_reported_at"
     t.index ["service_line_id"], name: "index_work_orders_on_service_line_id"
     t.index ["team_id"], name: "index_work_orders_on_team_id"
   end

@@ -26,7 +26,8 @@ Not implemented yet / still evolving:
 - Production file upload/intake.
 - Full PDF OCR and source-file storage.
 - Robust PM month setup and completion tracking.
-- SLA/KPI due-date modeling and scheduling rules.
+- PM month setup and completion tracking.
+- “While you are there” PM suggestions.
 - Service-line-aware crew/technician preferences and scheduler scoring.
 - Production deployment hardening, backups, and monitoring.
 
@@ -156,28 +157,23 @@ Acceptance criteria:
 
 ## Recommended Next PR Order
 
-1. Add JMI operational tracking fields:
-   - PA Project checkbox, notes, filters, badges, dashboard count, and follow-up workspace.
-   - Corrective Maintenance and Estimate Required flags, filters, badges, and dashboard counts.
-   - Configurable Service Lines / Contract Lines with seeded defaults, work-order assignment, filtering, and admin maintenance.
-2. Add SLA/KPI due-date modeling for P1/P2/P3/P4 scheduling.
-3. Improve PM month setup, completion tracking, and “while you are there” PM suggestions.
-4. Private S3 upload storage plus intake draft model.
-5. OpenRouter extraction service and review UI.
-6. Production deployment hardening.
+1. Improve PM month setup, completion tracking, and “while you are there” PM suggestions.
+2. Private S3 upload storage plus intake draft model.
+3. OpenRouter extraction service and review UI.
+4. Service-line-aware crew/technician preferences and scheduler scoring.
+5. Production deployment hardening.
 
 ## Current Milestone Branch
 
-Branch: `codex/jmi-operational-tracking`
+Branch: `codex/jmi-sla-scheduling`
 
 Scope implemented by this milestone:
 
-- Add `service_lines` as admin-configurable records with defaults for Mobil / CBRE, Hotels / Kitchens / Restaurants, Public Schools / Sodexo, and General.
-- Let work orders select a service line.
-- Add status-independent PA Project tracking to work orders.
-- Add Corrective Maintenance and Estimate Required flags to work orders.
-- Surface the new fields in work-order forms, rows, filters, dashboard counts, dispatch cards, and a PA Projects workspace.
-- Keep SLA/KPI scheduling and PM month workflow out of this PR; those are separate behavior-heavy follow-ups.
+- Add SLA/KPI timestamps for reported time, assessment due time, assessed time, and repair due time.
+- Auto-calculate P1/P2/P3/P4 assessment and repair deadlines from John’s contract rules.
+- Surface SLA status and due time in work-order rows, dispatch cards, and dashboard cards.
+- Update dispatch suggestions so unscheduled work is pulled when it is due/overdue instead of blindly pulling fresh P4 work into today.
+- Keep PM month workflow and “while you are there” PM suggestions out of this PR; those are the next product layer.
 
 ## Definition Of Ready For John/JMI Pilot
 

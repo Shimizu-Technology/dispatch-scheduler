@@ -37,7 +37,7 @@ module Serializers
   end
 
   def eligible_work_orders_for(date)
-    scheduled_scope = WorkOrder.dispatchable.where("scheduled_date = ? OR scheduled_date IS NULL", date)
+    scheduled_scope = WorkOrder.dispatchable.sla_dispatchable_for_date(date)
     carry_over_scope = WorkOrder.dispatchable.joins(:dispatch_items).where(dispatch_items: { outcome_status: "carry_over", carried_over_to_date: date })
     WorkOrder.where(id: scheduled_scope.select(:id)).or(WorkOrder.where(id: carry_over_scope.select(:id)))
   end
@@ -79,6 +79,14 @@ module Serializers
       status: work_order.status,
       original_status_text: work_order.original_status_text,
       trade_category: work_order.trade_category,
+      requested_at: work_order.requested_at&.iso8601,
+      reported_at: work_order.reported_at&.iso8601,
+      assessment_due_at: work_order.assessment_due_at&.iso8601,
+      response_due_at: work_order.response_due_at&.iso8601,
+      repair_due_at: work_order.repair_due_at&.iso8601,
+      assessed_at: work_order.assessed_at&.iso8601,
+      sla_due_at: work_order.sla_due_at&.iso8601,
+      sla_status: sla_status(work_order),
       scheduled_date: work_order.scheduled_date,
       source: work_order.source,
       archived_at: work_order.archived_at&.iso8601,
@@ -95,6 +103,14 @@ module Serializers
       last_crew_name: last_dispatch&.team&.name,
       last_outcome_status: last_dispatch&.outcome_status
     }
+  end
+
+  def sla_status(work_order)
+    return "missing" if work_order.sla_missing?
+    return "overdue" if work_order.sla_overdue?
+    return "due_soon" if work_order.sla_due_soon?
+
+    "on_track"
   end
 
   def service_line(service_line, work_orders_count: nil)

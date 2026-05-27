@@ -56,14 +56,14 @@ class DispatchSuggestionService
   def eligible_work_orders
     scheduled_scope = WorkOrder.includes(:client, :location, :team)
       .dispatchable
-      .where("scheduled_date = ? OR scheduled_date IS NULL", @date)
+      .sla_dispatchable_for_date(@date)
     carry_over_scope = WorkOrder.includes(:client, :location, :team)
       .dispatchable
       .joins(:dispatch_items)
       .where(dispatch_items: { outcome_status: "carry_over", carried_over_to_date: @date })
     (scheduled_scope.to_a + carry_over_scope.to_a)
       .uniq(&:id)
-      .sort_by { |wo| [ wo.status == "carry_over" ? 0 : 1, wo.urgent_rank, region_rank(wo.location.region), wo.status == "needs_assessment" ? 0 : 1, wo.location.name.to_s, wo.id ] }
+      .sort_by { |wo| [ wo.status == "carry_over" ? 0 : 1, *wo.sla_sort_key(@date), wo.urgent_rank, region_rank(wo.location.region), wo.status == "needs_assessment" ? 0 : 1, wo.location.name.to_s, wo.id ] }
   end
 
   def pm_tasks_due

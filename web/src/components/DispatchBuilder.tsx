@@ -42,6 +42,26 @@ function statusLabel(status: WorkOrderStatus) {
   return WORK_ORDER_STATUS_OPTIONS.find((option) => option.status === status)?.label || status.replaceAll('_', ' ')
 }
 
+function shortDateTime(value?: string | null) {
+  if (!value) return 'Not set'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value.slice(0, 16).replace('T', ' ')
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'short', timeStyle: 'short' }).format(date)
+}
+
+function slaLabel(status?: string | null) {
+  if (status === 'overdue') return 'SLA overdue'
+  if (status === 'due_soon') return 'SLA due soon'
+  if (status === 'missing') return 'SLA missing'
+  return 'SLA on track'
+}
+
+function slaBadgeKind(status?: string | null) {
+  if (status === 'overdue') return 'p1'
+  if (status === 'due_soon' || status === 'missing') return 'waiting'
+  return 'closed'
+}
+
 function ScheduleSummary({ summary }: { summary: DispatchSummary }) {
   return <div className="grid gap-3 rounded-2xl border border-blue-100 bg-gradient-to-br from-[#f8faff] to-white p-4 text-sm text-[#172033] shadow-[0_14px_34px_rgba(36,67,147,0.08)] sm:grid-cols-4">
     <strong className="font-display tabular text-lg font-extrabold">{summary.scheduled_items}{summary.daily_item_limit ? `/${summary.daily_item_limit}` : ''} scheduled</strong>
@@ -121,7 +141,7 @@ function DispatchCard({ item, scheduleDate, teams, disabled, canEdit, canEditOut
     </div>
 
     <div className="mt-3 flex flex-wrap gap-2 text-xs font-bold text-[#64748b]">
-      {wo && <><span>Client: {wo.client}</span><span>WO: {wo.external_id || 'N/A'}</span><span>Trade: {wo.trade_category}</span><span>Region: {wo.region}</span><span>Service line: {wo.service_line || 'Unassigned'}</span><span>Scheduled: {wo.scheduled_date || 'Not set'}</span><Badge kind={wo.status}>{statusLabel(wo.status)}</Badge>{wo.pa_project && <Badge kind="waiting">PA Project</Badge>}{wo.corrective_maintenance && <Badge kind="approved">CM</Badge>}{wo.estimate_required && <Badge kind="scheduled">Estimate</Badge>}</>}
+      {wo && <><span>Client: {wo.client}</span><span>WO: {wo.external_id || 'N/A'}</span><span>Trade: {wo.trade_category}</span><span>Region: {wo.region}</span><span>Service line: {wo.service_line || 'Unassigned'}</span><span>Scheduled: {wo.scheduled_date || 'Not set'}</span><span>SLA due: {shortDateTime(wo.sla_due_at)}</span><Badge kind={wo.status}>{statusLabel(wo.status)}</Badge><Badge kind={slaBadgeKind(wo.sla_status)}>{slaLabel(wo.sla_status)}</Badge>{wo.pa_project && <Badge kind="waiting">PA Project</Badge>}{wo.corrective_maintenance && <Badge kind="approved">CM</Badge>}{wo.estimate_required && <Badge kind="scheduled">Estimate</Badge>}</>}
       {pm && <><span>Client: {pm.client}</span><span>Trade: {pm.trade_category}</span><span>Region: {pm.region}</span><span>Scheduled: {pm.scheduled_date}</span></>}
       <button type="button" onClick={() => setShowDetails((current) => !current)} className="font-extrabold text-[#244393] underline-offset-4 hover:underline">{showDetails ? 'Hide details' : 'Details'}</button>
     </div>

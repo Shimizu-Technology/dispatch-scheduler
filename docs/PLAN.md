@@ -151,7 +151,8 @@ Implemented as of May 12, 2026:
 - Sanitized seed/import flow from John's Mobil workbook, PM workbook, Sodexo sample, and CBRE PDF sample.
 - Dashboard counts, work-order list, PA Projects workspace, team/technician availability, PM task view, and dispatch builder.
 - Work-order operational tracking for PA Projects, corrective maintenance, estimate-required work, and configurable service lines / contract lines.
-- Rule-based daily schedule suggestion using priority, status, skill/trade, driver availability, region, and PM commitments.
+- SLA/KPI due-date modeling for reported time, assessment due time, assessed time, repair due time, and dashboard SLA pressure counts.
+- Rule-based daily schedule suggestion using priority, lifecycle status, SLA pressure, skill/trade, driver availability, region, and PM commitments.
 - Idempotent draft regeneration by date with a configurable daily item cap.
 - Manual dispatch overrides for crew, scheduled time, order, and notes.
 - WhatsApp-ready schedule export.
@@ -164,7 +165,8 @@ Still not implemented / still evolving:
 - Production upload/file intake.
 - Full PDF OCR and source-file storage.
 - Robust PM month setup and completion tracking.
-- SLA/KPI due-date modeling and scheduling rules.
+- PM month setup and completion tracking.
+- “While you are there” PM suggestions.
 - Deeper service-line-aware crew preferences/scheduler scoring.
 - Production deployment/backups/monitoring.
 

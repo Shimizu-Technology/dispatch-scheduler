@@ -40,15 +40,21 @@ Rails.application.configure do
   # Don't log any deprecations.
   config.active_support.report_deprecations = false
 
-  # Keep cache and jobs process-local for the initial Render/Neon deployment.
+  # Keep cache process-local for the initial Render/Neon deployment.
   # The app only uses cache for short-lived Clerk JWKS caching today; using
   # Solid Cache here requires extra cache tables and can break authentication
   # if those tables are not prepared before the first request.
+  # Keep Render WEB_CONCURRENCY at 1 until a shared cache backend is introduced.
+  if ENV.fetch("WEB_CONCURRENCY", "1").to_i > 1
+    raise "WEB_CONCURRENCY must be 1 while production uses memory_store cache"
+  end
   config.cache_store = :memory_store
 
-  # No production background jobs are required yet. Enable Solid Queue later
-  # when the app has real async work and dedicated queue migrations/workers.
-  config.active_job.queue_adapter = :async
+  # No production background jobs are required yet. Run any accidental jobs
+  # inline so deploys/restarts cannot silently drop in-flight async work.
+  # Introduce Solid Queue with dedicated migrations/workers before adding
+  # deliver_later, Active Storage analysis, or other real background work.
+  config.active_job.queue_adapter = :inline
 
   # Enable locale fallbacks for I18n (makes lookups for any locale fall back to
   # the I18n.default_locale when a translation cannot be found).

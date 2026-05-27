@@ -1,3 +1,7 @@
+<% if ENV.fetch("RAILS_ENV", nil) == "production" && ENV["DATABASE_URL"].to_s.empty? %>
+<% raise "DATABASE_URL must be set in production" %>
+<% end %>
+
 # SQLite. Versions 3.8.0 and up are supported.
 #   gem install sqlite3
 #
@@ -23,17 +27,14 @@ test:
 # Production uses PostgreSQL via DATABASE_URL, for example Neon on Render.
 # If using Neon's pooled connection string, keep prepared_statements disabled.
 production:
-  primary:
+  primary: &production_postgresql
     adapter: postgresql
-    url: <%= ENV["DATABASE_URL"] %>
+    url: <%= ENV.fetch("DATABASE_URL", nil) %>
     prepared_statements: false
+    pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
   cache:
-    adapter: postgresql
-    url: <%= ENV["DATABASE_URL"] %>
-    prepared_statements: false
+    <<: *production_postgresql
     migrations_paths: db/cache_migrate
   queue:
-    adapter: postgresql
-    url: <%= ENV["DATABASE_URL"] %>
-    prepared_statements: false
+    <<: *production_postgresql
     migrations_paths: db/queue_migrate

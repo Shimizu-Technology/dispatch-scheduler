@@ -364,6 +364,8 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, selec
     setPaProjectFilter(false)
     setCorrectiveMaintenanceFilter(false)
     setEstimateRequiredFilter(false)
+    setSort('scheduled_date')
+    setDirection('asc')
     void onFetch('archived=active&page=1&per_page=50&sort=scheduled_date&direction=asc')
   }
 

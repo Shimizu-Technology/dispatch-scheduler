@@ -88,9 +88,17 @@ module Api
         end
         revoke_clerk_invitation(@user)
         head :no_content
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
+      rescue ActiveRecord::RecordNotDestroyed => e
+        render json: { errors: e.record.errors.full_messages.presence || [ e.message ] }, status: :unprocessable_entity
       end
 
       def resend_invitation
+        unless @user.active?
+          return render json: { errors: [ "Cannot resend an invitation for an inactive user" ] }, status: :unprocessable_entity
+        end
+
         unless @user.invitation_pending?
           return render json: { errors: [ "User has already accepted their invitation" ] }, status: :unprocessable_entity
         end

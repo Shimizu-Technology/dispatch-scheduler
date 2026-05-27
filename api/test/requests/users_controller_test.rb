@@ -127,6 +127,18 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "cannot resend invitation for inactive user" do
+    with_auth_env do
+      admin = User.create!(clerk_id: "admin_123", email: "admin@example.com", role: "admin")
+      invited = User.create!(clerk_id: "pending_123", email: "pending@example.com", role: "viewer", invitation_status: "pending", active: false)
+
+      post "/api/v1/users/#{invited.id}/resend_invitation", headers: auth_headers(admin)
+
+      assert_response :unprocessable_entity
+      assert_equal [ "Cannot resend an invitation for an inactive user" ], JSON.parse(response.body).fetch("errors")
+    end
+  end
+
   test "failed resend keeps previous Clerk invitation intact" do
     with_auth_env do
       admin = User.create!(clerk_id: "admin_123", email: "admin@example.com", role: "admin")

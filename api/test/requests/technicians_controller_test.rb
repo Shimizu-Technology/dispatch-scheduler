@@ -1,6 +1,49 @@
 require "test_helper"
 
 class TechniciansControllerTest < ActionDispatch::IntegrationTest
+  test "dispatcher can create update and archive technician roster records" do
+    with_auth_env do
+      post "/api/v1/technicians", params: { name: "Roster Tech", primary_trade: "HVAC", skills: [ "HVAC", "Electrical" ], is_driver: true, notes: "Mobil regular" }, headers: auth_headers
+    end
+
+    assert_response :created
+    payload = JSON.parse(response.body)
+    assert_equal "Roster Tech", payload.fetch("name")
+    assert_equal true, payload.fetch("is_driver")
+    assert_equal [ "Electrical", "HVAC" ], payload.fetch("skills")
+
+    technician = Technician.find(payload.fetch("id"))
+    with_auth_env do
+      patch "/api/v1/technicians/#{technician.id}", params: { primary_trade: "General", skills: [ "General" ], is_driver: false }, headers: auth_headers
+    end
+
+    assert_response :success
+    assert_equal "General", technician.reload.primary_trade
+    assert_equal false, technician.is_driver
+    assert_equal [ "General" ], technician.technician_skills.pluck(:skill)
+
+    with_auth_env do
+      delete "/api/v1/technicians/#{technician.id}", headers: auth_headers
+    end
+
+    assert_response :success
+    assert_equal false, technician.reload.active?
+  end
+
+  test "partial technician roster update does not reset driver or active state" do
+    technician = Technician.create!(name: "Partial Driver", primary_trade: "HVAC", is_driver: true, active: false)
+
+    with_auth_env do
+      patch "/api/v1/technicians/#{technician.id}", params: { notes: "Keep archived driver metadata" }, headers: auth_headers
+    end
+
+    assert_response :success
+    technician.reload
+    assert_equal false, technician.active?
+    assert_equal true, technician.is_driver?
+    assert_equal "Keep archived driver metadata", technician.notes
+  end
+
   test "updates technician availability" do
     technician = Technician.create!(name: "Availability Tech", primary_trade: "General", is_driver: true, active: true)
 

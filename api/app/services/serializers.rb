@@ -154,6 +154,7 @@ module Serializers
       skills: skills_for(technician),
       is_driver: technician.is_driver,
       active: technician.active,
+      notes: technician.respond_to?(:notes) ? technician.notes : nil,
       availability: availability&.status || "available",
       availability_reason: availability&.reason
     }
@@ -181,6 +182,12 @@ module Serializers
       name: team.name,
       today_crew_name: today_crew_name.presence || "No available technicians today",
       region_preference: team.region_preference,
+      crew_type: team.respond_to?(:crew_type) ? team.crew_type : "general",
+      active: team.respond_to?(:active?) ? team.active? : true,
+      archived: team.respond_to?(:archived?) ? team.archived? : false,
+      archived_at: team.respond_to?(:archived_at) ? team.archived_at&.iso8601 : nil,
+      service_line_ids: team.service_lines.map(&:id),
+      service_line_names: team.service_lines.map(&:name),
       has_driver: available_techs.any? { |tech| tech.is_driver && tech.active },
       default_has_driver: available_default_techs.any? { |tech| tech.is_driver && tech.active },
       skills: available_techs.flat_map { |tech| skills_for(tech) }.uniq,

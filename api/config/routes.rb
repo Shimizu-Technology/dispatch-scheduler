@@ -20,8 +20,8 @@ Rails.application.routes.draw do
           patch :status, action: :update_status
         end
       end
-      resources :technicians, only: [ :index, :update ]
-      resources :teams, only: [ :index, :create, :update ] do
+      resources :technicians, only: [ :index, :create, :update, :destroy ]
+      resources :teams, only: [ :index, :create, :update, :destroy ] do
         member do
           patch :daily_memberships
         end

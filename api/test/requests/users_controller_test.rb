@@ -74,7 +74,8 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
       delete "/api/v1/users/#{invited.id}", headers: auth_headers(admin)
 
       assert_response :no_content
-      assert_nil User.find_by(id: invited.id)
+      assert_equal false, invited.reload.active?
+      assert_equal "user.access_removed", AuditEvent.last.action
     end
   end
 
@@ -124,6 +125,7 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
       assert_response :unprocessable_entity
       assert_empty revoked
       assert User.exists?(invited.id)
+      assert_equal true, invited.reload.active?
     end
   end
 

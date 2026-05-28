@@ -4,6 +4,14 @@ class Team < ApplicationRecord
   has_many :technicians, through: :team_memberships
   has_many :work_orders, dependent: :nullify
   has_many :dispatch_items, dependent: :nullify
+  has_many :team_service_line_preferences, dependent: :destroy
+  has_many :service_lines, through: :team_service_line_preferences
+
+  scope :active, -> { where(active: true, archived_at: nil) }
+
+  def archived?
+    archived_at.present? || !active?
+  end
 
   def technicians_for_date(date = Date.current)
     scope = daily_override?(date) ? team_memberships.where(date: date) : team_memberships.where(date: nil)

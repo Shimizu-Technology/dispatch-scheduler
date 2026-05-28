@@ -14,13 +14,14 @@ import { WhatsAppExport } from './components/WhatsAppExport'
 import { WorkOrdersPanel } from './components/WorkOrdersPanel'
 import { useAuthContext } from './contexts/useAuthContext'
 import { deleteJson, getJson, patchJson, postJson } from './lib/api'
-import type { AuditEvent, Dashboard, DispatchOutcomeStatus, DispatchSchedule, ManagedUser, PmTask, ServiceLine, ServiceLineInput, Team, TeamInput, Technician, WhatsAppCrewExport, WhatsAppExportPayload, WorkOrder, WorkOrderInput, WorkOrderStatus } from './types'
+import type { AuditEvent, Dashboard, DispatchOutcomeStatus, DispatchSchedule, ManagedUser, PaginationMeta, PmTask, ServiceLine, ServiceLineInput, Team, TeamInput, Technician, TechnicianInput, WhatsAppCrewExport, WhatsAppExportPayload, WorkOrder, WorkOrderInput, WorkOrderListPayload, WorkOrderStatus } from './types'
 import './index.css'
 
 type ActiveSection = 'overview' | 'dispatch' | 'work-orders' | 'pa-projects' | 'teams' | 'pm-tasks' | 'service-lines' | 'whatsapp' | 'activity' | 'users'
 
 const SECTION_IDS: ActiveSection[] = ['overview', 'dispatch', 'work-orders', 'pa-projects', 'teams', 'pm-tasks', 'service-lines', 'whatsapp', 'activity', 'users']
 const SELECTED_DATE_STORAGE_KEY = 'dispatch-scheduler:selected-date'
+const DEFAULT_WORK_ORDER_QUERY = 'archived=active&page=1&per_page=50&sort=scheduled_date&direction=asc'
 
 function localDateString(date = new Date()) {
   const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
@@ -43,6 +44,9 @@ function DispatchApp() {
   const todayDate = localDateString()
   const [dashboard, setDashboard] = useState<Dashboard | null>(null)
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([])
+  const [workOrderMeta, setWorkOrderMeta] = useState<PaginationMeta | null>(null)
+  const [paProjectWorkOrders, setPaProjectWorkOrders] = useState<WorkOrder[]>([])
+  const [paProjectMeta, setPaProjectMeta] = useState<PaginationMeta | null>(null)
   const [teams, setTeams] = useState<Team[]>([])
   const [technicians, setTechnicians] = useState<Technician[]>([])
   const [pmTasks, setPmTasks] = useState<PmTask[]>([])
@@ -79,15 +83,16 @@ function DispatchApp() {
     setError('')
     const [dash, orders, teamData, technicianData, pms, lines, schedulePayload] = await Promise.all([
       getJson<Dashboard>(`/dashboard?date=${date}`),
-      getJson<WorkOrder[]>('/work_orders?archived=all'),
+      getJson<WorkOrderListPayload>(`/work_orders?${DEFAULT_WORK_ORDER_QUERY}`),
       getJson<Team[]>(`/teams?date=${date}`),
-      getJson<Technician[]>(`/technicians?date=${date}`),
+      getJson<Technician[]>(`/technicians?date=${date}&include_inactive=true`),
       getJson<PmTask[]>(`/pm_tasks?month=${date.slice(0, 7)}`),
       getJson<{ service_lines: ServiceLine[] }>('/service_lines?include_inactive=true'),
       getJson<{ schedule: DispatchSchedule | null }>(`/dispatch_schedules?date=${date}`),
     ])
     setDashboard(dash)
-    setWorkOrders(orders)
+    setWorkOrders(orders.work_orders)
+    setWorkOrderMeta(orders.meta)
     setTeams(teamData)
     setTechnicians(technicianData)
     setPmTasks(pms)
@@ -117,6 +122,13 @@ function DispatchApp() {
       setLoading(false)
     })
   }, [authLoading, loadInitialData, selectedDate, user?.id])
+
+  useEffect(() => {
+    if (!user?.id || activeSection !== 'pa-projects') return
+
+    void fetchPaProjects(1)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSection, user?.id])
 
   useEffect(() => {
     if (!user?.permissions.can_admin) return
@@ -214,13 +226,24 @@ function DispatchApp() {
     }
   }
 
-  async function refreshWorkOrderContext() {
+  async function refreshWorkOrderContext(nextQuery = DEFAULT_WORK_ORDER_QUERY) {
     const [dash, orders] = await Promise.all([
       getJson<Dashboard>(`/dashboard?date=${selectedDate}`),
-      getJson<WorkOrder[]>('/work_orders?archived=all'),
+      getJson<WorkOrderListPayload>(`/work_orders?${nextQuery}`),
     ])
     setDashboard(dash)
-    setWorkOrders(orders)
+    setWorkOrders(orders.work_orders)
+    setWorkOrderMeta(orders.meta)
+  }
+
+  async function fetchWorkOrders(query: string) {
+    await refreshWorkOrderContext(query)
+  }
+
+  async function fetchPaProjects(page: number) {
+    const payload = await getJson<WorkOrderListPayload>(`/work_orders?archived=active&page=${page}&per_page=${paProjectMeta?.per_page || 50}&sort=scheduled_date&direction=asc&pa_project=true`)
+    setPaProjectWorkOrders(payload.work_orders)
+    setPaProjectMeta(payload.meta)
   }
 
   async function createWorkOrder(values: WorkOrderInput) {
@@ -493,6 +516,87 @@ function DispatchApp() {
     await navigator.clipboard.writeText(whatsApp)
     setCopied(true)
     setTimeout(() => setCopied(false), 1600)
+  }
+
+  async function refreshCrewContext() {
+    const [dash, teamData, technicianData] = await Promise.all([
+      getJson<Dashboard>(`/dashboard?date=${selectedDate}`),
+      getJson<Team[]>(`/teams?date=${selectedDate}`),
+      getJson<Technician[]>(`/technicians?date=${selectedDate}&include_inactive=true`),
+    ])
+    setDashboard(dash)
+    setTeams(teamData)
+    setTechnicians(technicianData)
+  }
+
+  async function createTechnician(values: TechnicianInput) {
+    if (!canEditDispatch) {
+      setError('Viewer access cannot create technicians.')
+      return
+    }
+    setAvailabilitySavingId(0)
+    setError('')
+    try {
+      await postJson<Technician>('/technicians', values)
+      await Promise.allSettled([refreshCrewContext(), afterAuditedChange()])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to create technician')
+      throw err
+    } finally {
+      setAvailabilitySavingId(null)
+    }
+  }
+
+  async function updateTechnician(technicianId: number, values: Partial<TechnicianInput>) {
+    if (!canEditDispatch) {
+      setError('Viewer access cannot update technicians.')
+      return
+    }
+    setAvailabilitySavingId(technicianId)
+    setError('')
+    try {
+      await patchJson<Technician>(`/technicians/${technicianId}`, values)
+      await Promise.allSettled([refreshCrewContext(), afterAuditedChange()])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to update technician')
+      throw err
+    } finally {
+      setAvailabilitySavingId(null)
+    }
+  }
+
+  async function archiveTechnician(technicianId: number) {
+    if (!canEditDispatch) {
+      setError('Viewer access cannot archive technicians.')
+      return
+    }
+    setAvailabilitySavingId(technicianId)
+    setError('')
+    try {
+      await deleteJson<void>(`/technicians/${technicianId}`)
+      await Promise.allSettled([refreshCrewContext(), afterAuditedChange()])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to archive technician')
+    } finally {
+      setAvailabilitySavingId(null)
+    }
+  }
+
+  async function archiveTeam(teamId: number) {
+    if (!canEditDispatch) {
+      setError('Viewer access cannot archive crews.')
+      return
+    }
+    setTeamSavingId(teamId)
+    setError('')
+    try {
+      await deleteJson<void>(`/teams/${teamId}`)
+      await Promise.allSettled([refreshCrewContext(), afterAuditedChange()])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to archive crew')
+    } finally {
+      setTeamSavingId(null)
+    }
   }
 
   async function createTeam(values: TeamInput) {
@@ -779,11 +883,11 @@ function DispatchApp() {
 
         {currentSection === 'overview' && <DashboardMetrics dashboard={dashboard} workOrders={workOrders.filter((workOrder) => !workOrder.archived)} teams={teams} technicians={technicians} pmTasks={pmTasks} schedule={schedule} auditEvents={auditEvents} canEdit={canEditDispatch} working={working} onGoToSection={goToSection} onSuggest={suggestSchedule} />}
 
-        {currentSection === 'work-orders' && (user ? <WorkOrdersPanel workOrders={workOrders} serviceLines={serviceLines} canEdit={canEditDispatch} selectedDate={selectedDate} saving={workOrderSaving} onCreate={createWorkOrder} onUpdate={updateWorkOrder} onArchive={archiveWorkOrder} /> : <SignInRequiredPanel title="Sign in to review work orders" />)}
+        {currentSection === 'work-orders' && (user ? <WorkOrdersPanel workOrders={workOrders} meta={workOrderMeta} serviceLines={serviceLines} canEdit={canEditDispatch} selectedDate={selectedDate} saving={workOrderSaving} onFetch={fetchWorkOrders} onCreate={createWorkOrder} onUpdate={updateWorkOrder} onArchive={archiveWorkOrder} /> : <SignInRequiredPanel title="Sign in to review work orders" />)}
 
-        {currentSection === 'pa-projects' && (user ? <PaProjectsPanel workOrders={workOrders} canEdit={canEditDispatch} onEdit={() => goToSection('work-orders')} /> : <SignInRequiredPanel title="Sign in to review PA Projects" />)}
+        {currentSection === 'pa-projects' && (user ? <PaProjectsPanel workOrders={paProjectWorkOrders} meta={paProjectMeta} canEdit={canEditDispatch} onPage={fetchPaProjects} onEdit={() => goToSection('work-orders')} /> : <SignInRequiredPanel title="Sign in to review PA Projects" />)}
 
-        {currentSection === 'teams' && (user ? <TeamsPanel teams={teams} technicians={technicians} canEdit={canEditDispatch} savingTechnicianId={availabilitySavingId} savingTeamId={teamSavingId} onToggleAvailability={toggleAvailability} onUpdateDailyCrew={updateDailyCrew} onUpdateDefaultCrew={updateDefaultCrew} onCreateTeam={createTeam} /> : <SignInRequiredPanel title="Sign in to check crews" />)}
+        {currentSection === 'teams' && (user ? <TeamsPanel teams={teams} technicians={technicians} serviceLines={serviceLines} canEdit={canEditDispatch} savingTechnicianId={availabilitySavingId} savingTeamId={teamSavingId} onToggleAvailability={toggleAvailability} onUpdateDailyCrew={updateDailyCrew} onUpdateDefaultCrew={updateDefaultCrew} onCreateTeam={createTeam} onArchiveTeam={archiveTeam} onCreateTechnician={createTechnician} onUpdateTechnician={updateTechnician} onArchiveTechnician={archiveTechnician} /> : <SignInRequiredPanel title="Sign in to check crews" />)}
 
         {currentSection === 'dispatch' && (user ? <DispatchBuilder schedule={schedule} teams={teams} working={working} canEdit={canEditDispatch} onSuggest={suggestSchedule} onUpdate={updateDispatchItem} onOutcome={updateDispatchItemOutcome} onWorkOrderStatus={updateWorkOrderStatus} onFinalize={finalizeSchedule} onReopen={reopenSchedule} /> : <SignInRequiredPanel title="Sign in to build today's dispatch" />)}
 

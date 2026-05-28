@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_27_150000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_27_170000) do
   create_table "audit_events", force: :cascade do |t|
     t.string "action", null: false
     t.datetime "created_at", null: false
@@ -141,16 +141,33 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_27_150000) do
     t.integer "team_id", null: false
     t.integer "technician_id", null: false
     t.datetime "updated_at", null: false
+    t.index ["team_id", "technician_id", "date"], name: "index_team_memberships_unique_daily", unique: true, where: "date IS NOT NULL"
+    t.index ["team_id", "technician_id"], name: "index_team_memberships_unique_default", unique: true, where: "date IS NULL"
     t.index ["team_id"], name: "index_team_memberships_on_team_id"
     t.index ["technician_id"], name: "index_team_memberships_on_technician_id"
   end
 
-  create_table "teams", force: :cascade do |t|
+  create_table "team_service_line_preferences", force: :cascade do |t|
     t.datetime "created_at", null: false
+    t.integer "service_line_id", null: false
+    t.integer "team_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["service_line_id"], name: "index_team_service_line_preferences_on_service_line_id"
+    t.index ["team_id", "service_line_id"], name: "index_team_service_line_preferences_unique", unique: true
+    t.index ["team_id"], name: "index_team_service_line_preferences_on_team_id"
+  end
+
+  create_table "teams", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.datetime "archived_at"
+    t.datetime "created_at", null: false
+    t.string "crew_type", default: "general", null: false
     t.string "name"
     t.text "notes"
     t.string "region_preference"
     t.datetime "updated_at", null: false
+    t.index ["active"], name: "index_teams_on_active"
+    t.index ["archived_at"], name: "index_teams_on_archived_at"
   end
 
   create_table "technician_availabilities", force: :cascade do |t|
@@ -160,6 +177,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_27_150000) do
     t.string "status"
     t.integer "technician_id", null: false
     t.datetime "updated_at", null: false
+    t.index ["technician_id", "date"], name: "index_technician_availabilities_unique_tech_date", unique: true
     t.index ["technician_id"], name: "index_technician_availabilities_on_technician_id"
   end
 
@@ -168,14 +186,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_27_150000) do
     t.string "skill"
     t.integer "technician_id", null: false
     t.datetime "updated_at", null: false
+    t.index ["technician_id", "skill"], name: "index_technician_skills_on_technician_id_and_skill", unique: true
     t.index ["technician_id"], name: "index_technician_skills_on_technician_id"
   end
 
   create_table "technicians", force: :cascade do |t|
-    t.boolean "active"
+    t.boolean "active", default: true, null: false
     t.datetime "created_at", null: false
-    t.boolean "is_driver"
+    t.boolean "is_driver", default: false, null: false
     t.string "name"
+    t.text "notes"
     t.string "primary_trade"
     t.datetime "updated_at", null: false
   end
@@ -261,6 +281,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_27_150000) do
   add_foreign_key "team_daily_overrides", "teams"
   add_foreign_key "team_memberships", "teams"
   add_foreign_key "team_memberships", "technicians"
+  add_foreign_key "team_service_line_preferences", "service_lines"
+  add_foreign_key "team_service_line_preferences", "teams"
   add_foreign_key "technician_availabilities", "technicians"
   add_foreign_key "technician_skills", "technicians"
   add_foreign_key "users", "users", column: "invited_by_id"

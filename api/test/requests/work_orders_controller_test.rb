@@ -155,6 +155,22 @@ class WorkOrdersControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ match.id ], payload.map { |item| item.fetch("id") }
   end
 
+  test "paginated work order index returns metadata" do
+    12.times { |index| work_order(title: "Paged work #{index}", date: DEFAULT_DATE + index.days) }
+
+    with_auth_env do
+      get "/api/v1/work_orders", params: { page: 1, per_page: 10, sort: "created_at", direction: "desc" }, headers: auth_headers
+    end
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_equal 10, payload.fetch("work_orders").size
+    assert_equal 12, payload.dig("meta", "total_count")
+    assert_equal 2, payload.dig("meta", "total_pages")
+    assert_equal "created_at", payload.dig("meta", "sort")
+    assert_equal "DESC", payload.dig("meta", "direction")
+  end
+
   test "duplicate source and external id is rejected" do
     work_order(title: "Existing", status: "approved").update!(source: "mywork", external_id: "40787")
 

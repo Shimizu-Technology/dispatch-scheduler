@@ -82,11 +82,11 @@ function eventTime(value: string | null) {
 }
 
 export function DashboardMetrics({ dashboard, workOrders, teams, technicians, pmTasks, schedule, auditEvents, canEdit, working, onGoToSection, onSuggest }: DashboardMetricsProps) {
-  const callOuts = technicians.filter((technician) => technician.availability === 'unavailable')
+  const callOuts = technicians.filter((technician) => technician.active && technician.availability === 'unavailable')
   const driverIssues = teams.filter((team) => !team.has_driver).length
   const dailyOverrides = teams.filter((team) => team.daily_override).length
-  const highPriority = priorityCount(workOrders)
-  const unscheduledApproved = workOrders.filter((workOrder) => workOrder.status === 'approved' && !workOrder.scheduled_date).length
+  const highPriority = dashboard?.counts.high_priority_open_work_orders ?? priorityCount(workOrders)
+  const unscheduledApproved = dashboard?.counts.unscheduled_approved ?? workOrders.filter((workOrder) => workOrder.status === 'approved' && !workOrder.scheduled_date).length
   const paProjects = workOrders.filter((workOrder) => workOrder.pa_project).length
   const correctiveMaintenance = workOrders.filter((workOrder) => workOrder.corrective_maintenance).length
   const estimateRequired = workOrders.filter((workOrder) => workOrder.estimate_required).length
@@ -141,10 +141,10 @@ export function DashboardMetrics({ dashboard, workOrders, teams, technicians, pm
 
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
       <button type="button" onClick={() => onGoToSection('pa-projects')} className="text-left transition hover:-translate-y-0.5">
-        <Metric icon={<FolderKanban size={20} />} label="PA Projects" value={dashboard?.counts.pa_projects ?? paProjects} detail="Long-lead follow-up workspace" tone={paProjects > 0 ? 'amber' : 'steel'} />
+        <Metric icon={<FolderKanban size={20} />} label="PA Projects" value={dashboard?.counts.pa_projects ?? paProjects} detail="Long-lead follow-up workspace" tone={(dashboard?.counts.pa_projects ?? paProjects) > 0 ? 'amber' : 'steel'} />
       </button>
       <Metric icon={<Wrench size={20} />} label="Corrective Maint." value={dashboard?.counts.corrective_maintenance ?? correctiveMaintenance} detail="CM-flagged open work" tone="blue" />
-      <Metric icon={<FileText size={20} />} label="Estimates" value={dashboard?.counts.estimate_required ?? estimateRequired} detail="Estimate-required open work" tone={estimateRequired > 0 ? 'amber' : 'steel'} />
+      <Metric icon={<FileText size={20} />} label="Estimates" value={dashboard?.counts.estimate_required ?? estimateRequired} detail="Estimate-required open work" tone={(dashboard?.counts.estimate_required ?? estimateRequired) > 0 ? 'amber' : 'steel'} />
       <button type="button" onClick={() => onGoToSection('work-orders')} className="text-left transition hover:-translate-y-0.5">
         <Metric icon={<Clock3 size={20} />} label="Waiting parts" value={dashboard?.counts.waiting_for_parts ?? waitingForParts} detail="Held out of dispatch suggestions" tone={(dashboard?.counts.waiting_for_parts ?? waitingForParts) > 0 ? 'amber' : 'steel'} />
       </button>

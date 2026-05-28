@@ -1,6 +1,6 @@
 import { ClipboardList } from 'lucide-react'
 import { Badge, Card, PanelHeader } from './ui'
-import type { WorkOrder } from '../types'
+import type { PaginationMeta, WorkOrder } from '../types'
 
 function shortDate(value?: string | null) {
   if (!value) return 'Not set'
@@ -11,7 +11,7 @@ function statusLabel(status: string) {
   return status.replaceAll('_', ' ')
 }
 
-export function PaProjectsPanel({ workOrders, onEdit, canEdit }: { workOrders: WorkOrder[]; onEdit: () => void; canEdit: boolean }) {
+export function PaProjectsPanel({ workOrders, meta, onPage, onEdit, canEdit }: { workOrders: WorkOrder[]; meta: PaginationMeta | null; onPage: (page: number) => Promise<void>; onEdit: () => void; canEdit: boolean }) {
   const paProjects = workOrders.filter((workOrder) => !workOrder.archived && workOrder.pa_project)
   const waitingParts = paProjects.filter((workOrder) => workOrder.status === 'waiting_for_parts').length
   const estimates = paProjects.filter((workOrder) => workOrder.estimate_required).length
@@ -52,6 +52,13 @@ export function PaProjectsPanel({ workOrders, onEdit, canEdit }: { workOrders: W
         {workOrder.pa_project_notes && <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold leading-6 text-amber-950">{workOrder.pa_project_notes}</p>}
       </article>)}
       {paProjects.length === 0 && <p className="rounded-2xl border border-dashed border-[rgba(36,67,147,0.22)] bg-[#f8faff] p-6 text-sm font-semibold text-[#526071]">No PA Projects are marked yet. Check the PA Project box on a work order to make it appear here.</p>}
+      {meta && meta.total_count > 0 && <div className="flex flex-wrap items-center justify-between gap-3 px-1 pt-2 text-xs font-bold uppercase tracking-[0.14em] text-[#7b8798]">
+        <span>{paProjects.length} shown · {meta.total_count} total · page {meta.page} of {Math.max(meta.total_pages, 1)}</span>
+        <div className="flex gap-2">
+          <button type="button" disabled={meta.page <= 1} onClick={() => void onPage(meta.page - 1)} className="rounded-full border border-[rgba(23,32,51,0.12)] bg-white px-3 py-1.5 text-[#334155] disabled:cursor-not-allowed disabled:opacity-50">Previous</button>
+          <button type="button" disabled={meta.page >= meta.total_pages} onClick={() => void onPage(meta.page + 1)} className="rounded-full border border-[rgba(23,32,51,0.12)] bg-white px-3 py-1.5 text-[#334155] disabled:cursor-not-allowed disabled:opacity-50">Next</button>
+        </div>
+      </div>}
     </div>
   </Card>
 }

@@ -107,8 +107,19 @@ export type Technician = {
   primary_trade: string
   skills: string[]
   is_driver: boolean
+  active: boolean
+  notes?: string | null
   availability: string
   availability_reason?: string
+}
+
+export type TechnicianInput = {
+  name: string
+  primary_trade: string
+  skills: string[]
+  is_driver: boolean
+  active?: boolean
+  notes?: string
 }
 
 export type Team = {
@@ -116,6 +127,12 @@ export type Team = {
   name: string
   today_crew_name: string
   region_preference: string | null
+  crew_type: string
+  active: boolean
+  archived: boolean
+  archived_at?: string | null
+  service_line_ids: number[]
+  service_line_names: string[]
   has_driver: boolean
   default_has_driver: boolean
   skills: string[]
@@ -128,7 +145,23 @@ export type Team = {
 export type TeamInput = {
   name?: string
   region_preference?: string
+  crew_type?: string
   technician_ids: number[]
+  service_line_ids?: number[]
+}
+
+export type PaginationMeta = {
+  page: number
+  per_page: number
+  total_count: number
+  total_pages: number
+  sort: string
+  direction: 'ASC' | 'DESC'
+}
+
+export type WorkOrderListPayload = {
+  work_orders: WorkOrder[]
+  meta: PaginationMeta
 }
 
 export type PmTaskStatus = 'pending' | 'scheduled' | 'completed' | 'deferred'

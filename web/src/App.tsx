@@ -21,7 +21,7 @@ type ActiveSection = 'overview' | 'dispatch' | 'work-orders' | 'pa-projects' | '
 
 const SECTION_IDS: ActiveSection[] = ['overview', 'dispatch', 'work-orders', 'pa-projects', 'teams', 'pm-tasks', 'service-lines', 'whatsapp', 'activity', 'users']
 const SELECTED_DATE_STORAGE_KEY = 'dispatch-scheduler:selected-date'
-const DEFAULT_WORK_ORDER_QUERY = 'archived=all&page=1&per_page=50&sort=scheduled_date&direction=asc'
+const DEFAULT_WORK_ORDER_QUERY = 'archived=active&page=1&per_page=50&sort=scheduled_date&direction=asc'
 
 function localDateString(date = new Date()) {
   const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000)

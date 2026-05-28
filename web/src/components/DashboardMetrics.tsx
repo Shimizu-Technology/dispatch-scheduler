@@ -82,7 +82,7 @@ function eventTime(value: string | null) {
 }
 
 export function DashboardMetrics({ dashboard, workOrders, teams, technicians, pmTasks, schedule, auditEvents, canEdit, working, onGoToSection, onSuggest }: DashboardMetricsProps) {
-  const callOuts = technicians.filter((technician) => technician.availability === 'unavailable')
+  const callOuts = technicians.filter((technician) => technician.active && technician.availability === 'unavailable')
   const driverIssues = teams.filter((team) => !team.has_driver).length
   const dailyOverrides = teams.filter((team) => team.daily_override).length
   const highPriority = dashboard?.counts.high_priority_open_work_orders ?? priorityCount(workOrders)

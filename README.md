@@ -28,10 +28,11 @@ User invitations use Clerk plus optional Resend delivery. Configure `CLERK_SECRE
 
 Crew operations now separate default reusable crews from today's crew overrides. Dispatch suggestions use active teams, selected-date crew composition, driver coverage, technician skills, region preference, and team service-line preferences.
 
-To clear seeded/demo operating data from a production-like environment before loading real JMI data while preserving users, audit history, and service lines:
+To clear seeded/demo operating data from a production-like environment before loading real JMI data while preserving users, audit history, service lines, crews, and technicians:
 
 ```bash
 cd api && bundle exec rails jmi:clear_demo_data
+cd api && CONFIRM=clear_demo_data bundle exec rails jmi:clear_demo_data
 ```
 
 AI-assisted work-order upload uses OpenRouter vision models. Configure these API env vars when enabling it:

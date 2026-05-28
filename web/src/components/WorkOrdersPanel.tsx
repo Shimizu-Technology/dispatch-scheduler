@@ -332,6 +332,7 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, selec
   const [estimateRequiredFilter, setEstimateRequiredFilter] = useState(false)
   const [sort, setSort] = useState('scheduled_date')
   const [direction, setDirection] = useState<'asc' | 'desc'>('asc')
+  const [appliedQuery, setAppliedQuery] = useState('archived=active&page=1&per_page=50&sort=scheduled_date&direction=asc')
 
   const filteredWorkOrders = workOrders
   const hasActiveFilters = Boolean(query || archiveFilter !== 'active' || statusFilter || priorityFilter || regionFilter || serviceLineFilter || paProjectFilter || correctiveMaintenanceFilter || estimateRequiredFilter)
@@ -354,6 +355,18 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, selec
     return params.toString()
   }
 
+  function queryForAppliedPage(page: number) {
+    const params = new URLSearchParams(appliedQuery)
+    params.set('page', String(page))
+    return params.toString()
+  }
+
+  function applyFilters() {
+    const nextQuery = queryFor(1)
+    setAppliedQuery(nextQuery)
+    void onFetch(nextQuery)
+  }
+
   function clearFilters() {
     setQuery('')
     setArchiveFilter('active')
@@ -366,7 +379,9 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, selec
     setEstimateRequiredFilter(false)
     setSort('scheduled_date')
     setDirection('asc')
-    void onFetch('archived=active&page=1&per_page=50&sort=scheduled_date&direction=asc')
+    const nextQuery = 'archived=active&page=1&per_page=50&sort=scheduled_date&direction=asc'
+    setAppliedQuery(nextQuery)
+    void onFetch(nextQuery)
   }
 
   const formInitialValues = editing ? formFromWorkOrder(editing) : emptyForm(selectedDate)
@@ -514,7 +529,7 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, selec
           <option value="desc">Descending</option>
         </select>
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={() => void onFetch(queryFor(1))} className="rounded-xl bg-[#244393] px-4 py-2 font-display text-sm font-extrabold text-white transition hover:-translate-y-0.5 hover:bg-[#172b63]">Apply filters</button>
+          <button type="button" onClick={applyFilters} className="rounded-xl bg-[#244393] px-4 py-2 font-display text-sm font-extrabold text-white transition hover:-translate-y-0.5 hover:bg-[#172b63]">Apply filters</button>
           <button type="button" onClick={clearFilters} className="rounded-xl border border-[rgba(23,32,51,0.12)] bg-white px-4 py-2 font-display text-sm font-extrabold text-[#334155] transition hover:-translate-y-0.5 hover:bg-slate-50">Clear</button>
         </div>
       </div>
@@ -536,8 +551,8 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, selec
       {workOrders.length > 0 && <div className="flex flex-wrap items-center justify-between gap-3 px-3 pb-2 text-xs font-bold uppercase tracking-[0.14em] text-[#7b8798]">
         <span>{meta ? `${workOrders.length} shown · ${meta.total_count} total · page ${meta.page} of ${Math.max(meta.total_pages, 1)}` : `${workOrders.length} shown`}</span>
         <div className="flex items-center gap-2">
-          <button type="button" disabled={!meta || meta.page <= 1} onClick={() => void onFetch(queryFor((meta?.page || 1) - 1))} className="rounded-full border border-[rgba(23,32,51,0.12)] bg-white px-3 py-1.5 text-[#334155] disabled:cursor-not-allowed disabled:opacity-50">Previous</button>
-          <button type="button" disabled={!meta || meta.page >= meta.total_pages} onClick={() => void onFetch(queryFor((meta?.page || 1) + 1))} className="rounded-full border border-[rgba(23,32,51,0.12)] bg-white px-3 py-1.5 text-[#334155] disabled:cursor-not-allowed disabled:opacity-50">Next</button>
+          <button type="button" disabled={!meta || meta.page <= 1} onClick={() => void onFetch(queryForAppliedPage((meta?.page || 1) - 1))} className="rounded-full border border-[rgba(23,32,51,0.12)] bg-white px-3 py-1.5 text-[#334155] disabled:cursor-not-allowed disabled:opacity-50">Previous</button>
+          <button type="button" disabled={!meta || meta.page >= meta.total_pages} onClick={() => void onFetch(queryForAppliedPage((meta?.page || 1) + 1))} className="rounded-full border border-[rgba(23,32,51,0.12)] bg-white px-3 py-1.5 text-[#334155] disabled:cursor-not-allowed disabled:opacity-50">Next</button>
           {hasActiveFilters && <button className="inline-flex items-center gap-1 text-[#244393]" onClick={clearFilters}><X size={13} /> Clear filters</button>}
         </div>
       </div>}

@@ -13,8 +13,10 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     payload = JSON.parse(response.body)
     assert_equal 1, payload.dig("counts", "open_work_orders")
+    assert_equal 1, payload.dig("counts", "high_priority_open_work_orders")
     assert_equal 1, payload.dig("counts", "needs_assessment")
     assert_equal 0, payload.dig("counts", "approved")
+    assert_equal 0, payload.dig("counts", "unscheduled_approved")
     assert_equal({ "needs_assessment" => 1 }, payload.fetch("status_breakdown"))
     assert_equal({ "P1" => 1 }, payload.fetch("priority_breakdown"))
   end

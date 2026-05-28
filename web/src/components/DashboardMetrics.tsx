@@ -85,8 +85,8 @@ export function DashboardMetrics({ dashboard, workOrders, teams, technicians, pm
   const callOuts = technicians.filter((technician) => technician.availability === 'unavailable')
   const driverIssues = teams.filter((team) => !team.has_driver).length
   const dailyOverrides = teams.filter((team) => team.daily_override).length
-  const highPriority = priorityCount(workOrders)
-  const unscheduledApproved = workOrders.filter((workOrder) => workOrder.status === 'approved' && !workOrder.scheduled_date).length
+  const highPriority = dashboard?.counts.high_priority_open_work_orders ?? priorityCount(workOrders)
+  const unscheduledApproved = dashboard?.counts.unscheduled_approved ?? workOrders.filter((workOrder) => workOrder.status === 'approved' && !workOrder.scheduled_date).length
   const paProjects = workOrders.filter((workOrder) => workOrder.pa_project).length
   const correctiveMaintenance = workOrders.filter((workOrder) => workOrder.corrective_maintenance).length
   const estimateRequired = workOrders.filter((workOrder) => workOrder.estimate_required).length

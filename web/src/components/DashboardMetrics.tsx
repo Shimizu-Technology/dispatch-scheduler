@@ -141,10 +141,10 @@ export function DashboardMetrics({ dashboard, workOrders, teams, technicians, pm
 
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
       <button type="button" onClick={() => onGoToSection('pa-projects')} className="text-left transition hover:-translate-y-0.5">
-        <Metric icon={<FolderKanban size={20} />} label="PA Projects" value={dashboard?.counts.pa_projects ?? paProjects} detail="Long-lead follow-up workspace" tone={paProjects > 0 ? 'amber' : 'steel'} />
+        <Metric icon={<FolderKanban size={20} />} label="PA Projects" value={dashboard?.counts.pa_projects ?? paProjects} detail="Long-lead follow-up workspace" tone={(dashboard?.counts.pa_projects ?? paProjects) > 0 ? 'amber' : 'steel'} />
       </button>
       <Metric icon={<Wrench size={20} />} label="Corrective Maint." value={dashboard?.counts.corrective_maintenance ?? correctiveMaintenance} detail="CM-flagged open work" tone="blue" />
-      <Metric icon={<FileText size={20} />} label="Estimates" value={dashboard?.counts.estimate_required ?? estimateRequired} detail="Estimate-required open work" tone={estimateRequired > 0 ? 'amber' : 'steel'} />
+      <Metric icon={<FileText size={20} />} label="Estimates" value={dashboard?.counts.estimate_required ?? estimateRequired} detail="Estimate-required open work" tone={(dashboard?.counts.estimate_required ?? estimateRequired) > 0 ? 'amber' : 'steel'} />
       <button type="button" onClick={() => onGoToSection('work-orders')} className="text-left transition hover:-translate-y-0.5">
         <Metric icon={<Clock3 size={20} />} label="Waiting parts" value={dashboard?.counts.waiting_for_parts ?? waitingForParts} detail="Held out of dispatch suggestions" tone={(dashboard?.counts.waiting_for_parts ?? waitingForParts) > 0 ? 'amber' : 'steel'} />
       </button>

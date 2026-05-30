@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Archive, ArchiveRestore, Edit3, FileUp, Plus, Search, Sparkles, X } from 'lucide-react'
 import { Badge, Card, PanelHeader } from './ui'
@@ -40,6 +40,13 @@ function shortDateTime(value?: string | null) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value.slice(0, 16).replace('T', ' ')
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'short', timeStyle: 'short' }).format(date)
+}
+
+function estimatedHoursLabel(value?: number | string | null) {
+  if (value === null || value === undefined || value === '') return 'Not set'
+  const numeric = Number(value)
+  if (Number.isNaN(numeric)) return String(value)
+  return `${Number.isInteger(numeric) ? numeric : numeric.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')}h`
 }
 
 function datetimeLocalToIso(value?: string | null) {
@@ -106,6 +113,7 @@ function emptyForm(scheduledDate?: string): WorkOrderInput {
     notes: '',
     reported_at: '',
     assessed_at: '',
+    estimated_hours: '',
     service_line_id: '',
     pa_project: false,
     pa_project_notes: '',
@@ -132,6 +140,7 @@ function formFromWorkOrder(workOrder: WorkOrder): WorkOrderInput {
     notes: workOrder.notes || '',
     reported_at: datetimeLocalValue(workOrder.reported_at),
     assessed_at: datetimeLocalValue(workOrder.assessed_at),
+    estimated_hours: workOrder.estimated_hours ?? '',
     service_line_id: workOrder.service_line_id || '',
     pa_project: workOrder.pa_project,
     pa_project_notes: workOrder.pa_project_notes || '',
@@ -164,6 +173,7 @@ function WorkOrderRow({ workOrder, canEdit, onEdit, onArchive }: { workOrder: Wo
         <span>SLA due: {shortDateTime(workOrder.sla_due_at)}</span>
         <span>Source: {workOrder.source}</span>
         <span>Service line: {workOrder.service_line || 'Unassigned'}</span>
+        <span>Estimate: {estimatedHoursLabel(workOrder.estimated_hours)}</span>
         <span>Last dispatched: {shortDate(workOrder.last_dispatched_on)}{workOrder.last_crew_name ? ` · ${workOrder.last_crew_name}` : ''}</span>
       </div>
     </div>
@@ -194,6 +204,7 @@ function WorkOrderForm({ initialValues, serviceLines, saving, onCancel, onSubmit
       service_line_id: values.service_line_id || null,
       reported_at: datetimeLocalToIso(values.reported_at),
       assessed_at: datetimeLocalToIso(values.assessed_at),
+      estimated_hours: values.estimated_hours === '' || values.estimated_hours === undefined ? null : values.estimated_hours,
     })
   }
 
@@ -262,7 +273,7 @@ function WorkOrderForm({ initialValues, serviceLines, saving, onCancel, onSubmit
       </label>
     </div>
 
-    <div className="mt-3 grid gap-3 lg:grid-cols-2">
+    <div className="mt-3 grid gap-3 lg:grid-cols-3">
       <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
         Reported at
         <input type="datetime-local" value={values.reported_at || ''} onChange={(event) => updateField('reported_at', event.target.value)} className="field-control tabular mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]" />
@@ -272,6 +283,11 @@ function WorkOrderForm({ initialValues, serviceLines, saving, onCancel, onSubmit
         Assessed at
         <input type="datetime-local" value={values.assessed_at || ''} onChange={(event) => updateField('assessed_at', event.target.value)} className="field-control tabular mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]" />
         <span className="mt-1 block text-xs font-semibold normal-case tracking-normal text-[#64748b]">Optional. Once assessed, repair due time becomes the scheduling pressure.</span>
+      </label>
+      <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
+        Est. hours
+        <input type="number" min="0.25" step="0.25" value={values.estimated_hours ?? ''} onChange={(event) => updateField('estimated_hours', event.target.value)} placeholder="2" className="field-control tabular mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]" />
+        <span className="mt-1 block text-xs font-semibold normal-case tracking-normal text-[#64748b]">Used to space suggested crew stops.</span>
       </label>
     </div>
 
@@ -314,7 +330,7 @@ function WorkOrderForm({ initialValues, serviceLines, saving, onCancel, onSubmit
   </form>
 }
 
-export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, selectedDate, saving, onFetch, onCreate, onUpdate, onArchive }: { workOrders: WorkOrder[]; meta: PaginationMeta | null; serviceLines: ServiceLine[]; canEdit: boolean; selectedDate: string; saving: boolean; onFetch: (query: string) => Promise<void>; onCreate: (values: WorkOrderInput) => Promise<void>; onUpdate: (id: number, values: WorkOrderInput) => Promise<void>; onArchive: (workOrderId: number, archived: boolean) => Promise<void> }) {
+export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, selectedDate, saving, workOrderToEdit, onEditConsumed, onFetch, onCreate, onUpdate, onArchive }: { workOrders: WorkOrder[]; meta: PaginationMeta | null; serviceLines: ServiceLine[]; canEdit: boolean; selectedDate: string; saving: boolean; workOrderToEdit?: WorkOrder | null; onEditConsumed?: () => void; onFetch: (query: string) => Promise<void>; onCreate: (values: WorkOrderInput) => Promise<void>; onUpdate: (id: number, values: WorkOrderInput) => Promise<void>; onArchive: (workOrderId: number, archived: boolean) => Promise<void> }) {
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<WorkOrder | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -333,6 +349,16 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, selec
   const [sort, setSort] = useState('scheduled_date')
   const [direction, setDirection] = useState<'asc' | 'desc'>('asc')
   const [appliedQuery, setAppliedQuery] = useState('archived=active&page=1&per_page=50&sort=scheduled_date&direction=asc')
+
+  useEffect(() => {
+    if (!workOrderToEdit) return
+
+    // External row actions open the exact work order in this panel's local editor.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setEditing(workOrderToEdit)
+    setShowForm(true)
+    onEditConsumed?.()
+  }, [onEditConsumed, workOrderToEdit])
 
   const filteredWorkOrders = workOrders
   const hasActiveFilters = Boolean(query || archiveFilter !== 'active' || statusFilter || priorityFilter || regionFilter || serviceLineFilter || paProjectFilter || correctiveMaintenanceFilter || estimateRequiredFilter)

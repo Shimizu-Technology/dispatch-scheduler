@@ -165,16 +165,15 @@ Acceptance criteria:
 
 ## Current Milestone Branch
 
-Branch: `codex/jmi-pm-operations`
+Branch: `codex/jmi-pilot-readiness-fixes`
 
 Scope implemented by this milestone:
 
-- Add monthly PM workflow statuses: pending, scheduled, completed, deferred.
-- Add completion/defer metadata and PM task notes.
-- Add month-level PM workspace with filters, incomplete/completed counts, and status actions.
-- Add dashboard PM completion metrics for the selected month.
-- Update dispatch suggestions to include incomplete same-location PMs as “while you’re there” suggestions when a crew is already going to that location.
-- Keep file storage/OCR intake, reporting, and service-line-aware crew preference scoring for follow-up PRs.
+- Keep missing SLA data visible instead of inventing timestamps for manually entered work orders.
+- Use work-order estimated hours to space suggested stops for each crew.
+- Prefer matching service line / contract line before region when choosing among viable crews.
+- Make PA Project follow-up rows open the exact work order edit form.
+- Keep file storage/OCR intake, reporting, and technician-level service-line preferences for follow-up PRs.
 
 ## Definition Of Ready For John/JMI Pilot
 

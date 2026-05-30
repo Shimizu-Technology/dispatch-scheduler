@@ -56,6 +56,38 @@ class WorkOrderTest < ActiveSupport::TestCase
     assert_equal custom_repair_due_at, order.repair_due_at
   end
 
+  test "does not invent SLA dates when report time is absent" do
+    order = work_order(title: "Missing clock", priority: "P3", reported_at: nil)
+
+    assert_nil order.reported_at
+    assert_nil order.requested_at
+    assert_nil order.assessment_due_at
+    assert_nil order.response_due_at
+    assert_nil order.repair_due_at
+    assert order.sla_missing?
+  end
+
+  test "uses requested time as SLA source when reported time is absent" do
+    requested_at = Time.zone.local(2026, 5, 5, 8, 15, 0)
+    order = WorkOrder.create!(
+      client: client,
+      location: location,
+      title: "Requested time only",
+      description: "Requested time only",
+      priority: "P3",
+      normalized_priority: "P3",
+      status: "approved",
+      original_status_text: "approved",
+      trade_category: "General",
+      requested_at: requested_at
+    )
+
+    assert_equal requested_at, order.reported_at
+    assert_equal requested_at, order.requested_at
+    assert_equal requested_at + 24.hours, order.assessment_due_at
+    assert_equal requested_at + 48.hours, order.repair_due_at
+  end
+
   test "updates auto-calculated SLA due dates when reported time changes" do
     reported_at = Time.zone.local(2026, 5, 5, 8, 0, 0)
     corrected_reported_at = Time.zone.local(2026, 5, 5, 9, 15, 0)

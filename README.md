@@ -26,7 +26,7 @@ Production deploy note: keep `WEB_CONCURRENCY=1` while the API uses process-loca
 
 User invitations use Clerk plus optional Resend delivery. Configure `CLERK_SECRET_KEY` for Clerk invitations and `RESEND_API_KEY` with `RESEND_FROM_EMAIL` for branded invite emails. Without Resend, admins can still pre-provision users and resend after email is configured. Removing app access is a soft deactivation so audit history remains intact.
 
-Crew operations now separate default reusable crews from today's crew overrides. Dispatch suggestions use active teams, selected-date crew composition, driver coverage, technician skills, region preference, and team service-line preferences.
+Crew operations now separate default reusable crews from today's crew overrides. Dispatch suggestions use active teams, selected-date crew composition, driver coverage, technician skills, team service-line preferences, region preference, and work-order estimated hours.
 
 To clear seeded/demo operating data from a production-like environment before loading real JMI data while preserving users, audit history, service lines, crews, and technicians:
 

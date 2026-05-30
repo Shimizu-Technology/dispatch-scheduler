@@ -243,6 +243,7 @@ module Api
           assessed_at: datetime_attr(attrs, :assessed_at, existing&.assessed_at),
           repair_due_at: datetime_attr(attrs, :repair_due_at, existing&.repair_due_at),
           scheduled_date: scheduled_date,
+          estimated_hours: decimal_attr(attrs, :estimated_hours, existing&.estimated_hours),
           notes: attrs.key?(:notes) ? attrs[:notes] : existing&.notes,
           service_line: service_line_for(attrs, existing),
           pa_project: boolean_attr(attrs, :pa_project, existing&.pa_project),
@@ -267,6 +268,7 @@ module Api
           pa_project: work_order.pa_project,
           corrective_maintenance: work_order.corrective_maintenance,
           estimate_required: work_order.estimate_required,
+          estimated_hours: work_order.estimated_hours&.to_f,
           sla_due_at: work_order.sla_due_at&.iso8601,
           sla_status: Serializers.sla_status(work_order)
         }
@@ -287,6 +289,15 @@ module Api
         return nil if attrs[key].blank?
 
         Time.zone.parse(attrs[key].to_s)
+      rescue ArgumentError, TypeError
+        raise ActionController::BadRequest, "Invalid #{key.to_s.humanize.downcase}"
+      end
+
+      def decimal_attr(attrs, key, fallback)
+        return fallback unless attrs.key?(key)
+        return nil if attrs[key].blank?
+
+        BigDecimal(attrs[key].to_s)
       rescue ArgumentError, TypeError
         raise ActionController::BadRequest, "Invalid #{key.to_s.humanize.downcase}"
       end
@@ -330,6 +341,7 @@ module Api
           :assessment_due_at,
           :assessed_at,
           :repair_due_at,
+          :estimated_hours,
           :notes,
           :service_line_id,
           :pa_project,

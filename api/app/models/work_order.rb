@@ -131,7 +131,7 @@ class WorkOrder < ApplicationRecord
   private
 
   def normalize_sla_due_dates
-    self.reported_at ||= requested_at || created_at || Time.current
+    self.reported_at ||= requested_at
     self.requested_at ||= reported_at
 
     windows = PRIORITY_SLA_WINDOWS[priority_key]

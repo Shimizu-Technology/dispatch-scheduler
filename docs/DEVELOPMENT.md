@@ -20,6 +20,9 @@ npm run dev -- --port 5173
 
 Open http://127.0.0.1:5173.
 
+The frontend expects Node `22.12.0` or newer; `web/.node-version` pins that
+minimum for local version managers.
+
 ## Authentication
 
 The app always uses Clerk. Local development needs the same Clerk setup shape as

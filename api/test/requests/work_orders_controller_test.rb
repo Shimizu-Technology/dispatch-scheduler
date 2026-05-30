@@ -14,6 +14,7 @@ class WorkOrdersControllerTest < ActionDispatch::IntegrationTest
         status: "approved",
         trade_category: "Plumbing",
         scheduled_date: DEFAULT_DATE.to_s,
+        estimated_hours: "1.5",
         notes: "Requested by station manager"
       }, headers: auth_headers
     end
@@ -27,6 +28,7 @@ class WorkOrdersControllerTest < ActionDispatch::IntegrationTest
     assert_equal "whatsapp", payload.fetch("source")
     assert_equal "Plumbing", payload.fetch("trade_category")
     assert_equal DEFAULT_DATE.to_s, payload.fetch("scheduled_date")
+    assert_equal 1.5, payload.fetch("estimated_hours")
   end
 
   test "invalid scheduled date rolls back client and location writes" do
@@ -98,6 +100,26 @@ class WorkOrdersControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Waiting for lights until September", payload.fetch("pa_project_notes")
     assert_equal true, payload.fetch("corrective_maintenance")
     assert_equal true, payload.fetch("estimate_required")
+  end
+
+  test "manual work order without report time keeps SLA missing" do
+    with_auth_env do
+      post "/api/v1/work_orders", params: {
+        client: "Mobil",
+        location: "Tamuning",
+        region: "Central",
+        description: "Dispatcher still needs the request timestamp",
+        priority: "P3",
+        status: "approved"
+      }, headers: auth_headers
+    end
+
+    assert_response :created
+    payload = JSON.parse(response.body)
+    assert_nil payload.fetch("reported_at")
+    assert_nil payload.fetch("requested_at")
+    assert_nil payload.fetch("sla_due_at")
+    assert_equal "missing", payload.fetch("sla_status")
   end
 
   test "rejects inactive service line assignment" do

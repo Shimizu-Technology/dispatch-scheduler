@@ -37,7 +37,8 @@ module Api
             total_count: total_count,
             total_pages: (total_count.to_f / per_page).ceil,
             sort: sort_param,
-            direction: sort_direction
+            direction: sort_direction,
+            sub_counts: work_order_sub_counts(scope)
           }
         }
       end
@@ -195,6 +196,14 @@ module Api
         requested = params[:per_page].to_i
         requested = 50 if requested <= 0
         requested.clamp(10, 100)
+      end
+
+      def work_order_sub_counts(scope)
+        count_scope = scope.except(:order, :limit, :offset)
+        {
+          waiting_for_parts: count_scope.where(status: "waiting_for_parts").count,
+          estimate_required: count_scope.where(estimate_required: true).count
+        }
       end
 
       def scheduled_date_param

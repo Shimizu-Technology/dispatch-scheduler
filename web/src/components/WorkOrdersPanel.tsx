@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Archive, ArchiveRestore, Edit3, FileUp, Plus, Search, Sparkles, X } from 'lucide-react'
 import { Badge, Card, PanelHeader } from './ui'
@@ -350,18 +350,10 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, selec
   const [direction, setDirection] = useState<'asc' | 'desc'>('asc')
   const [appliedQuery, setAppliedQuery] = useState('archived=active&page=1&per_page=50&sort=scheduled_date&direction=asc')
 
-  useEffect(() => {
-    if (!workOrderToEdit) return
-
-    // External row actions open the exact work order in this panel's local editor.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setEditing(workOrderToEdit)
-    setShowForm(true)
-    onEditConsumed?.()
-  }, [onEditConsumed, workOrderToEdit])
-
   const filteredWorkOrders = workOrders
   const hasActiveFilters = Boolean(query || archiveFilter !== 'active' || statusFilter || priorityFilter || regionFilter || serviceLineFilter || paProjectFilter || correctiveMaintenanceFilter || estimateRequiredFilter)
+  const activeEditing = editing ?? workOrderToEdit ?? null
+  const isFormOpen = showForm || Boolean(workOrderToEdit)
 
   function queryFor(page = 1) {
     const params = new URLSearchParams()
@@ -410,24 +402,27 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, selec
     void onFetch(nextQuery)
   }
 
-  const formInitialValues = editing ? formFromWorkOrder(editing) : emptyForm(selectedDate)
+  const formInitialValues = activeEditing ? formFromWorkOrder(activeEditing) : emptyForm(selectedDate)
 
   async function submitForm(values: WorkOrderInput) {
-    if (editing) {
-      await onUpdate(editing.id, values)
+    if (activeEditing) {
+      await onUpdate(activeEditing.id, values)
     } else {
       await onCreate(values)
     }
     setEditing(null)
     setShowForm(false)
+    onEditConsumed?.()
   }
 
   function startCreate() {
+    onEditConsumed?.()
     setEditing(null)
     setShowForm(true)
   }
 
   function startEdit(workOrder: WorkOrder) {
+    onEditConsumed?.()
     setEditing(workOrder)
     setShowForm(true)
   }
@@ -511,7 +506,7 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, selec
       </div>
     </div>}
 
-    {showForm && <WorkOrderForm key={editing?.id || 'new'} initialValues={formInitialValues} serviceLines={serviceLines} saving={saving} onCancel={() => { setShowForm(false); setEditing(null) }} onSubmit={submitForm} />}
+    {isFormOpen && <WorkOrderForm key={activeEditing?.id || 'new'} initialValues={formInitialValues} serviceLines={serviceLines} saving={saving} onCancel={() => { setShowForm(false); setEditing(null); onEditConsumed?.() }} onSubmit={submitForm} />}
 
     <div className="border-b border-[rgba(23,32,51,0.1)] bg-white p-4">
       <div className="grid gap-3 lg:grid-cols-[1fr_150px_160px_150px_160px_180px]">

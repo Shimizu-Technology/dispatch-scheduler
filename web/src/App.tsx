@@ -152,6 +152,7 @@ function DispatchApp() {
   }, [])
 
   function goToSection(section: ActiveSection) {
+    if (section !== 'work-orders') setWorkOrderToEdit(null)
     setActiveSection(section)
     window.history.pushState(null, '', `#${section}`)
   }
@@ -160,6 +161,10 @@ function DispatchApp() {
     setWorkOrderToEdit(workOrder)
     goToSection('work-orders')
   }
+
+  const clearWorkOrderToEdit = useCallback(() => {
+    setWorkOrderToEdit(null)
+  }, [])
 
   async function afterAuditedChange() {
     try {
@@ -889,7 +894,7 @@ function DispatchApp() {
 
         {currentSection === 'overview' && <DashboardMetrics dashboard={dashboard} workOrders={workOrders.filter((workOrder) => !workOrder.archived)} teams={teams} technicians={technicians} pmTasks={pmTasks} schedule={schedule} auditEvents={auditEvents} canEdit={canEditDispatch} working={working} onGoToSection={goToSection} onSuggest={suggestSchedule} />}
 
-        {currentSection === 'work-orders' && (user ? <WorkOrdersPanel workOrders={workOrders} meta={workOrderMeta} serviceLines={serviceLines} canEdit={canEditDispatch} selectedDate={selectedDate} saving={workOrderSaving} workOrderToEdit={workOrderToEdit} onEditConsumed={() => setWorkOrderToEdit(null)} onFetch={fetchWorkOrders} onCreate={createWorkOrder} onUpdate={updateWorkOrder} onArchive={archiveWorkOrder} /> : <SignInRequiredPanel title="Sign in to review work orders" />)}
+        {currentSection === 'work-orders' && (user ? <WorkOrdersPanel workOrders={workOrders} meta={workOrderMeta} serviceLines={serviceLines} canEdit={canEditDispatch} selectedDate={selectedDate} saving={workOrderSaving} workOrderToEdit={workOrderToEdit} onEditConsumed={clearWorkOrderToEdit} onFetch={fetchWorkOrders} onCreate={createWorkOrder} onUpdate={updateWorkOrder} onArchive={archiveWorkOrder} /> : <SignInRequiredPanel title="Sign in to review work orders" />)}
 
         {currentSection === 'pa-projects' && (user ? <PaProjectsPanel workOrders={paProjectWorkOrders} meta={paProjectMeta} canEdit={canEditDispatch} onPage={fetchPaProjects} onEdit={openWorkOrderFromPaProject} /> : <SignInRequiredPanel title="Sign in to review PA Projects" />)}
 

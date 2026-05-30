@@ -193,6 +193,28 @@ class WorkOrdersControllerTest < ActionDispatch::IntegrationTest
     assert_equal "DESC", payload.dig("meta", "direction")
   end
 
+  test "paginated PA project index returns full filtered sub counts" do
+    12.times do |index|
+      order = work_order(
+        title: "PA project #{index}",
+        status: index < 4 ? "waiting_for_parts" : "approved",
+        date: DEFAULT_DATE + index.days
+      )
+      order.update!(pa_project: true, estimate_required: index.even?)
+    end
+
+    with_auth_env do
+      get "/api/v1/work_orders", params: { pa_project: true, page: 1, per_page: 10, sort: "scheduled_date" }, headers: auth_headers
+    end
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_equal 10, payload.fetch("work_orders").size
+    assert_equal 12, payload.dig("meta", "total_count")
+    assert_equal 4, payload.dig("meta", "sub_counts", "waiting_for_parts")
+    assert_equal 6, payload.dig("meta", "sub_counts", "estimate_required")
+  end
+
   test "duplicate source and external id is rejected" do
     work_order(title: "Existing", status: "approved").update!(source: "mywork", external_id: "40787")
 

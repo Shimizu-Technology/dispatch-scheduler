@@ -13,8 +13,8 @@ function statusLabel(status: string) {
 
 export function PaProjectsPanel({ workOrders, meta, onPage, onEdit, canEdit }: { workOrders: WorkOrder[]; meta: PaginationMeta | null; onPage: (page: number) => Promise<void>; onEdit: (workOrder: WorkOrder) => void; canEdit: boolean }) {
   const paProjects = workOrders.filter((workOrder) => !workOrder.archived && workOrder.pa_project)
-  const waitingParts = paProjects.filter((workOrder) => workOrder.status === 'waiting_for_parts').length
-  const estimates = paProjects.filter((workOrder) => workOrder.estimate_required).length
+  const waitingParts = meta?.sub_counts?.waiting_for_parts ?? paProjects.filter((workOrder) => workOrder.status === 'waiting_for_parts').length
+  const estimates = meta?.sub_counts?.estimate_required ?? paProjects.filter((workOrder) => workOrder.estimate_required).length
   const totalCount = meta?.total_count ?? paProjects.length
 
   return <Card className="overflow-hidden">

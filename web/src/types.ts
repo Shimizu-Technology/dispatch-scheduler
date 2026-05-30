@@ -159,6 +159,7 @@ export type PaginationMeta = {
   total_pages: number
   sort: string
   direction: 'ASC' | 'DESC'
+  sub_counts?: Record<string, number>
 }
 
 export type WorkOrderListPayload = {

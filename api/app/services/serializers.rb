@@ -88,6 +88,7 @@ module Serializers
       sla_due_at: work_order.sla_due_at&.iso8601,
       sla_status: sla_status(work_order),
       scheduled_date: work_order.scheduled_date,
+      estimated_hours: work_order.estimated_hours&.to_f,
       source: work_order.source,
       archived_at: work_order.archived_at&.iso8601,
       archived: work_order.archived?,

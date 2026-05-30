@@ -14,6 +14,7 @@ class WorkOrdersControllerTest < ActionDispatch::IntegrationTest
         status: "approved",
         trade_category: "Plumbing",
         scheduled_date: DEFAULT_DATE.to_s,
+        estimated_hours: "1.5",
         notes: "Requested by station manager"
       }, headers: auth_headers
     end
@@ -27,6 +28,7 @@ class WorkOrdersControllerTest < ActionDispatch::IntegrationTest
     assert_equal "whatsapp", payload.fetch("source")
     assert_equal "Plumbing", payload.fetch("trade_category")
     assert_equal DEFAULT_DATE.to_s, payload.fetch("scheduled_date")
+    assert_equal 1.5, payload.fetch("estimated_hours")
   end
 
   test "invalid scheduled date rolls back client and location writes" do
@@ -100,6 +102,26 @@ class WorkOrdersControllerTest < ActionDispatch::IntegrationTest
     assert_equal true, payload.fetch("estimate_required")
   end
 
+  test "manual work order without report time keeps SLA missing" do
+    with_auth_env do
+      post "/api/v1/work_orders", params: {
+        client: "Mobil",
+        location: "Tamuning",
+        region: "Central",
+        description: "Dispatcher still needs the request timestamp",
+        priority: "P3",
+        status: "approved"
+      }, headers: auth_headers
+    end
+
+    assert_response :created
+    payload = JSON.parse(response.body)
+    assert_nil payload.fetch("reported_at")
+    assert_nil payload.fetch("requested_at")
+    assert_nil payload.fetch("sla_due_at")
+    assert_equal "missing", payload.fetch("sla_status")
+  end
+
   test "rejects inactive service line assignment" do
     inactive = ServiceLine.create!(name: "Retired", position: 90, active: false)
 
@@ -169,6 +191,28 @@ class WorkOrdersControllerTest < ActionDispatch::IntegrationTest
     assert_equal 2, payload.dig("meta", "total_pages")
     assert_equal "created_at", payload.dig("meta", "sort")
     assert_equal "DESC", payload.dig("meta", "direction")
+  end
+
+  test "paginated PA project index returns full filtered sub counts" do
+    12.times do |index|
+      order = work_order(
+        title: "PA project #{index}",
+        status: index < 4 ? "waiting_for_parts" : "approved",
+        date: DEFAULT_DATE + index.days
+      )
+      order.update!(pa_project: true, estimate_required: index.even?)
+    end
+
+    with_auth_env do
+      get "/api/v1/work_orders", params: { pa_project: true, page: 1, per_page: 10, sort: "scheduled_date" }, headers: auth_headers
+    end
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_equal 10, payload.fetch("work_orders").size
+    assert_equal 12, payload.dig("meta", "total_count")
+    assert_equal 4, payload.dig("meta", "sub_counts", "waiting_for_parts")
+    assert_equal 6, payload.dig("meta", "sub_counts", "estimate_required")
   end
 
   test "duplicate source and external id is rejected" do

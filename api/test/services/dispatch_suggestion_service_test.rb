@@ -96,6 +96,35 @@ class DispatchSuggestionServiceTest < ActiveSupport::TestCase
     assert_equal [ overdue.id, due_later.id ], schedule.dispatch_items.map(&:work_order_id)
   end
 
+  test "service line match beats regional preference when crews are otherwise viable" do
+    mobil = service_line("Mobil / CBRE")
+    sodexo = service_line("Public Schools / Sodexo")
+    team(name: "North Mobil Crew", skills: [ "Electrical" ], region: "North", service_lines: [ mobil ])
+    sodexo_crew = team(name: "South Sodexo Crew", skills: [ "Electrical" ], region: "South", service_lines: [ sodexo ])
+    site = location(name: "Yigo School", region: "North")
+    work = work_order(title: "School panel", trade: "Electrical", location_record: site, service_line_record: sodexo)
+
+    schedule = DispatchSuggestionService.new(date: DEFAULT_DATE).call
+    item = schedule.dispatch_items.find_by!(work_order: work)
+
+    assert_equal sodexo_crew.id, item.team_id
+  end
+
+  test "estimated hours space suggested stops for the assigned crew" do
+    team(name: "North Crew", skills: [ "General" ])
+    first = work_order(title: "Long assessment", estimated_hours: 1.5)
+    second = work_order(title: "Short follow-up", estimated_hours: 0.75)
+
+    schedule = DispatchSuggestionService.new(date: DEFAULT_DATE).call
+    first_item = schedule.dispatch_items.find_by!(work_order: first)
+    second_item = schedule.dispatch_items.find_by!(work_order: second)
+
+    assert_equal "08:00", first_item.scheduled_time.strftime("%H:%M")
+    assert_equal "09:30", second_item.scheduled_time.strftime("%H:%M")
+    assert_includes first_item.notes, "Estimated 1.5h"
+    assert_includes second_item.notes, "Estimated 0.75h"
+  end
+
   test "pm task id collision does not receive work order carry over context" do
     previous_team = team(name: "Z Previous Crew", skills: [ "General" ])
     pm_team = team(name: "A PM Crew", skills: [ "General" ])

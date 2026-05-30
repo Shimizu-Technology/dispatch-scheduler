@@ -45,6 +45,7 @@ function DispatchApp() {
   const [dashboard, setDashboard] = useState<Dashboard | null>(null)
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([])
   const [workOrderMeta, setWorkOrderMeta] = useState<PaginationMeta | null>(null)
+  const [workOrderToEdit, setWorkOrderToEdit] = useState<WorkOrder | null>(null)
   const [paProjectWorkOrders, setPaProjectWorkOrders] = useState<WorkOrder[]>([])
   const [paProjectMeta, setPaProjectMeta] = useState<PaginationMeta | null>(null)
   const [teams, setTeams] = useState<Team[]>([])
@@ -151,9 +152,19 @@ function DispatchApp() {
   }, [])
 
   function goToSection(section: ActiveSection) {
+    if (section !== 'work-orders') setWorkOrderToEdit(null)
     setActiveSection(section)
     window.history.pushState(null, '', `#${section}`)
   }
+
+  function openWorkOrderFromPaProject(workOrder: WorkOrder) {
+    setWorkOrderToEdit(workOrder)
+    goToSection('work-orders')
+  }
+
+  const clearWorkOrderToEdit = useCallback(() => {
+    setWorkOrderToEdit(null)
+  }, [])
 
   async function afterAuditedChange() {
     try {
@@ -740,8 +751,8 @@ function DispatchApp() {
   const sections: Array<{ id: ActiveSection; label: string; description: string; icon: ReactNode; count?: number }> = [
     { id: 'overview', label: 'Dashboard', description: 'Start here', icon: <LayoutDashboard size={18} /> },
     { id: 'dispatch', label: 'Dispatch', description: 'Build and edit the plan', icon: <ClipboardList size={18} />, count: schedule?.items.length },
-    { id: 'work-orders', label: 'Work', description: 'Review open work', icon: <Wrench size={18} />, count: workOrders.filter((workOrder) => !workOrder.archived).length },
-    { id: 'pa-projects', label: 'PA Projects', description: 'Parts and long-lead follow-up', icon: <FolderKanban size={18} />, count: workOrders.filter((workOrder) => !workOrder.archived && workOrder.pa_project).length },
+    { id: 'work-orders', label: 'Work', description: 'Review open work', icon: <Wrench size={18} />, count: dashboard?.counts.open_work_orders ?? workOrderMeta?.total_count ?? workOrders.filter((workOrder) => !workOrder.archived).length },
+    { id: 'pa-projects', label: 'PA Projects', description: 'Parts and long-lead follow-up', icon: <FolderKanban size={18} />, count: dashboard?.counts.pa_projects ?? paProjectMeta?.total_count ?? workOrders.filter((workOrder) => !workOrder.archived && workOrder.pa_project).length },
     { id: 'teams', label: 'Crews', description: 'Drivers and call-outs', icon: <Users size={18} />, count: teams.length },
     { id: 'pm-tasks', label: 'PMs', description: 'Preventive work', icon: <CalendarDays size={18} />, count: pmTasks.length },
     { id: 'service-lines', label: 'Service Lines', description: 'Contracts and divisions', icon: <Settings2 size={18} />, count: serviceLines.filter((line) => line.active).length },
@@ -883,9 +894,9 @@ function DispatchApp() {
 
         {currentSection === 'overview' && <DashboardMetrics dashboard={dashboard} workOrders={workOrders.filter((workOrder) => !workOrder.archived)} teams={teams} technicians={technicians} pmTasks={pmTasks} schedule={schedule} auditEvents={auditEvents} canEdit={canEditDispatch} working={working} onGoToSection={goToSection} onSuggest={suggestSchedule} />}
 
-        {currentSection === 'work-orders' && (user ? <WorkOrdersPanel workOrders={workOrders} meta={workOrderMeta} serviceLines={serviceLines} canEdit={canEditDispatch} selectedDate={selectedDate} saving={workOrderSaving} onFetch={fetchWorkOrders} onCreate={createWorkOrder} onUpdate={updateWorkOrder} onArchive={archiveWorkOrder} /> : <SignInRequiredPanel title="Sign in to review work orders" />)}
+        {currentSection === 'work-orders' && (user ? <WorkOrdersPanel workOrders={workOrders} meta={workOrderMeta} serviceLines={serviceLines} canEdit={canEditDispatch} selectedDate={selectedDate} saving={workOrderSaving} workOrderToEdit={workOrderToEdit} onEditConsumed={clearWorkOrderToEdit} onFetch={fetchWorkOrders} onCreate={createWorkOrder} onUpdate={updateWorkOrder} onArchive={archiveWorkOrder} /> : <SignInRequiredPanel title="Sign in to review work orders" />)}
 
-        {currentSection === 'pa-projects' && (user ? <PaProjectsPanel workOrders={paProjectWorkOrders} meta={paProjectMeta} canEdit={canEditDispatch} onPage={fetchPaProjects} onEdit={() => goToSection('work-orders')} /> : <SignInRequiredPanel title="Sign in to review PA Projects" />)}
+        {currentSection === 'pa-projects' && (user ? <PaProjectsPanel workOrders={paProjectWorkOrders} meta={paProjectMeta} canEdit={canEditDispatch} onPage={fetchPaProjects} onEdit={openWorkOrderFromPaProject} /> : <SignInRequiredPanel title="Sign in to review PA Projects" />)}
 
         {currentSection === 'teams' && (user ? <TeamsPanel teams={teams} technicians={technicians} serviceLines={serviceLines} canEdit={canEditDispatch} savingTechnicianId={availabilitySavingId} savingTeamId={teamSavingId} onToggleAvailability={toggleAvailability} onUpdateDailyCrew={updateDailyCrew} onUpdateDefaultCrew={updateDefaultCrew} onCreateTeam={createTeam} onArchiveTeam={archiveTeam} onCreateTechnician={createTechnician} onUpdateTechnician={updateTechnician} onArchiveTechnician={archiveTechnician} /> : <SignInRequiredPanel title="Sign in to check crews" />)}
 

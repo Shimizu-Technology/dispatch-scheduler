@@ -15,12 +15,13 @@ module DispatchTestData
     end
   end
 
-  def team(name: "Team A", skills: [ "General" ], driver: true, unavailable: false, date: DEFAULT_DATE, region: nil)
+  def team(name: "Team A", skills: [ "General" ], driver: true, unavailable: false, date: DEFAULT_DATE, region: nil, service_lines: [])
     team = Team.create!(name: name, region_preference: region)
     tech = Technician.create!(name: "#{name} Driver", primary_trade: skills.first, is_driver: driver, active: true)
     skills.each { |skill| tech.technician_skills.create!(skill: skill) }
     tech.technician_availabilities.create!(date: date, status: "unavailable", reason: "Test call-out") if unavailable
     team.team_memberships.create!(technician: tech)
+    service_lines.each { |line| team.team_service_line_preferences.create!(service_line: line) }
     team
   end
 
@@ -31,7 +32,7 @@ module DispatchTestData
     end
   end
 
-  def work_order(title: "Repair item", priority: "P4", status: "approved", trade: "General", date: DEFAULT_DATE, location_record: location, service_line_record: service_line, reported_at: nil)
+  def work_order(title: "Repair item", priority: "P4", status: "approved", trade: "General", date: DEFAULT_DATE, location_record: location, service_line_record: service_line, reported_at: nil, estimated_hours: nil)
     WorkOrder.create!(
       client: location_record.client,
       location: location_record,
@@ -46,7 +47,8 @@ module DispatchTestData
       trade_category: trade,
       scheduled_date: date,
       service_line: service_line_record,
-      reported_at: reported_at
+      reported_at: reported_at,
+      estimated_hours: estimated_hours
     )
   end
 

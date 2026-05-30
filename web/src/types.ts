@@ -30,6 +30,7 @@ export type WorkOrder = {
   sla_due_at: string | null
   sla_status: 'missing' | 'overdue' | 'due_soon' | 'on_track'
   scheduled_date: string | null
+  estimated_hours: number | null
   source: string
   archived: boolean
   archived_at: string | null
@@ -76,6 +77,7 @@ export type WorkOrderInput = {
   repair_due_at?: string
   assessed_at?: string
   scheduled_date?: string
+  estimated_hours?: number | string | null
   notes?: string
   service_line_id?: number | string | null
   service_line?: string
@@ -157,6 +159,7 @@ export type PaginationMeta = {
   total_pages: number
   sort: string
   direction: 'ASC' | 'DESC'
+  sub_counts?: Record<string, number>
 }
 
 export type WorkOrderListPayload = {

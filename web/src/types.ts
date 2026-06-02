@@ -176,11 +176,29 @@ export type PmTask = {
   region: string
   task_name: string
   trade_category: string
+  frequency?: string
   scheduled_date: string
   status: PmTaskStatus
   completed_at: string | null
   deferred_until: string | null
   notes: string | null
+}
+
+export type PmTaskInput = {
+  client: string
+  location: string
+  region: string
+  task_name: string
+  trade_category: string
+  frequency?: string
+  scheduled_date: string
+  notes?: string
+}
+
+export type PmTaskBulkCreatePayload = {
+  created: PmTask[]
+  duplicates: Array<{ index: number; client: string; location: string; task_name: string; scheduled_date: string }>
+  summary: { created_count: number; duplicate_count: number }
 }
 
 export type DispatchOutcomeStatus = 'pending' | 'completed' | 'carry_over' | 'waiting_parts' | 'waiting_approval' | 'unable_to_access' | 'cancelled'

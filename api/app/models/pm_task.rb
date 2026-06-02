@@ -4,6 +4,7 @@ class PmTask < ApplicationRecord
   belongs_to :client
   belongs_to :location
 
+  validates :task_name, :scheduled_date, :trade_category, presence: true
   validates :status, inclusion: { in: STATUSES }
   validates :deferred_until, presence: true, if: :deferred?
 

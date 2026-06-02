@@ -16,7 +16,7 @@ module Api
         scope = scope.where(corrective_maintenance: true) if truthy_param?(:corrective_maintenance)
         scope = scope.where(estimate_required: true) if truthy_param?(:estimate_required)
         scope = scope.where(scheduled_date: scheduled_date_param) if params[:scheduled_date].present?
-        scope = scope.where("clients.name LIKE ?", "%#{ActiveRecord::Base.sanitize_sql_like(params[:client])}%") if params[:client].present?
+        scope = scope.where("LOWER(clients.name) LIKE ?", "%#{ActiveRecord::Base.sanitize_sql_like(params[:client].to_s.downcase)}%") if params[:client].present?
         scope = scope.where(locations: { region: params[:region] }) if params[:region].present?
         scope = apply_search(scope, params[:q]) if params[:q].present?
         scope = apply_sort(scope.distinct)
@@ -146,9 +146,9 @@ module Api
       end
 
       def apply_search(scope, query)
-        pattern = "%#{ActiveRecord::Base.sanitize_sql_like(query.to_s.strip)}%"
+        pattern = "%#{ActiveRecord::Base.sanitize_sql_like(query.to_s.strip.downcase)}%"
         scope.where(
-          "work_orders.external_id LIKE :q OR work_orders.title LIKE :q OR work_orders.description LIKE :q OR work_orders.notes LIKE :q OR clients.name LIKE :q OR locations.name LIKE :q",
+          "LOWER(work_orders.external_id) LIKE :q OR LOWER(work_orders.title) LIKE :q OR LOWER(work_orders.description) LIKE :q OR LOWER(work_orders.notes) LIKE :q OR LOWER(clients.name) LIKE :q OR LOWER(locations.name) LIKE :q",
           q: pattern
         )
       end
@@ -213,11 +213,12 @@ module Api
       end
 
       def work_order_record_attributes(attrs, existing: nil)
-        client_name = attrs[:client].presence || existing&.client&.name || "Manual"
-        location_name = attrs[:location].presence || existing&.location&.name || "Unknown"
-        region = attrs[:region].presence || existing&.location&.region || "Unknown"
+        client_name = attrs[:client].to_s.strip.presence || existing&.client&.name || "Manual"
+        location_name = attrs[:location].to_s.strip.presence || existing&.location&.name || "Unknown"
+        region = attrs[:region].to_s.strip.presence || existing&.location&.region || "Unknown"
         client = Client.find_or_create_by!(name: client_name)
-        location = Location.find_or_initialize_by(client: client, name: location_name)
+        location = Location.find_or_initialize_by_normalized_name(client: client, name: location_name)
+        location.name = location_name.to_s.strip
         location.region = region.presence || location.region.presence || "Unknown"
         location.save!
 

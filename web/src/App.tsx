@@ -14,7 +14,7 @@ import { WhatsAppExport } from './components/WhatsAppExport'
 import { WorkOrdersPanel } from './components/WorkOrdersPanel'
 import { useAuthContext } from './contexts/useAuthContext'
 import { deleteJson, getJson, patchJson, postJson } from './lib/api'
-import type { AuditEvent, Dashboard, DispatchOutcomeStatus, DispatchSchedule, ManagedUser, PaginationMeta, PmTask, ServiceLine, ServiceLineInput, Team, TeamInput, Technician, TechnicianInput, WhatsAppCrewExport, WhatsAppExportPayload, WorkOrder, WorkOrderInput, WorkOrderListPayload, WorkOrderStatus } from './types'
+import type { AuditEvent, Dashboard, DispatchOutcomeStatus, DispatchSchedule, ManagedUser, PaginationMeta, PmTask, PmTaskBulkCreatePayload, PmTaskInput, ServiceLine, ServiceLineInput, Team, TeamInput, Technician, TechnicianInput, WhatsAppCrewExport, WhatsAppExportPayload, WorkOrder, WorkOrderInput, WorkOrderListPayload, WorkOrderStatus } from './types'
 import './index.css'
 
 type ActiveSection = 'overview' | 'dispatch' | 'work-orders' | 'pa-projects' | 'teams' | 'pm-tasks' | 'service-lines' | 'whatsapp' | 'activity' | 'users'
@@ -372,6 +372,39 @@ function DispatchApp() {
       setError(err instanceof Error ? err.message : 'Unable to update PM task')
     } finally {
       setPmTaskSavingId(null)
+    }
+  }
+
+  async function createPmTask(values: PmTaskInput) {
+    if (!canEditDispatch) {
+      setError('Viewer access cannot create PM tasks.')
+      return
+    }
+    setError('')
+    try {
+      const created = await postJson<PmTask>('/pm_tasks', values)
+      setPmTasks((current) => [created, ...current.filter((pm) => pm.id !== created.id)].sort((a, b) => a.scheduled_date.localeCompare(b.scheduled_date) || a.id - b.id))
+      await Promise.allSettled([refreshPmContext(), afterAuditedChange()])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to create PM task')
+      throw err
+    }
+  }
+
+  async function bulkCreatePmTasks(values: PmTaskInput[]) {
+    if (!canEditDispatch) {
+      setError('Viewer access cannot create PM tasks.')
+      return
+    }
+    setError('')
+    try {
+      const payload = await postJson<PmTaskBulkCreatePayload>('/pm_tasks/bulk_create', { pm_tasks: values })
+      setPmTasks((current) => [...payload.created, ...current.filter((pm) => !payload.created.some((created) => created.id === pm.id))].sort((a, b) => a.scheduled_date.localeCompare(b.scheduled_date) || a.id - b.id))
+      await Promise.allSettled([refreshPmContext(), afterAuditedChange()])
+      return payload.summary
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to set up PM month')
+      throw err
     }
   }
 
@@ -902,7 +935,7 @@ function DispatchApp() {
 
         {currentSection === 'dispatch' && (user ? <DispatchBuilder schedule={schedule} teams={teams} working={working} canEdit={canEditDispatch} onSuggest={suggestSchedule} onUpdate={updateDispatchItem} onOutcome={updateDispatchItemOutcome} onWorkOrderStatus={updateWorkOrderStatus} onFinalize={finalizeSchedule} onReopen={reopenSchedule} /> : <SignInRequiredPanel title="Sign in to build today's dispatch" />)}
 
-        {currentSection === 'pm-tasks' && (user ? <PmTasksPanel pmTasks={pmTasks} canEdit={canEditDispatch} savingPmTaskId={pmTaskSavingId} selectedDate={selectedDate} onUpdate={updatePmTask} /> : <SignInRequiredPanel title="Sign in to review PM tasks" />)}
+        {currentSection === 'pm-tasks' && (user ? <PmTasksPanel key={selectedDate} pmTasks={pmTasks} canEdit={canEditDispatch} savingPmTaskId={pmTaskSavingId} selectedDate={selectedDate} onUpdate={updatePmTask} onCreate={createPmTask} onBulkCreate={bulkCreatePmTasks} /> : <SignInRequiredPanel title="Sign in to review PM tasks" />)}
 
         {currentSection === 'service-lines' && (user ? <ServiceLinesPanel serviceLines={serviceLines} canAdmin={Boolean(user.permissions.can_admin)} saving={serviceLineSaving} onCreate={createServiceLine} onUpdate={updateServiceLine} /> : <SignInRequiredPanel title="Sign in to review service lines" />)}
 

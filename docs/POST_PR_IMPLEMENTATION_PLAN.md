@@ -15,6 +15,7 @@ Implemented in the POC:
 - React dispatch board showing dashboard counts, work orders, team availability, PMs, suggested dispatch, and WhatsApp output.
 - Seed importer for John's provided Mobil workbook, PM workbook, Sodexo sample, and CBRE sample data.
 - Rule-based dispatch suggestion using priority, status, driver availability, skill match, region, and PM commitments.
+- PM Month Setup workflow with manual PM creation, spreadsheet-paste bulk setup, duplicate-safe bulk creation, and pending/scheduled/completed/deferred tracking.
 - Manual dispatch item overrides for crew, time, order, and notes.
 - Regenerate confirmation and idempotent draft rebuilding for a schedule date.
 - CI, Rails request/service tests, importer tests, frontend lint/build, Brakeman, and bundler-audit.
@@ -25,7 +26,7 @@ Not implemented yet / still evolving:
 
 - Production file upload/intake.
 - Full PDF OCR and source-file storage.
-- Robust PM month setup and completion tracking.
+- Excel-file PM import beyond the current spreadsheet-paste month setup.
 - Full production file upload/intake.
 - OpenRouter OCR review workflow.
 - Deeper technician-level service-line preferences beyond crew-level service-line preferences.

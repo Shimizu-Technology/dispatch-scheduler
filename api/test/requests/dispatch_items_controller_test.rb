@@ -180,6 +180,22 @@ class DispatchItemsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Call-out", AuditEvent.last.metadata_hash.fetch("reassignment_reason")
   end
 
+  test "rolls back reassignment when technician snapshot fails" do
+    source_team = team(name: "Stable Crew", skills: [ "General" ])
+    target_team = team(name: "Invalid Snapshot Crew", skills: [ "General" ])
+    target_team.team_memberships.create!(technician: Technician.create!(name: nil, primary_trade: "General", is_driver: false, active: true))
+    schedule = DispatchSchedule.create!(date: DEFAULT_DATE, status: "draft")
+    item = schedule.dispatch_items.create!(team: source_team, work_order: work_order(title: "Atomic reassign work"), order_index: 0)
+
+    with_auth_env do
+      patch "/api/v1/dispatch_items/#{item.id}", params: { team_id: target_team.id, reassignment_reason: "Bad roster" }, headers: auth_headers
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal source_team.id, item.reload.team_id
+    assert_empty item.dispatch_item_technicians.reload
+  end
+
   test "clears scheduled time when blank string is provided" do
     crew = team(name: "Time Crew", skills: [ "General" ])
     schedule = DispatchSchedule.create!(date: DEFAULT_DATE, status: "draft")

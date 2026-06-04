@@ -57,7 +57,7 @@ module Api
         old_team_id = item.team_id
         target_order = attrs.delete(:order_index)
 
-        ActiveRecord::Base.transaction do
+        ApplicationRecord.transaction do
           item.assign_attributes(attrs)
           team_changed = item.team_id != old_team_id
           order_changed = target_order.present?

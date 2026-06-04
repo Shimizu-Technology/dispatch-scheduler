@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_28_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_28_101000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -52,6 +52,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_28_100000) do
 
   create_table "dispatch_items", force: :cascade do |t|
     t.string "auto_work_order_status"
+    t.boolean "capacity_overflow", default: false, null: false
     t.date "carried_over_to_date"
     t.datetime "completed_at"
     t.datetime "created_at", null: false
@@ -77,6 +78,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_28_100000) do
   end
 
   create_table "dispatch_schedules", force: :cascade do |t|
+    t.integer "capacity_deferred_items_count", default: 0, null: false
     t.datetime "created_at", null: false
     t.date "date"
     t.datetime "finalized_at"

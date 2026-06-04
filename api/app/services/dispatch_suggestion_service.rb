@@ -6,7 +6,6 @@ class DispatchSuggestionService
   DEFAULT_CREW_DAILY_MINUTES = 480
   DEFAULT_ITEM_MINUTES = 120
   DEFAULT_PM_MINUTES = 45
-  UNFINISHED_WORK_ORDER_STATUSES = %w[scheduled in_progress carry_over].freeze
 
   attr_reader :summary
 
@@ -14,9 +13,13 @@ class DispatchSuggestionService
     @date = Date.parse(date.to_s)
     @summary = {}
     @previous_dispatch_contexts = {}
+    @capacity_deferred_items_count = 0
+    @over_capacity_items_count = 0
   end
 
   def call
+    @capacity_deferred_items_count = 0
+    @over_capacity_items_count = 0
     schedule = nil
     ActiveRecord::Base.transaction do
       schedule = DispatchSchedule.find_or_initialize_by(date: @date, status: "draft")
@@ -31,14 +34,18 @@ class DispatchSuggestionService
       team_available_counts = teams.to_h { |team| [ team.id, team.available_technicians(@date).count ] }
       candidate_items = schedulables
       previous_contexts = @previous_dispatch_contexts.presence || previous_dispatch_contexts_for(candidate_items)
+      scheduled_count = 0
 
       candidate_items.each do |item|
-        break if schedule.dispatch_items.count >= daily_item_limit
+        break if scheduled_count >= daily_item_limit
 
         previous_context = previous_context_for(item, previous_contexts)
         item_minutes = estimated_minutes_for(item)
         choice = choose_team(item, teams, counters, team_minutes, team_skills, team_driver_status, team_available_counts, previous_context, item_minutes)
-        next unless choice
+        unless choice
+          @capacity_deferred_items_count += 1 if teams.any?
+          next
+        end
 
         team, capacity_overflow = choice
         index = counters[team.id]
@@ -49,12 +56,16 @@ class DispatchSuggestionService
           team: team,
           order_index: index,
           scheduled_time: START_TIME + team_minutes[team.id].minutes,
+          capacity_overflow: capacity_overflow,
           notes: notes_for(item, team, team_skills[team.id], team_driver_status[team.id], team_available_counts[team.id], previous_context, capacity_overflow)
         )
+        @over_capacity_items_count += 1 if capacity_overflow
+        scheduled_count += 1
         dispatch_item.snapshot_technicians!
         team_minutes[team.id] += item_minutes
       end
 
+      schedule.update!(capacity_deferred_items_count: @capacity_deferred_items_count)
       @summary = build_summary(candidate_items, schedule, previous_contexts)
     end
 
@@ -111,15 +122,7 @@ class DispatchSuggestionService
       .dispatchable
       .joins(:dispatch_items)
       .where(dispatch_items: { outcome_status: "carry_over", carried_over_to_date: @date })
-    unfinished_scope = WorkOrder.includes(:client, :location, :team)
-      .dispatchable
-      .where(pa_project: [ false, nil ])
-      .where(status: UNFINISHED_WORK_ORDER_STATUSES)
-      .joins(dispatch_items: :dispatch_schedule)
-      .where(dispatch_items: { outcome_status: "pending" })
-      .where(dispatch_schedules: { status: %w[finalized sent] })
-      .where("dispatch_schedules.date < ?", @date)
-      .where("work_orders.scheduled_date IS NULL OR work_orders.scheduled_date < ?", @date)
+    unfinished_scope = WorkOrder.includes(:client, :location, :team).unfinished_previous_dispatch_for(@date)
 
     work_orders = (scheduled_scope.to_a + carry_over_scope.to_a + unfinished_scope.to_a).uniq(&:id)
     @previous_dispatch_contexts = previous_dispatch_contexts_for(work_orders)
@@ -228,12 +231,13 @@ class DispatchSuggestionService
 
   def build_summary(candidate_items, schedule, previous_contexts)
     blocked = blocked_work_orders.count
-    deferred = [ candidate_items.size - schedule.dispatch_items.count, 0 ].max
+    scheduled_items = schedule.dispatch_items.size
+    deferred = [ candidate_items.size - scheduled_items, 0 ].max
     unfinished = candidate_items.count { |item| item.is_a?(WorkOrder) && previous_contexts[item.id]&.outcome_status == "pending" }
-    capacity_deferred = capacity_deferred_items(candidate_items, schedule).count
-    over_capacity = schedule.dispatch_items.count { |item| item.notes.to_s.include?("Capacity warning") }
+    capacity_deferred = @capacity_deferred_items_count
+    over_capacity = @over_capacity_items_count
     {
-      scheduled_items: schedule.dispatch_items.count,
+      scheduled_items: scheduled_items,
       eligible_work_orders: candidate_items.count { |item| item.is_a?(WorkOrder) },
       eligible_pm_tasks: candidate_items.count { |item| item.is_a?(PmTask) },
       deferred_items: deferred,
@@ -244,14 +248,6 @@ class DispatchSuggestionService
       over_capacity_items: over_capacity,
       message: summary_message(blocked, deferred, unfinished, capacity_deferred, over_capacity)
     }
-  end
-
-  def capacity_deferred_items(candidate_items, schedule)
-    scheduled_work_order_ids = schedule.dispatch_items.pluck(:work_order_id).compact
-    scheduled_pm_task_ids = schedule.dispatch_items.pluck(:pm_task_id).compact
-    candidate_items.reject do |item|
-      item.is_a?(WorkOrder) ? scheduled_work_order_ids.include?(item.id) : scheduled_pm_task_ids.include?(item.id)
-    end.select { |item| estimated_minutes_for(item) <= crew_daily_minutes }
   end
 
   def summary_message(blocked, deferred, unfinished, capacity_deferred, over_capacity)

@@ -223,6 +223,7 @@ export type DispatchItem = {
   call_out_names: string[]
   order_index: number
   scheduled_time: string | null
+  capacity_overflow: boolean
   notes: string | null
   outcome_status: DispatchOutcomeStatus
   outcome_notes: string | null

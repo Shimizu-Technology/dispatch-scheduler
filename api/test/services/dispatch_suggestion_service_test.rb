@@ -261,20 +261,51 @@ class DispatchSuggestionServiceTest < ActiveSupport::TestCase
     assert_includes schedule.dispatch_items.map(&:work_order_id), first.id
     refute_includes schedule.dispatch_items.map(&:work_order_id), second.id
     assert_equal 1, service.summary[:capacity_deferred_items]
+    assert_equal 1, schedule.reload.capacity_deferred_items_count
+    assert_equal 1, Serializers.schedule(schedule)[:summary][:capacity_deferred_items]
   ensure
     ENV["DISPATCH_CREW_DAILY_MINUTES"] = old_capacity
   end
 
-  test "urgent scheduled work can exceed capacity with warning" do
+  test "daily item limit is not reported as capacity deferral" do
+    team(name: "Limit Crew", skills: [ "General" ])
+    work_order(title: "First limited stop", priority: "P4", estimated_hours: 1)
+    work_order(title: "Second limited stop", priority: "P4", estimated_hours: 1)
+
+    old_limit = ENV["DISPATCH_DAILY_ITEM_LIMIT"]
+    old_capacity = ENV["DISPATCH_CREW_DAILY_MINUTES"]
+    ENV["DISPATCH_DAILY_ITEM_LIMIT"] = "1"
+    ENV["DISPATCH_CREW_DAILY_MINUTES"] = "480"
+    service = DispatchSuggestionService.new(date: DEFAULT_DATE)
+    schedule = service.call
+
+    assert_equal 1, schedule.dispatch_items.count
+    assert_equal 1, service.summary[:deferred_items]
+    assert_equal 0, service.summary[:capacity_deferred_items]
+  ensure
+    ENV["DISPATCH_DAILY_ITEM_LIMIT"] = old_limit
+    ENV["DISPATCH_CREW_DAILY_MINUTES"] = old_capacity
+  end
+
+  test "urgent scheduled work can exceed capacity with structured warning metric" do
     team(name: "Capacity Crew", skills: [ "General" ])
     urgent = work_order(title: "Emergency repair", priority: "P1", estimated_hours: 6)
 
     old_capacity = ENV["DISPATCH_CREW_DAILY_MINUTES"]
     ENV["DISPATCH_CREW_DAILY_MINUTES"] = "240"
-    schedule = DispatchSuggestionService.new(date: DEFAULT_DATE).call
+    service = DispatchSuggestionService.new(date: DEFAULT_DATE)
+    schedule = service.call
     item = schedule.dispatch_items.find_by!(work_order: urgent)
 
+    assert item.capacity_overflow?
     assert_includes item.notes, "Capacity warning"
+    assert_equal 1, service.summary[:over_capacity_items]
+
+    item.update!(notes: nil)
+    serialized = Serializers.schedule(schedule)
+    serialized_item = serialized[:items].find { |payload| payload[:id] == item.id }
+    assert_equal 1, serialized[:summary][:over_capacity_items]
+    assert_equal true, serialized_item[:capacity_overflow]
   ensure
     ENV["DISPATCH_CREW_DAILY_MINUTES"] = old_capacity
   end

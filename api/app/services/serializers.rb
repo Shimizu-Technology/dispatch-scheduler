@@ -26,7 +26,8 @@ module Serializers
     deferred = [ candidate_count - schedule.dispatch_items.size, 0 ].max
     blocked = blocked_work_orders_for(schedule.date).count
     unfinished = unfinished_previous_work_orders_for(schedule.date).count
-    over_capacity = schedule.dispatch_items.count { |item| item.notes.to_s.include?("Capacity warning") }
+    capacity_deferred = schedule.capacity_deferred_items_count
+    over_capacity = schedule.dispatch_items.count(&:capacity_overflow?)
     {
       scheduled_items: schedule.dispatch_items.size,
       eligible_work_orders: eligible_work_order_count,
@@ -35,9 +36,9 @@ module Serializers
       daily_item_limit: daily_item_limit,
       blocked_work_orders: blocked,
       unfinished_previous_items: unfinished,
-      capacity_deferred_items: 0,
+      capacity_deferred_items: capacity_deferred,
       over_capacity_items: over_capacity,
-      message: schedule_summary_message(blocked, deferred, unfinished, 0, over_capacity)
+      message: schedule_summary_message(blocked, deferred, unfinished, capacity_deferred, over_capacity)
     }
   end
 
@@ -59,15 +60,7 @@ module Serializers
   end
 
   def unfinished_previous_work_orders_for(date)
-    WorkOrder.dispatchable
-      .where(pa_project: [ false, nil ])
-      .where(status: DispatchSuggestionService::UNFINISHED_WORK_ORDER_STATUSES)
-      .joins(dispatch_items: :dispatch_schedule)
-      .where(dispatch_items: { outcome_status: "pending" })
-      .where(dispatch_schedules: { status: %w[finalized sent] })
-      .where("dispatch_schedules.date < ?", date)
-      .where("work_orders.scheduled_date IS NULL OR work_orders.scheduled_date < ?", date)
-      .distinct
+    WorkOrder.unfinished_previous_dispatch_for(date)
   end
 
   def blocked_work_orders_for(date)
@@ -325,6 +318,7 @@ module Serializers
       call_out_names: call_outs.map(&:name),
       order_index: item.order_index,
       scheduled_time: item.scheduled_time&.strftime("%H:%M"),
+      capacity_overflow: item.capacity_overflow,
       notes: item.notes,
       outcome_status: item.outcome_status,
       outcome_notes: item.outcome_notes,

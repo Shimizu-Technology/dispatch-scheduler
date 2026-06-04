@@ -145,7 +145,10 @@ function DispatchCard({ item, scheduleDate, teams, disabled, canEdit, canEditOut
         <p className="font-display tabular text-xs font-extrabold uppercase tracking-[0.16em] text-[#244393]">{scheduledTime || 'TBD'}</p>
         <h4 className="font-display mt-1 line-clamp-2 font-extrabold tracking-tight text-[#172033]">{title}</h4>
       </div>
-      <Badge kind={kind}>{wo?.normalized_priority || 'PM'}</Badge>
+      <div className="flex shrink-0 flex-col items-end gap-1">
+        <Badge kind={kind}>{wo?.normalized_priority || 'PM'}</Badge>
+        {item.capacity_overflow && <Badge kind="waiting">Over capacity</Badge>}
+      </div>
     </div>
 
     <div className="mt-3 flex flex-wrap gap-2 text-xs font-bold text-[#64748b]">

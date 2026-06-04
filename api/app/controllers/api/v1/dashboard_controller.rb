@@ -24,27 +24,13 @@ module Api
             pm_due: PmTask.dispatchable_for_date(date).count,
             pm_incomplete_month: PmTask.for_month(date).incomplete.count,
             pm_completed_month: PmTask.for_month(date).where(status: "completed").count,
-            unfinished_previous_items: unfinished_previous_work_orders(date).count,
+            unfinished_previous_items: WorkOrder.unfinished_previous_dispatch_for(date).count,
             available_teams: teams.count,
             driver_warnings: teams.reject { |t| t.has_driver?(date) }.count
           },
           status_breakdown: WorkOrder.active_queue.group(:status).count,
           priority_breakdown: WorkOrder.active_queue.group(:normalized_priority).count
         }
-      end
-
-      private
-
-      def unfinished_previous_work_orders(date)
-        WorkOrder.dispatchable
-          .where(pa_project: [ false, nil ])
-          .where(status: DispatchSuggestionService::UNFINISHED_WORK_ORDER_STATUSES)
-          .joins(dispatch_items: :dispatch_schedule)
-          .where(dispatch_items: { outcome_status: "pending" })
-          .where(dispatch_schedules: { status: %w[finalized sent] })
-          .where("dispatch_schedules.date < ?", date)
-          .where("work_orders.scheduled_date IS NULL OR work_orders.scheduled_date < ?", date)
-          .distinct
       end
     end
   end

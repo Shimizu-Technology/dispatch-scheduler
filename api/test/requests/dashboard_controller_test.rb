@@ -21,6 +21,22 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
     assert_equal({ "P1" => 1 }, payload.fetch("priority_breakdown"))
   end
 
+  test "dashboard excludes PA Projects from KPI pressure while counting PA follow-up" do
+    reported_at = Time.zone.local(2026, 4, 20, 8, 0, 0)
+    work_order(title: "Normal overdue", status: "approved", priority: "P2", date: nil, reported_at: reported_at)
+    work_order(title: "PA overdue", status: "approved", priority: "P2", date: nil, reported_at: reported_at, pa_project: true)
+
+    with_auth_env do
+      get "/api/v1/dashboard", params: { date: DEFAULT_DATE.to_s }, headers: auth_headers
+    end
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_equal 2, payload.dig("counts", "open_work_orders")
+    assert_equal 1, payload.dig("counts", "pa_projects")
+    assert_equal 1, payload.dig("counts", "sla_overdue")
+  end
+
   private
 
   def with_auth_env

@@ -41,7 +41,7 @@ His work includes:
    - Waiting for parts.
    - Waiting for approval/estimate.
    - Scheduled / in progress / done.
-   - Priority and SLA pressure: P1/P2 urgent, P3/P4 lower but still deadline-bound.
+   - Priority and SLA pressure: P1/P2 urgent, P3/P4 lower but still deadline-bound. John described P1 as the highest confirmed priority; any earlier P0 phrasing was implementation shorthand, not a confirmed Mobil/CBRE priority level.
 
 3. Balancing PM work with reactive work orders.
    - PM sheets are commitments that compete with reactive work.
@@ -224,7 +224,7 @@ The app should surface:
 - scheduled / in progress work
 - waiting for parts/approval/estimate
 - carry-over/follow-up work
-- PA Project work that needs follow-up but may be excluded from KPI pressure
+- PA Project work that needs follow-up and should stay out of normal KPI-driven dispatch pressure unless a dispatcher explicitly schedules it for the selected date
 - corrective maintenance vs estimate context
 - priority/SLA pressure
 - scheduled date/backlog

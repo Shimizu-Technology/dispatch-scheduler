@@ -36,11 +36,13 @@ class WorkOrder < ApplicationRecord
   scope :sla_dispatchable_for_date, lambda { |date|
     end_of_day = date.end_of_day
     assessment_statuses = quoted_assessment_statuses
+    pa_project_false = false
     sla_due_sql = sanitize_sql_array([
       <<~SQL.squish,
         scheduled_date = :date
         OR (
           scheduled_date IS NULL
+          AND COALESCE(pa_project, :pa_project_false) = :pa_project_false
           AND (
             (
               status IN (#{assessment_statuses})
@@ -53,7 +55,8 @@ class WorkOrder < ApplicationRecord
             )
             OR (
               /* Keep legacy/unclassified work visible until a dispatcher supplies
-                 reported time/priority data that lets the SLA rules take over. */
+                 reported time/priority data that lets the SLA rules take over.
+                 PA Projects stay in follow-up until a dispatcher explicitly dates them. */
               assessment_due_at IS NULL
               AND response_due_at IS NULL
               AND repair_due_at IS NULL
@@ -61,7 +64,7 @@ class WorkOrder < ApplicationRecord
           )
         )
       SQL
-      { date: date, end_of_day: end_of_day }
+      { date: date, end_of_day: end_of_day, pa_project_false: pa_project_false }
     ])
 
     where(sla_due_sql)

@@ -112,6 +112,7 @@ Principles:
    - Match skills/trades when possible
    - Prefer matching service line / contract line when configured
    - Respect SLA/KPI timing so lower-priority work does not flood today's plan before it is due
+  - Keep PA Project follow-up out of normal KPI-driven suggestions unless a dispatcher explicitly schedules it for the selected date
    - Warn if assigned team has no driver
    - Allow manual override/editing of crew, time, order, and notes
    - Allow mid-day work-order status updates separate from end-of-day outcomes

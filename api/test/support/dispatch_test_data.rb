@@ -32,7 +32,7 @@ module DispatchTestData
     end
   end
 
-  def work_order(title: "Repair item", priority: "P4", status: "approved", trade: "General", date: DEFAULT_DATE, location_record: location, service_line_record: service_line, reported_at: nil, estimated_hours: nil)
+  def work_order(title: "Repair item", priority: "P4", status: "approved", trade: "General", date: DEFAULT_DATE, location_record: location, service_line_record: service_line, reported_at: nil, estimated_hours: nil, pa_project: false)
     WorkOrder.create!(
       client: location_record.client,
       location: location_record,
@@ -48,7 +48,8 @@ module DispatchTestData
       scheduled_date: date,
       service_line: service_line_record,
       reported_at: reported_at,
-      estimated_hours: estimated_hours
+      estimated_hours: estimated_hours,
+      pa_project: pa_project
     )
   end
 

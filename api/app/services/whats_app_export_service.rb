@@ -11,6 +11,9 @@ class WhatsAppExportService
     @crews ||= grouped_items.map do |team, items|
       assigned_technicians = team.technicians_for_date(@schedule.date).includes(:technician_availabilities).order(:name).to_a
       active_technicians = team.available_technicians(@schedule.date).order(:name).to_a
+      snapshot_technicians = items.flat_map { |item| item.dispatch_item_technicians.to_a }.uniq(&:technician_id).sort_by(&:position)
+      crew_names = snapshot_technicians.present? ? snapshot_technicians.map(&:technician_name) : active_technicians.map(&:name)
+      driver_names = snapshot_technicians.present? ? snapshot_technicians.select(&:is_driver).map(&:technician_name) : active_technicians.select(&:is_driver).map(&:name)
       unavailable = assigned_technicians.filter_map do |technician|
         availability = availability_for(technician)
         availability&.status == "unavailable" ? [ technician, availability ] : nil
@@ -18,9 +21,9 @@ class WhatsAppExportService
       {
         team_id: team.id,
         team_name: team.name,
-        active_team_name: active_technicians.map(&:name).join(" / ").presence || team.name,
-        technician_names: active_technicians.map(&:name),
-        driver_names: active_technicians.select(&:is_driver).map(&:name),
+        active_team_name: crew_names.join(" / ").presence || team.name,
+        technician_names: crew_names,
+        driver_names: driver_names,
         call_outs: unavailable.map { |technician, availability| { name: technician.name, reason: availability.reason.presence || "Unavailable" } },
         stops_count: items.size
       }
@@ -90,7 +93,7 @@ class WhatsAppExportService
 
   def grouped_items
     @grouped_items ||= @schedule.dispatch_items
-      .includes(:team, work_order: [ :client, :location ], pm_task: [ :client, :location ])
+      .includes(:team, :dispatch_item_technicians, work_order: [ :client, :location ], pm_task: [ :client, :location ])
       .order(:order_index, :id)
       .group_by(&:team)
       .sort_by { |team, _items| team.name }

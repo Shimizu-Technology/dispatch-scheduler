@@ -8,6 +8,7 @@ class WorkOrder < ApplicationRecord
   STATUSES = %w[new needs_assessment approved scheduled in_progress carry_over waiting_for_parts waiting_for_approval completed closed cancelled].freeze
   CLOSED_STATUSES = %w[completed closed cancelled].freeze
   BLOCKED_STATUSES = %w[waiting_for_parts waiting_for_approval].freeze
+  UNFINISHED_DISPATCH_STATUSES = %w[scheduled in_progress carry_over].freeze
 
   PRIORITY_SLA_WINDOWS = {
     "P1" => { assessment: 2.hours, repair: 4.hours },
@@ -21,11 +22,23 @@ class WorkOrder < ApplicationRecord
   before_validation :normalize_sla_due_dates
 
   validates :status, inclusion: { in: STATUSES }
+  validates :required_technician_count, numericality: { only_integer: true, greater_than_or_equal_to: 1 }
 
   scope :active_queue, -> { where(archived_at: nil) }
   scope :archived, -> { where.not(archived_at: nil) }
   scope :open, -> { where.not(status: CLOSED_STATUSES) }
   scope :dispatchable, -> { active_queue.open.where.not(status: BLOCKED_STATUSES) }
+  scope :unfinished_previous_dispatch_for, lambda { |date|
+    dispatchable
+      .where(pa_project: [ false, nil ])
+      .where(status: UNFINISHED_DISPATCH_STATUSES)
+      .joins(dispatch_items: :dispatch_schedule)
+      .where(dispatch_items: { outcome_status: "pending" })
+      .where(dispatch_schedules: { status: %w[finalized sent] })
+      .where("dispatch_schedules.date < ?", date)
+      .where("work_orders.scheduled_date IS NULL OR work_orders.scheduled_date < ?", date)
+      .distinct
+  }
   scope :sla_missing, -> { active_queue.open.where(reported_at: nil, assessment_due_at: nil, response_due_at: nil, repair_due_at: nil) }
   scope :sla_overdue_at, lambda { |reference_time = Time.current|
     active_queue.open.where(sanitize_sql_array([ "#{sla_due_sql} < ?", reference_time ]))

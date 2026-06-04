@@ -197,4 +197,145 @@ class DispatchSuggestionServiceTest < ActiveSupport::TestCase
     refute hvac_team.has_driver?(DEFAULT_DATE)
     assert_empty hvac_team.skills(DEFAULT_DATE)
   end
+
+  test "snapshots assigned technicians when draft is generated" do
+    dispatch_team = team(name: "Snapshot Crew", skills: [ "General" ])
+    add_technician_to_team(dispatch_team, name: "Second Tech", skills: [ "General" ])
+    work = work_order(title: "Snapshot work")
+
+    schedule = DispatchSuggestionService.new(date: DEFAULT_DATE).call
+    item = schedule.dispatch_items.find_by!(work_order: work)
+
+    assert_equal [ "Second Tech", "Snapshot Crew Driver" ], item.dispatch_item_technicians.map(&:technician_name).sort
+
+    Technician.find_by!(name: "Second Tech").update!(name: "Renamed Tech")
+    item.reload
+
+    assert_includes item.dispatch_item_technicians.map(&:technician_name), "Second Tech"
+    refute_includes item.dispatch_item_technicians.map(&:technician_name), "Renamed Tech"
+  end
+
+  test "pending prior sent work automatically carries forward with previous crew preference" do
+    previous_team = team(name: "Previous Day Crew", skills: [ "Electrical" ])
+    other_team = team(name: "Other Electrical Crew", skills: [ "Electrical" ])
+    work = work_order(title: "Still open panel", trade: "Electrical", status: "in_progress", date: DEFAULT_DATE)
+    yesterday = DispatchSchedule.create!(date: DEFAULT_DATE, status: "sent")
+    yesterday.dispatch_items.create!(team: previous_team, work_order: work, order_index: 0, outcome_status: "pending")
+
+    schedule = DispatchSuggestionService.new(date: DEFAULT_DATE + 1.day).call
+    item = schedule.dispatch_items.find_by!(work_order: work)
+
+    assert_equal previous_team.id, item.team_id
+    assert_includes item.notes, "Unfinished from #{DEFAULT_DATE.strftime('%b %-d')}"
+    assert_not_equal other_team.id, item.team_id
+  end
+
+  test "completed blocked and pa project prior work does not automatically carry forward" do
+    team(name: "Open Crew", skills: [ "General" ])
+    completed = work_order(title: "Done prior", status: "completed", date: DEFAULT_DATE)
+    blocked = work_order(title: "Blocked prior", status: "waiting_for_parts", date: DEFAULT_DATE)
+    pa_project = work_order(title: "PA follow-up prior", status: "in_progress", date: DEFAULT_DATE, pa_project: true)
+    yesterday = DispatchSchedule.create!(date: DEFAULT_DATE, status: "sent")
+    yesterday.dispatch_items.create!(team: Team.first, work_order: completed, order_index: 0, outcome_status: "pending")
+    yesterday.dispatch_items.create!(team: Team.first, work_order: blocked, order_index: 1, outcome_status: "pending")
+    yesterday.dispatch_items.create!(team: Team.first, work_order: pa_project, order_index: 2, outcome_status: "pending")
+
+    schedule = DispatchSuggestionService.new(date: DEFAULT_DATE + 1.day).call
+
+    titles = schedule.dispatch_items.map(&:work_order).compact.map(&:title)
+    refute_includes titles, completed.title
+    refute_includes titles, blocked.title
+    refute_includes titles, pa_project.title
+  end
+
+  test "crew day capacity defers low pressure overflow" do
+    team(name: "Capacity Crew", skills: [ "General" ])
+    first = work_order(title: "First routine stop", priority: "P4", estimated_hours: 3)
+    second = work_order(title: "Second routine stop", priority: "P4", estimated_hours: 3)
+
+    old_capacity = ENV["DISPATCH_CREW_DAILY_MINUTES"]
+    ENV["DISPATCH_CREW_DAILY_MINUTES"] = "240"
+    service = DispatchSuggestionService.new(date: DEFAULT_DATE)
+    schedule = service.call
+
+    assert_includes schedule.dispatch_items.map(&:work_order_id), first.id
+    refute_includes schedule.dispatch_items.map(&:work_order_id), second.id
+    assert_equal 1, service.summary[:capacity_deferred_items]
+    assert_equal 1, schedule.reload.capacity_deferred_items_count
+    assert_equal 1, Serializers.schedule(schedule)[:summary][:capacity_deferred_items]
+  ensure
+    ENV["DISPATCH_CREW_DAILY_MINUTES"] = old_capacity
+  end
+
+  test "daily item limit is not reported as capacity deferral" do
+    team(name: "Limit Crew", skills: [ "General" ])
+    work_order(title: "First limited stop", priority: "P4", estimated_hours: 1)
+    work_order(title: "Second limited stop", priority: "P4", estimated_hours: 1)
+
+    old_limit = ENV["DISPATCH_DAILY_ITEM_LIMIT"]
+    old_capacity = ENV["DISPATCH_CREW_DAILY_MINUTES"]
+    ENV["DISPATCH_DAILY_ITEM_LIMIT"] = "1"
+    ENV["DISPATCH_CREW_DAILY_MINUTES"] = "480"
+    service = DispatchSuggestionService.new(date: DEFAULT_DATE)
+    schedule = service.call
+
+    assert_equal 1, schedule.dispatch_items.count
+    assert_equal 1, service.summary[:deferred_items]
+    assert_equal 0, service.summary[:capacity_deferred_items]
+  ensure
+    ENV["DISPATCH_DAILY_ITEM_LIMIT"] = old_limit
+    ENV["DISPATCH_CREW_DAILY_MINUTES"] = old_capacity
+  end
+
+  test "urgent scheduled work can exceed capacity with structured warning metric" do
+    team(name: "Capacity Crew", skills: [ "General" ])
+    urgent = work_order(title: "Emergency repair", priority: "P1", estimated_hours: 6)
+
+    old_capacity = ENV["DISPATCH_CREW_DAILY_MINUTES"]
+    ENV["DISPATCH_CREW_DAILY_MINUTES"] = "240"
+    service = DispatchSuggestionService.new(date: DEFAULT_DATE)
+    schedule = service.call
+    item = schedule.dispatch_items.find_by!(work_order: urgent)
+
+    assert item.capacity_overflow?
+    assert_includes item.notes, "Capacity warning"
+    assert_equal 1, service.summary[:over_capacity_items]
+
+    item.update!(notes: nil)
+    serialized = Serializers.schedule(schedule)
+    serialized_item = serialized[:items].find { |payload| payload[:id] == item.id }
+    assert_equal 1, serialized[:summary][:over_capacity_items]
+    assert_equal true, serialized_item[:capacity_overflow]
+  ensure
+    ENV["DISPATCH_CREW_DAILY_MINUTES"] = old_capacity
+  end
+
+  test "required technician count prefers staffed crew" do
+    small_team = team(name: "Small Crew", skills: [ "Plumbing" ])
+    large_team = team(name: "Large Crew", skills: [ "Plumbing" ])
+    add_technician_to_team(large_team, name: "Large Helper", skills: [ "Plumbing" ])
+    work = work_order(title: "Two-person plumbing", trade: "Plumbing", required_technician_count: 2)
+
+    schedule = DispatchSuggestionService.new(date: DEFAULT_DATE).call
+    item = schedule.dispatch_items.find_by!(work_order: work)
+
+    assert_equal large_team.id, item.team_id
+    assert_not_equal small_team.id, item.team_id
+  end
+
+  test "same-location PM is bundled immediately after the work order" do
+    team(name: "North Crew", skills: [ "General" ])
+    site = location(name: "Bundled Station", region: "North")
+    other_site = location(name: "Other Station", region: "North")
+    work = work_order(title: "Bundled work", location_record: site)
+    bundled_pm = pm_task(task_name: "Bundled PM", date: DEFAULT_DATE + 5.days, location_record: site)
+    other_pm = pm_task(task_name: "Other PM", date: DEFAULT_DATE, location_record: other_site)
+
+    schedule = DispatchSuggestionService.new(date: DEFAULT_DATE).call
+    ordered_ids = schedule.dispatch_items.order(:order_index, :id).map { |item| [ item.work_order_id, item.pm_task_id ] }
+
+    assert_equal [ work.id, nil ], ordered_ids[0]
+    assert_equal [ nil, bundled_pm.id ], ordered_ids[1]
+    assert_includes ordered_ids, [ nil, other_pm.id ]
+  end
 end

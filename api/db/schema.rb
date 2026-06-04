@@ -10,7 +10,10 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_27_170000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_28_101000) do
+  # These are extensions that must be enabled in order to support this database
+  enable_extension "pg_catalog.plpgsql"
+
   create_table "audit_events", force: :cascade do |t|
     t.string "action", null: false
     t.datetime "created_at", null: false
@@ -32,8 +35,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_27_170000) do
     t.datetime "updated_at", null: false
   end
 
+  create_table "dispatch_item_technicians", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "dispatch_item_id", null: false
+    t.boolean "is_driver", default: false, null: false
+    t.integer "position", default: 0, null: false
+    t.string "primary_trade"
+    t.bigint "technician_id", null: false
+    t.string "technician_name", null: false
+    t.datetime "updated_at", null: false
+    t.index ["dispatch_item_id", "technician_id"], name: "index_dispatch_item_technicians_unique_assignment", unique: true
+    t.index ["dispatch_item_id"], name: "index_dispatch_item_technicians_on_dispatch_item_id"
+    t.index ["technician_id", "position"], name: "index_dispatch_item_technicians_on_technician_id_and_position"
+    t.index ["technician_id"], name: "index_dispatch_item_technicians_on_technician_id"
+  end
+
   create_table "dispatch_items", force: :cascade do |t|
     t.string "auto_work_order_status"
+    t.boolean "capacity_overflow", default: false, null: false
     t.date "carried_over_to_date"
     t.datetime "completed_at"
     t.datetime "created_at", null: false
@@ -59,6 +78,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_27_170000) do
   end
 
   create_table "dispatch_schedules", force: :cascade do |t|
+    t.integer "capacity_deferred_items_count", default: 0, null: false
     t.datetime "created_at", null: false
     t.date "date"
     t.datetime "finalized_at"
@@ -141,16 +161,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_27_170000) do
     t.integer "team_id", null: false
     t.integer "technician_id", null: false
     t.datetime "updated_at", null: false
-    t.index ["team_id", "technician_id", "date"], name: "index_team_memberships_unique_daily", unique: true, where: "date IS NOT NULL"
-    t.index ["team_id", "technician_id"], name: "index_team_memberships_unique_default", unique: true, where: "date IS NULL"
+    t.index ["team_id", "technician_id", "date"], name: "index_team_memberships_unique_daily", unique: true, where: "(date IS NOT NULL)"
+    t.index ["team_id", "technician_id"], name: "index_team_memberships_unique_default", unique: true, where: "(date IS NULL)"
     t.index ["team_id"], name: "index_team_memberships_on_team_id"
     t.index ["technician_id"], name: "index_team_memberships_on_technician_id"
   end
 
   create_table "team_service_line_preferences", force: :cascade do |t|
     t.datetime "created_at", null: false
-    t.integer "service_line_id", null: false
-    t.integer "team_id", null: false
+    t.bigint "service_line_id", null: false
+    t.bigint "team_id", null: false
     t.datetime "updated_at", null: false
     t.index ["service_line_id"], name: "index_team_service_line_preferences_on_service_line_id"
     t.index ["team_id", "service_line_id"], name: "index_team_service_line_preferences_unique", unique: true
@@ -209,7 +229,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_27_170000) do
     t.datetime "invitation_accepted_at"
     t.string "invitation_status", default: "accepted", null: false
     t.datetime "invited_at"
-    t.integer "invited_by_id"
+    t.bigint "invited_by_id"
     t.datetime "last_seen_at"
     t.string "name"
     t.string "role", default: "viewer", null: false
@@ -244,6 +264,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_27_170000) do
     t.datetime "repair_due_at"
     t.datetime "reported_at"
     t.datetime "requested_at"
+    t.integer "required_technician_count", default: 1, null: false
     t.datetime "response_due_at"
     t.date "scheduled_date"
     t.integer "service_line_id"
@@ -268,6 +289,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_27_170000) do
   end
 
   add_foreign_key "audit_events", "users"
+  add_foreign_key "dispatch_item_technicians", "dispatch_items"
+  add_foreign_key "dispatch_item_technicians", "technicians"
   add_foreign_key "dispatch_items", "dispatch_schedules"
   add_foreign_key "dispatch_items", "pm_tasks"
   add_foreign_key "dispatch_items", "teams"

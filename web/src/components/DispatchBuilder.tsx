@@ -74,6 +74,7 @@ function ScheduleSummary({ summary }: { summary: DispatchSummary }) {
     <span className="font-semibold">{summary.eligible_pm_tasks} PM tasks</span>
     <span className="font-semibold">{summary.deferred_items + summary.blocked_work_orders} held out</span>
     <p className="leading-6 text-[#526071] sm:col-span-4">{summary.message}</p>
+    {(summary.unfinished_previous_items > 0 || summary.capacity_deferred_items > 0 || summary.over_capacity_items > 0) && <p className="text-xs font-extrabold uppercase tracking-[0.12em] text-[#244393] sm:col-span-4">{summary.unfinished_previous_items} unfinished carried forward · {summary.capacity_deferred_items} capacity-deferred · {summary.over_capacity_items} over-capacity warning(s)</p>}
   </div>
 }
 
@@ -121,6 +122,7 @@ function DispatchCard({ item, scheduleDate, teams, disabled, canEdit, canEditOut
   const title = wo ? `${wo.location} - ${wo.title}` : `${pm?.location} - ${pm?.task_name}`
   const kind = wo?.normalized_priority || 'pm'
   const estimatedHours = estimatedHoursLabel(wo?.estimated_hours)
+  const assignedCrewLine = item.assigned_technicians.map((technician) => `${technician.name}${technician.is_driver ? ' (Driver)' : ''}`).join(', ')
 
   function markDirty() {
     if (saveState === 'saved') setSaveState('idle')
@@ -143,7 +145,10 @@ function DispatchCard({ item, scheduleDate, teams, disabled, canEdit, canEditOut
         <p className="font-display tabular text-xs font-extrabold uppercase tracking-[0.16em] text-[#244393]">{scheduledTime || 'TBD'}</p>
         <h4 className="font-display mt-1 line-clamp-2 font-extrabold tracking-tight text-[#172033]">{title}</h4>
       </div>
-      <Badge kind={kind}>{wo?.normalized_priority || 'PM'}</Badge>
+      <div className="flex shrink-0 flex-col items-end gap-1">
+        <Badge kind={kind}>{wo?.normalized_priority || 'PM'}</Badge>
+        {item.capacity_overflow && <Badge kind="waiting">Over capacity</Badge>}
+      </div>
     </div>
 
     <div className="mt-3 flex flex-wrap gap-2 text-xs font-bold text-[#64748b]">
@@ -184,6 +189,8 @@ function DispatchCard({ item, scheduleDate, teams, disabled, canEdit, canEditOut
         <input disabled={disabled || !canEdit} type="time" value={scheduledTime} onChange={(event) => { markDirty(); setScheduledTime(event.target.value) }} className="field-control tabular mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]" />
       </label>
     </div>
+
+    {assignedCrewLine && <p className="mt-2 rounded-xl border border-blue-100 bg-[#f8faff] px-3 py-2 text-xs font-extrabold text-[#244393]">Snapshot crew for this stop: {assignedCrewLine}</p>}
 
     {item.call_out_names.length > 0 && <p className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-extrabold text-amber-900">Out today from default crew: {item.call_out_names.join(', ')}. The active crew shown above excludes call-outs.</p>}
 

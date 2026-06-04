@@ -24,6 +24,7 @@ module Api
             pm_due: PmTask.dispatchable_for_date(date).count,
             pm_incomplete_month: PmTask.for_month(date).incomplete.count,
             pm_completed_month: PmTask.for_month(date).where(status: "completed").count,
+            unfinished_previous_items: WorkOrder.unfinished_previous_dispatch_for(date).count,
             available_teams: teams.count,
             driver_warnings: teams.reject { |t| t.has_driver?(date) }.count
           },

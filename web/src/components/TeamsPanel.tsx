@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Archive, Plus } from 'lucide-react'
 import { Badge, Card, PanelHeader } from './ui'
-import type { ServiceLine, Team, TeamInput, Technician, TechnicianInput } from '../types'
+import type { DispatchItem, DispatchSchedule, ServiceLine, Team, TeamInput, Technician, TechnicianInput } from '../types'
 
-type CrewMode = 'today' | 'defaults' | 'roster'
+type CrewMode = 'today' | 'people' | 'defaults' | 'roster'
 const tradeOptions = ['General', 'Plumbing', 'HVAC', 'Electrical', 'Carpentry', 'Painting', 'Landscaping', 'Masonry', 'Helper']
 
 function technicianLabel(tech: Technician) {
@@ -126,20 +126,68 @@ function TechnicianForm({ technician, saving, onCancel, onSave }: { technician?:
   </div>
 }
 
-export function TeamsPanel({ teams, technicians, serviceLines, canEdit, savingTechnicianId, savingTeamId, onToggleAvailability, onUpdateDailyCrew, onUpdateDefaultCrew, onCreateTeam, onArchiveTeam, onCreateTechnician, onUpdateTechnician, onArchiveTechnician }: { teams: Team[]; technicians: Technician[]; serviceLines: ServiceLine[]; canEdit: boolean; savingTechnicianId?: number | null; savingTeamId?: number | null; onToggleAvailability: (tech: Technician) => Promise<void>; onUpdateDailyCrew: (teamId: number, technicianIds: number[] | null) => Promise<void>; onUpdateDefaultCrew: (teamId: number, values: TeamInput) => Promise<void>; onCreateTeam: (values: TeamInput) => Promise<void>; onArchiveTeam: (teamId: number) => Promise<void>; onCreateTechnician: (values: TechnicianInput) => Promise<void>; onUpdateTechnician: (technicianId: number, values: TechnicianInput) => Promise<void>; onArchiveTechnician: (technicianId: number) => Promise<void> }) {
+function assignmentTitle(item: DispatchItem) {
+  if (item.kind === 'work_order' && item.work_order) return `${item.work_order.location} - ${item.work_order.title}`
+  if (item.pm_task) return `${item.pm_task.location} - ${item.pm_task.task_name}`
+  return 'Assigned stop'
+}
+
+function TechnicianDayView({ technicians, schedule }: { technicians: Technician[]; schedule: DispatchSchedule | null }) {
+  const assignmentsByTechnician = useMemo(() => {
+    const assignments: Record<number, DispatchItem[]> = {}
+    schedule?.items.forEach((item) => {
+      item.assigned_technicians.forEach((snapshot) => {
+        assignments[snapshot.technician_id] ||= []
+        assignments[snapshot.technician_id].push(item)
+      })
+    })
+    Object.values(assignments).forEach((items) => items.sort((a, b) => (a.scheduled_time || '').localeCompare(b.scheduled_time || '') || a.order_index - b.order_index))
+    return assignments
+  }, [schedule])
+
+  const visibleTechnicians = technicians
+    .filter((tech) => tech.active || assignmentsByTechnician[tech.id]?.length)
+    .sort((a, b) => a.name.localeCompare(b.name))
+
+  return <div className="space-y-3">
+    <div className="rounded-2xl border border-blue-100 bg-[#f8faff] px-4 py-3 text-sm font-semibold text-[#334155]">Person day view uses the immutable dispatch snapshots for the loaded schedule, so later crew edits do not rewrite what was assigned for this date.</div>
+    {!schedule && <div className="rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white p-5 text-sm font-semibold text-[#64748b]">No dispatch schedule is loaded for this date yet.</div>}
+    {visibleTechnicians.map((tech) => {
+      const assignments = assignmentsByTechnician[tech.id] || []
+      return <article key={tech.id} className="rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white/88 p-4 shadow-[0_10px_26px_rgba(23,32,51,0.05)]">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="flex flex-wrap items-center gap-2"><h3 className="font-display font-extrabold text-[#172033]">{technicianLabel(tech)}</h3>{tech.availability === 'unavailable' && <Badge kind="waiting">Out today</Badge>}{!tech.active && <Badge kind="closed">Inactive</Badge>}</div>
+            <p className="mt-1 text-xs font-semibold text-[#64748b]">{tech.primary_trade} · {tech.skills.join(', ') || 'Skills pending'}</p>
+          </div>
+          <Badge kind={assignments.length > 0 ? 'approved' : 'closed'}>{assignments.length} stop{assignments.length === 1 ? '' : 's'}</Badge>
+        </div>
+        {assignments.length === 0 ? <p className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-[#64748b]">No dispatch assignment on the loaded schedule.</p> : <div className="mt-3 space-y-2">
+          {assignments.map((item) => <div key={item.id} className="rounded-xl border border-[rgba(36,67,147,0.12)] bg-[#f8faff] px-3 py-2">
+            <div className="flex flex-wrap items-center justify-between gap-2"><p className="font-display text-sm font-extrabold text-[#172033]">{item.scheduled_time || 'TBD'} · {assignmentTitle(item)}</p><Badge kind={item.kind === 'work_order' ? item.work_order?.normalized_priority || 'approved' : 'scheduled'}>{item.kind === 'work_order' ? item.work_order?.normalized_priority || 'WO' : 'PM'}</Badge></div>
+            <p className="mt-1 text-xs font-semibold text-[#64748b]">{item.team_name} · Outcome: {item.outcome_status.replaceAll('_', ' ')}</p>
+          </div>)}
+        </div>}
+      </article>
+    })}
+  </div>
+}
+
+export function TeamsPanel({ teams, technicians, serviceLines, schedule, canEdit, savingTechnicianId, savingTeamId, onToggleAvailability, onUpdateDailyCrew, onUpdateDefaultCrew, onCreateTeam, onArchiveTeam, onCreateTechnician, onUpdateTechnician, onArchiveTechnician }: { teams: Team[]; technicians: Technician[]; serviceLines: ServiceLine[]; schedule: DispatchSchedule | null; canEdit: boolean; savingTechnicianId?: number | null; savingTeamId?: number | null; onToggleAvailability: (tech: Technician) => Promise<void>; onUpdateDailyCrew: (teamId: number, technicianIds: number[] | null) => Promise<void>; onUpdateDefaultCrew: (teamId: number, values: TeamInput) => Promise<void>; onCreateTeam: (values: TeamInput) => Promise<void>; onArchiveTeam: (teamId: number) => Promise<void>; onCreateTechnician: (values: TechnicianInput) => Promise<void>; onUpdateTechnician: (technicianId: number, values: TechnicianInput) => Promise<void>; onArchiveTechnician: (technicianId: number) => Promise<void> }) {
   const [mode, setMode] = useState<CrewMode>('today')
   const [editingTeamId, setEditingTeamId] = useState<number | null>(null)
   const [creatingCrew, setCreatingCrew] = useState(false)
   const [editingTechnicianId, setEditingTechnicianId] = useState<number | 'new' | null>(null)
 
   return <Card className="overflow-hidden">
-    <PanelHeader eyebrow="Crew readiness" title="Crews" description={mode === 'today' ? 'Morning workflow: mark call-outs and adjust actual crews for the selected date.' : mode === 'defaults' ? 'Admin setup: manage reusable crews, driver coverage, regions, and service-line preferences.' : 'Technician roster: manage people, skills, driver capability, and active status.'} action={canEdit ? <button type="button" disabled={savingTeamId != null || savingTechnicianId != null} onClick={() => { if (mode === 'roster') setEditingTechnicianId('new'); else { setMode('defaults'); setCreatingCrew((value) => !value); setEditingTeamId(null) } }} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#244393] px-4 py-2.5 font-display text-sm font-extrabold text-white transition hover:-translate-y-0.5 hover:bg-[#172b63] disabled:cursor-wait disabled:opacity-60 sm:w-auto"><Plus size={16} /> {mode === 'roster' ? 'New Technician' : creatingCrew ? 'Close New Crew' : 'New Default Crew'}</button> : undefined} />
+    <PanelHeader eyebrow="Crew readiness" title="Crews" description={mode === 'today' ? 'Morning workflow: mark call-outs and adjust actual crews for the selected date.' : mode === 'people' ? 'Technician day view: see where each person is assigned on the loaded dispatch schedule.' : mode === 'defaults' ? 'Admin setup: manage reusable crews, driver coverage, regions, and service-line preferences.' : 'Technician roster: manage people, skills, driver capability, and active status.'} action={canEdit && mode !== 'people' ? <button type="button" disabled={savingTeamId != null || savingTechnicianId != null} onClick={() => { if (mode === 'roster') setEditingTechnicianId('new'); else { setMode('defaults'); setCreatingCrew((value) => !value); setEditingTeamId(null) } }} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#244393] px-4 py-2.5 font-display text-sm font-extrabold text-white transition hover:-translate-y-0.5 hover:bg-[#172b63] disabled:cursor-wait disabled:opacity-60 sm:w-auto"><Plus size={16} /> {mode === 'roster' ? 'New Technician' : creatingCrew ? 'Close New Crew' : 'New Default Crew'}</button> : undefined} />
     <div className="border-b border-[rgba(23,32,51,0.1)] bg-white px-3 py-3 sm:px-4"><div className="flex flex-wrap gap-2">
-      {(['today', 'defaults', 'roster'] as CrewMode[]).map((tab) => <button key={tab} type="button" onClick={() => { setMode(tab); setEditingTeamId(null); setCreatingCrew(false); setEditingTechnicianId(null) }} className={`flex-1 rounded-2xl px-3 py-2 font-display text-xs font-extrabold capitalize transition sm:flex-none sm:px-4 sm:text-sm ${mode === tab ? 'bg-[#244393] text-white shadow-[0_10px_24px_rgba(36,67,147,0.18)]' : 'border border-[rgba(36,67,147,0.16)] bg-white text-[#244393] hover:bg-[#e8eefc]'}`}>{tab === 'today' ? "Today's Crews" : tab === 'defaults' ? 'Default Crew Setup' : 'Technician Roster'}</button>)}
+      {(['today', 'people', 'defaults', 'roster'] as CrewMode[]).map((tab) => <button key={tab} type="button" onClick={() => { setMode(tab); setEditingTeamId(null); setCreatingCrew(false); setEditingTechnicianId(null) }} className={`flex-1 rounded-2xl px-3 py-2 font-display text-xs font-extrabold capitalize transition sm:flex-none sm:px-4 sm:text-sm ${mode === tab ? 'bg-[#244393] text-white shadow-[0_10px_24px_rgba(36,67,147,0.18)]' : 'border border-[rgba(36,67,147,0.16)] bg-white text-[#244393] hover:bg-[#e8eefc]'}`}>{tab === 'today' ? "Today's Crews" : tab === 'people' ? 'Person Day View' : tab === 'defaults' ? 'Default Crew Setup' : 'Technician Roster'}</button>)}
     </div></div>
     <div className="space-y-3 p-3 sm:space-y-4 sm:p-4">
       {mode === 'today' && <div className="rounded-2xl border border-blue-100 bg-[#f8faff] px-4 py-3 text-sm font-semibold text-[#334155]">Click a technician name to mark them out today. Edit Today for borrowed drivers or one-day swaps.</div>}
       {creatingCrew && mode === 'defaults' && <CrewEditor technicians={technicians} serviceLines={serviceLines} saving={savingTeamId === 0} onCancel={() => setCreatingCrew(false)} onSave={async (values) => { await onCreateTeam(values); setCreatingCrew(false) }} />}
+      {mode === 'people' && <TechnicianDayView technicians={technicians} schedule={schedule} />}
       {mode === 'today' && teams.map((team) => {
         const isEditing = editingTeamId === team.id
         const todayName = team.today_crew_name || crewName(team.technicians)

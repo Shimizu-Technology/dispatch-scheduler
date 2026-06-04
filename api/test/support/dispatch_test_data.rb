@@ -2,7 +2,7 @@ module DispatchTestData
   DEFAULT_DATE = Date.new(2026, 5, 5)
 
   def reset_dispatch_records
-    [ AuditEvent, FollowUp, DispatchItem, DispatchSchedule, WorkOrder, PmTask, TeamMembership, TeamDailyOverride, TechnicianAvailability, TechnicianSkill, Technician, Team, Location, Client, ServiceLine, User ].each(&:delete_all)
+    [ AuditEvent, FollowUp, DispatchItemTechnician, DispatchItem, DispatchSchedule, WorkOrder, PmTask, TeamMembership, TeamDailyOverride, TechnicianAvailability, TechnicianSkill, Technician, Team, Location, Client, ServiceLine, User ].each(&:delete_all)
   end
 
   def client(name = "Mobil")
@@ -25,6 +25,13 @@ module DispatchTestData
     team
   end
 
+  def add_technician_to_team(team, name:, skills: [ "General" ], driver: false, active: true)
+    tech = Technician.create!(name: name, primary_trade: skills.first, is_driver: driver, active: active)
+    skills.each { |skill| tech.technician_skills.create!(skill: skill) }
+    team.team_memberships.create!(technician: tech)
+    tech
+  end
+
   def service_line(name = "Mobil / CBRE")
     ServiceLine.find_or_create_by!(name: name) do |line|
       line.position = 10
@@ -32,7 +39,7 @@ module DispatchTestData
     end
   end
 
-  def work_order(title: "Repair item", priority: "P4", status: "approved", trade: "General", date: DEFAULT_DATE, location_record: location, service_line_record: service_line, reported_at: nil, estimated_hours: nil, pa_project: false)
+  def work_order(title: "Repair item", priority: "P4", status: "approved", trade: "General", date: DEFAULT_DATE, location_record: location, service_line_record: service_line, reported_at: nil, estimated_hours: nil, pa_project: false, required_technician_count: 1)
     WorkOrder.create!(
       client: location_record.client,
       location: location_record,
@@ -49,6 +56,7 @@ module DispatchTestData
       service_line: service_line_record,
       reported_at: reported_at,
       estimated_hours: estimated_hours,
+      required_technician_count: required_technician_count,
       pa_project: pa_project
     )
   end

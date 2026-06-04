@@ -53,6 +53,7 @@ The latest UI pass moves the app further from a demo-style dashboard toward a co
 - Reworked the dashboard into a denser command-center view: command decision, dispatch state, work pressure, crew readiness, PA/CM/estimate follow-up, PM completion, and recent activity.
 - Converted work-order cards into compact operational rows for 45–100+ item queues while preserving badges, KPI pressure, PA Project, CM, estimate, blocked status, service line, and edit/archive actions.
 - Adjusted SLA wording toward KPI pressure so PA Projects and waiting-parts work feel closer to John’s CBRE/Mobil language.
+- Added a mobile pass across the shell, dashboard, work queue, PM setup, crews, dispatch, WhatsApp, service-line, PA Project, and activity panels: full-width touch actions, shortened mobile nav labels, reduced mobile padding, stacked dispatch-state metrics, and no horizontal page overflow at 390px.
 
 ## Remaining UX Work
 

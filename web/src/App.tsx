@@ -781,15 +781,15 @@ function DispatchApp() {
   }
 
   const currentSection = activeSection === 'users' && !user?.permissions.can_admin ? 'overview' : activeSection
-  const sections: Array<{ id: ActiveSection; label: string; description: string; icon: ReactNode; count?: number }> = [
-    { id: 'overview', label: 'Dashboard', description: 'Start here', icon: <LayoutDashboard size={18} /> },
-    { id: 'dispatch', label: 'Dispatch Draft', description: 'Build and edit the plan', icon: <ClipboardList size={18} />, count: schedule?.items.length },
-    { id: 'work-orders', label: 'Work Queue', description: 'Review open work', icon: <Wrench size={18} />, count: dashboard?.counts.open_work_orders ?? workOrderMeta?.total_count ?? workOrders.filter((workOrder) => !workOrder.archived).length },
-    { id: 'pa-projects', label: 'PA Projects', description: 'Parts and long-lead follow-up', icon: <FolderKanban size={18} />, count: dashboard?.counts.pa_projects ?? paProjectMeta?.total_count ?? workOrders.filter((workOrder) => !workOrder.archived && workOrder.pa_project).length },
+  const sections: Array<{ id: ActiveSection; label: string; mobileLabel?: string; description: string; icon: ReactNode; count?: number }> = [
+    { id: 'overview', label: 'Dashboard', mobileLabel: 'Home', description: 'Start here', icon: <LayoutDashboard size={18} /> },
+    { id: 'dispatch', label: 'Dispatch Draft', mobileLabel: 'Draft', description: 'Build and edit the plan', icon: <ClipboardList size={18} />, count: schedule?.items.length },
+    { id: 'work-orders', label: 'Work Queue', mobileLabel: 'Work', description: 'Review open work', icon: <Wrench size={18} />, count: dashboard?.counts.open_work_orders ?? workOrderMeta?.total_count ?? workOrders.filter((workOrder) => !workOrder.archived).length },
+    { id: 'pa-projects', label: 'PA Projects', mobileLabel: 'PA', description: 'Parts and long-lead follow-up', icon: <FolderKanban size={18} />, count: dashboard?.counts.pa_projects ?? paProjectMeta?.total_count ?? workOrders.filter((workOrder) => !workOrder.archived && workOrder.pa_project).length },
     { id: 'teams', label: 'Crews', description: 'Drivers and call-outs', icon: <Users size={18} />, count: teams.length },
     { id: 'pm-tasks', label: 'PMs', description: 'Preventive work', icon: <CalendarDays size={18} />, count: pmTasks.length },
-    { id: 'service-lines', label: 'Service Lines', description: 'Contracts and divisions', icon: <Settings2 size={18} />, count: serviceLines.filter((line) => line.active).length },
-    { id: 'whatsapp', label: 'WhatsApp', description: 'Copy send-ready text', icon: <MessageSquareText size={18} /> },
+    { id: 'service-lines', label: 'Service Lines', mobileLabel: 'Lines', description: 'Contracts and divisions', icon: <Settings2 size={18} />, count: serviceLines.filter((line) => line.active).length },
+    { id: 'whatsapp', label: 'WhatsApp', mobileLabel: 'WA', description: 'Copy send-ready text', icon: <MessageSquareText size={18} /> },
     { id: 'activity', label: 'Activity', description: 'Audit history', icon: <Activity size={18} /> },
     ...(user?.permissions.can_admin ? [{ id: 'users' as const, label: 'Users', description: 'Roles and access', icon: <UserCog size={18} />, count: managedUsers.length }] : []),
   ]
@@ -810,12 +810,12 @@ function DispatchApp() {
 
   return (
     <main className="min-h-screen overflow-hidden">
-      <div className="mx-auto flex max-w-[96rem] flex-col gap-4 px-4 py-4 sm:px-6 lg:px-8 lg:py-6">
-        <header className="soft-reveal overflow-hidden rounded-[1.35rem] border border-[#1d336c]/15 bg-white/95 shadow-[0_18px_48px_rgba(23,32,51,0.10)] backdrop-blur">
+      <div className="mx-auto flex max-w-[96rem] flex-col gap-3 px-3 py-3 sm:gap-4 sm:px-6 lg:px-8 lg:py-6">
+        <header className="soft-reveal overflow-hidden rounded-[1.1rem] border border-[#1d336c]/15 bg-white/95 shadow-[0_18px_48px_rgba(23,32,51,0.10)] backdrop-blur sm:rounded-[1.35rem]">
           <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_auto]">
-            <div className="relative border-b border-[rgba(23,32,51,0.1)] bg-[#172b63] px-4 py-4 text-white lg:border-b-0 lg:border-r lg:border-white/10 lg:px-5">
+            <div className="relative border-b border-[rgba(23,32,51,0.1)] bg-[#172b63] px-3 py-4 text-white sm:px-4 lg:border-b-0 lg:border-r lg:border-white/10 lg:px-5">
               <div className="absolute inset-y-0 left-0 w-1 bg-[#d84332]" />
-              <div className="flex min-h-24 flex-col justify-between gap-4 pl-2 sm:min-h-28">
+              <div className="flex flex-col justify-between gap-4 pl-2 sm:min-h-28">
                 <div className="flex flex-wrap items-center gap-3">
                   <div className="inline-flex items-center gap-3 rounded-2xl border border-white/15 bg-white/10 px-3 py-2 shadow-[0_12px_28px_rgba(0,0,0,0.12)] backdrop-blur">
                     <span className="relative inline-flex h-9 w-12 items-center justify-center overflow-hidden rounded-xl bg-white">
@@ -833,14 +833,14 @@ function DispatchApp() {
                 <div>
                   <p className="font-display text-[0.68rem] font-extrabold uppercase tracking-[0.28em] text-blue-100/80">Facilities dispatch board</p>
                   <div className="mt-1 flex flex-wrap items-end gap-x-3 gap-y-1">
-                    <h1 className="font-display text-3xl font-black tracking-[-0.035em] sm:text-4xl">{activeSectionMeta?.label || 'Daily Dispatch'}</h1>
-                    <p className="pb-1 text-sm font-semibold text-blue-50/72">{activeSectionMeta?.description || 'Daily dispatch command center'}</p>
+                    <h1 className="font-display text-2xl font-black tracking-[-0.035em] sm:text-4xl">{activeSectionMeta?.label || 'Daily Dispatch'}</h1>
+                    <p className="pb-1 text-xs font-semibold leading-5 text-blue-50/72 sm:text-sm">{activeSectionMeta?.description || 'Daily dispatch command center'}</p>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="grid gap-3 bg-white px-4 py-4 sm:grid-cols-2 lg:min-w-[34rem] lg:grid-cols-1 lg:px-5">
+            <div className="grid gap-2 bg-white px-3 py-3 sm:grid-cols-2 sm:gap-3 sm:px-4 sm:py-4 lg:min-w-[34rem] lg:grid-cols-1 lg:px-5">
               {!user && isSignedIn ? <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
                 <div className="flex items-start gap-3">
                   <span className="rounded-xl bg-amber-100 p-2 text-amber-800">{isVerifyingApi ? <RefreshCw className="animate-spin" size={18} /> : <LockKeyhole size={18} />}</span>
@@ -873,17 +873,17 @@ function DispatchApp() {
                   type="button"
                   disabled={selectedDate === todayDate}
                   onClick={() => setSelectedDate(todayDate)}
-                  className="rounded-2xl border border-[rgba(36,67,147,0.18)] bg-white px-4 py-2 font-display text-xs font-extrabold uppercase tracking-[0.14em] text-[#244393] transition hover:-translate-y-0.5 hover:bg-[#e8eefc] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="min-h-11 rounded-2xl border border-[rgba(36,67,147,0.18)] bg-white px-4 py-2 font-display text-xs font-extrabold uppercase tracking-[0.14em] text-[#244393] transition hover:-translate-y-0.5 hover:bg-[#e8eefc] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Today
                 </button>
               </div>}
 
-              <div className="flex flex-wrap items-center gap-2 sm:col-span-2 lg:col-span-1">
-                {canEditDispatch && <button disabled={working || Boolean(schedule && schedule.status !== 'draft')} onClick={suggestSchedule} className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[#d84332] px-4 py-3 font-display text-sm font-extrabold text-white shadow-[0_14px_30px_rgba(216,67,50,0.24)] transition hover:-translate-y-0.5 hover:bg-[#bf3228] disabled:cursor-not-allowed disabled:opacity-60 sm:flex-none">
+              <div className="flex flex-col gap-2 sm:col-span-2 sm:flex-row sm:flex-wrap sm:items-center lg:col-span-1">
+                {canEditDispatch && <button disabled={working || Boolean(schedule && schedule.status !== 'draft')} onClick={suggestSchedule} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#d84332] px-4 py-3 font-display text-sm font-extrabold text-white shadow-[0_14px_30px_rgba(216,67,50,0.24)] transition hover:-translate-y-0.5 hover:bg-[#bf3228] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:flex-none">
                   <ClipboardList size={17} /> {scheduleActionLabel}
                 </button>}
-                {user && <div className="inline-flex flex-1 items-center gap-3 rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white px-3 py-2 text-sm text-[#526071] shadow-sm sm:flex-none">
+                {user && <div className="inline-flex w-full items-center gap-3 rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white px-3 py-2 text-sm text-[#526071] shadow-sm sm:w-auto sm:flex-none">
                   <UserButton />
                   <span className="leading-tight">
                     <span className="font-display block font-extrabold text-[#172033]">{user.name}</span>
@@ -891,7 +891,7 @@ function DispatchApp() {
                   </span>
                 </div>}
                 {!isSignedIn && <SignInButton mode="modal">
-                  <button className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[#172b63] px-5 py-3 font-display text-sm font-extrabold text-white shadow-[0_16px_34px_rgba(23,43,99,0.2)] transition hover:-translate-y-0.5 hover:bg-[#244393] sm:flex-none">
+                  <button className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#172b63] px-5 py-3 font-display text-sm font-extrabold text-white shadow-[0_16px_34px_rgba(23,43,99,0.2)] transition hover:-translate-y-0.5 hover:bg-[#244393] sm:w-auto sm:flex-none">
                     <LockKeyhole size={18} /> Sign In
                   </button>
                 </SignInButton>}
@@ -900,7 +900,7 @@ function DispatchApp() {
           </div>
         </header>
 
-        <nav aria-label="JMI dispatch sections" className="soft-reveal-delay sticky top-3 z-10 flex gap-1 overflow-x-auto rounded-[1.1rem] border border-[rgba(23,32,51,0.12)] bg-white/95 p-1.5 shadow-[0_12px_30px_rgba(23,32,51,0.08)] backdrop-blur">
+        <nav aria-label="JMI dispatch sections" className="no-scrollbar soft-reveal-delay sticky top-0 z-10 -mx-3 flex gap-1 overflow-x-auto border-y border-[rgba(23,32,51,0.12)] bg-white/96 px-3 py-2 shadow-[0_10px_26px_rgba(23,32,51,0.08)] backdrop-blur sm:top-3 sm:mx-0 sm:rounded-[1.1rem] sm:border sm:p-1.5 sm:shadow-[0_12px_30px_rgba(23,32,51,0.08)]">
           {sections.map((section) => {
             const isActive = currentSection === section.id
             return <button
@@ -908,11 +908,12 @@ function DispatchApp() {
               type="button"
               onClick={() => goToSection(section.id)}
               title={section.description}
-              className={`group flex h-11 min-w-fit shrink-0 items-center justify-center gap-2 rounded-xl border px-3 text-center transition sm:px-4 ${isActive ? 'border-[#244393] bg-[#172b63] text-white shadow-[0_10px_24px_rgba(36,67,147,0.2)]' : 'border-transparent text-[#172033] hover:border-[rgba(36,67,147,0.18)] hover:bg-[#f4f7fb]'}`}
+              className={`group flex h-10 min-w-fit shrink-0 items-center justify-center gap-1.5 rounded-xl border px-2 text-center transition sm:h-11 sm:gap-2 sm:px-4 ${isActive ? 'border-[#244393] bg-[#172b63] text-white shadow-[0_10px_24px_rgba(36,67,147,0.2)]' : 'border-transparent text-[#172033] hover:border-[rgba(36,67,147,0.18)] hover:bg-[#f4f7fb]'}`}
             >
-              <span className={`inline-flex shrink-0 rounded-lg p-1.5 ${isActive ? 'bg-white/12 text-blue-100' : 'bg-[#e8eefc] text-[#244393]'}`}>{section.icon}</span>
-              <span className="font-display whitespace-nowrap text-sm font-extrabold">{section.label}</span>
-              {typeof section.count === 'number' && <span className={`tabular inline-flex min-w-7 shrink-0 justify-center rounded-full px-2 py-0.5 text-xs font-extrabold ${isActive ? 'bg-white/12 text-white' : 'bg-[#eef2ff] text-[#244393]'}`}>{section.count}</span>}
+              <span className={`inline-flex shrink-0 rounded-lg p-1 sm:p-1.5 ${isActive ? 'bg-white/12 text-blue-100' : 'bg-[#e8eefc] text-[#244393]'}`}>{section.icon}</span>
+              <span className="font-display whitespace-nowrap text-xs font-extrabold sm:hidden">{section.mobileLabel || section.label}</span>
+              <span className="font-display hidden whitespace-nowrap text-sm font-extrabold sm:inline">{section.label}</span>
+              {typeof section.count === 'number' && <span className={`tabular inline-flex min-w-6 shrink-0 justify-center rounded-full px-1.5 py-0.5 text-[0.68rem] font-extrabold sm:min-w-7 sm:px-2 sm:text-xs ${isActive ? 'bg-white/12 text-white' : 'bg-[#eef2ff] text-[#244393]'}`}>{section.count}</span>}
             </button>
           })}
         </nav>
@@ -964,10 +965,10 @@ function DispatchApp() {
 }
 
 function SignInRequiredPanel({ title = 'Sign in to load live dispatch data' }: { title?: string }) {
-  return <section className="rounded-2xl border border-[rgba(23,32,51,0.12)] bg-white/90 p-6 shadow-[0_18px_50px_rgba(23,32,51,0.08)]">
+  return <section className="rounded-2xl border border-[rgba(23,32,51,0.12)] bg-white/90 p-4 shadow-[0_18px_50px_rgba(23,32,51,0.08)] sm:p-6">
     <div className="max-w-2xl">
       <p className="font-display text-[0.68rem] font-extrabold uppercase tracking-[0.24em] text-[#244393]">Secure JMI workspace</p>
-      <h2 className="font-display mt-1 text-2xl font-extrabold tracking-tight text-[#172033]">{title}</h2>
+      <h2 className="font-display mt-1 text-xl font-extrabold tracking-tight text-[#172033] sm:text-2xl">{title}</h2>
       <p className="mt-2 text-sm leading-6 text-[#526071]">The app shell is available so the page does not feel broken while Clerk is loading or before sign-in. Live JMI data and editing actions load after you sign in.</p>
       <SignInButton mode="modal">
         <button className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-[#244393] px-5 py-3 font-display text-sm font-extrabold text-white shadow-[0_16px_38px_rgba(36,67,147,0.2)] transition hover:-translate-y-0.5 hover:bg-[#172b63]">

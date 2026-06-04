@@ -97,6 +97,15 @@ textarea:focus-visible {
   box-shadow: 0 0 0 4px rgba(36, 67, 147, 0.14);
 }
 
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 .soft-reveal {
   animation: soft-reveal 500ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }

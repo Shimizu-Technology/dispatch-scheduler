@@ -23,9 +23,9 @@ export function ActivityPanel({ events }: { events: AuditEvent[] }) {
       title="Activity"
       description="Recent work-order, crew, dispatch, and schedule status changes."
     />
-    <div className="space-y-3 p-4">
+    <div className="space-y-3 p-3 sm:p-4">
       {events.length === 0 && <p className="rounded-2xl border border-dashed border-[rgba(23,32,51,0.18)] bg-[#f8faff] p-5 text-sm font-semibold text-[#526071]">No activity has been recorded yet.</p>}
-      {events.map((event) => <article key={event.id} className="rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white/88 p-4 shadow-[0_10px_26px_rgba(23,32,51,0.05)]">
+      {events.map((event) => <article key={event.id} className="rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white/88 p-3 shadow-[0_10px_26px_rgba(23,32,51,0.05)] sm:p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="font-display text-sm font-extrabold capitalize text-[#172033]">{eventSummary(event)}</p>

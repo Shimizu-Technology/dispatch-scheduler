@@ -148,7 +148,7 @@ function formFromWorkOrder(workOrder: WorkOrder): WorkOrderInput {
 function WorkOrderRow({ workOrder, canEdit, onEdit, onArchive }: { workOrder: WorkOrder; canEdit: boolean; onEdit: (workOrder: WorkOrder) => void; onArchive: (workOrderId: number, archived: boolean) => Promise<void> }) {
   const isBlocked = workOrder.status === 'waiting_for_parts' || workOrder.status === 'waiting_for_approval'
   return <article className="group rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white/96 shadow-[0_8px_22px_rgba(23,32,51,0.045)] transition hover:border-[#244393]/22 hover:shadow-[0_14px_32px_rgba(23,32,51,0.075)]">
-    <div className="grid gap-3 p-4 xl:grid-cols-[minmax(0,1fr)_13rem_8rem] xl:items-start">
+    <div className="grid gap-3 p-3 sm:p-4 xl:grid-cols-[minmax(0,1fr)_13rem_8rem] xl:items-start">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <Badge kind={workOrder.normalized_priority}>{workOrder.normalized_priority}</Badge>
@@ -160,25 +160,25 @@ function WorkOrderRow({ workOrder, canEdit, onEdit, onArchive }: { workOrder: Wo
           {workOrder.estimate_required && <Badge kind="scheduled">Estimate</Badge>}
           <span className="font-display tabular text-[0.68rem] font-extrabold uppercase tracking-[0.14em] text-[#7b8798]">WO #{workOrder.external_id || 'N/A'}</span>
         </div>
-        <h3 className="font-display mt-2 truncate text-base font-black tracking-tight text-[#172033] sm:text-lg">{workOrder.location} <span className="font-semibold text-[#64748b]">—</span> {workOrder.title}</h3>
-        <p className="mt-1 line-clamp-2 max-w-5xl text-sm leading-5 text-[#526071]">{workOrder.description}</p>
+        <h3 className="font-display mt-2 line-clamp-2 text-base font-black tracking-tight text-[#172033] sm:line-clamp-1 sm:text-lg">{workOrder.location} <span className="font-semibold text-[#64748b]">—</span> {workOrder.title}</h3>
+        <p className="mt-1 line-clamp-3 max-w-5xl text-sm leading-5 text-[#526071] sm:line-clamp-2">{workOrder.description}</p>
         <div className={`mt-3 inline-flex rounded-xl border px-3 py-1.5 text-xs font-extrabold ${statusTone(workOrder.status)}`}>
           {statusSummary(workOrder.status)}{isBlocked ? ' · follow-up required' : ''}
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs font-semibold text-[#64748b] sm:grid-cols-4 xl:grid-cols-1">
-        <span><strong className="block text-[0.62rem] uppercase tracking-[0.12em] text-[#94a0b5]">Scheduled</strong>{shortDate(workOrder.scheduled_date)}</span>
-        <span><strong className="block text-[0.62rem] uppercase tracking-[0.12em] text-[#94a0b5]">KPI due</strong>{shortDateTime(workOrder.sla_due_at)}</span>
-        <span><strong className="block text-[0.62rem] uppercase tracking-[0.12em] text-[#94a0b5]">Service line</strong>{workOrder.service_line || 'Unassigned'}</span>
-        <span><strong className="block text-[0.62rem] uppercase tracking-[0.12em] text-[#94a0b5]">Source</strong>{workOrder.source}</span>
+        <span className="min-w-0"><strong className="block text-[0.62rem] uppercase tracking-[0.12em] text-[#94a0b5]">Scheduled</strong><span className="block truncate">{shortDate(workOrder.scheduled_date)}</span></span>
+        <span className="min-w-0"><strong className="block text-[0.62rem] uppercase tracking-[0.12em] text-[#94a0b5]">KPI due</strong><span className="block truncate">{shortDateTime(workOrder.sla_due_at)}</span></span>
+        <span className="min-w-0"><strong className="block text-[0.62rem] uppercase tracking-[0.12em] text-[#94a0b5]">Service line</strong><span className="block truncate">{workOrder.service_line || 'Unassigned'}</span></span>
+        <span className="min-w-0"><strong className="block text-[0.62rem] uppercase tracking-[0.12em] text-[#94a0b5]">Source</strong><span className="block truncate">{workOrder.source}</span></span>
       </div>
 
       <div className="flex flex-row flex-wrap gap-2 xl:flex-col xl:items-end">
         <span className="font-display rounded-full bg-[#e8eefc] px-3 py-1 text-xs font-extrabold uppercase tracking-[0.1em] text-[#244393]">{workOrder.trade_category}</span>
         <span className="rounded-full border border-[rgba(23,32,51,0.1)] bg-[#f8faff] px-3 py-1 text-xs font-extrabold text-[#526071]">{workOrder.region || 'Unknown'}</span>
-        {canEdit && <button type="button" onClick={() => onEdit(workOrder)} className="inline-flex items-center gap-1 rounded-full border border-[rgba(36,67,147,0.18)] bg-white px-3 py-1 text-xs font-extrabold text-[#244393] transition hover:-translate-y-0.5 hover:bg-[#e8eefc]"><Edit3 size={13} /> Edit</button>}
-        {canEdit && <button type="button" onClick={() => void onArchive(workOrder.id, !workOrder.archived)} className="inline-flex items-center gap-1 rounded-full border border-[rgba(23,32,51,0.14)] bg-white px-3 py-1 text-xs font-extrabold text-[#526071] transition hover:-translate-y-0.5 hover:bg-slate-50">{workOrder.archived ? <ArchiveRestore size={13} /> : <Archive size={13} />} {workOrder.archived ? 'Restore' : 'Archive'}</button>}
+        {canEdit && <button type="button" onClick={() => onEdit(workOrder)} className="inline-flex min-h-9 flex-1 items-center justify-center gap-1 rounded-full border border-[rgba(36,67,147,0.18)] bg-white px-3 py-1 text-xs font-extrabold text-[#244393] transition hover:-translate-y-0.5 hover:bg-[#e8eefc] sm:flex-none"><Edit3 size={13} /> Edit</button>}
+        {canEdit && <button type="button" onClick={() => void onArchive(workOrder.id, !workOrder.archived)} className="inline-flex min-h-9 flex-1 items-center justify-center gap-1 rounded-full border border-[rgba(23,32,51,0.14)] bg-white px-3 py-1 text-xs font-extrabold text-[#526071] transition hover:-translate-y-0.5 hover:bg-slate-50 sm:flex-none">{workOrder.archived ? <ArchiveRestore size={13} /> : <Archive size={13} />} {workOrder.archived ? 'Restore' : 'Archive'}</button>}
       </div>
     </div>
   </article>
@@ -317,11 +317,11 @@ function WorkOrderForm({ initialValues, serviceLines, saving, onCancel, onSubmit
       <textarea value={values.notes || ''} onChange={(event) => updateField('notes', event.target.value)} placeholder="Gate code, requester, parts note, manager instructions, etc." className="field-control mt-1 min-h-16 w-full rounded-xl px-3 py-2 text-sm text-[#334155]" />
     </label>
 
-    <div className="mt-4 flex flex-wrap gap-2">
-      <button disabled={saving} type="submit" className="inline-flex items-center gap-2 rounded-2xl bg-[#244393] px-4 py-2.5 font-display text-sm font-extrabold text-white shadow-[0_12px_26px_rgba(36,67,147,0.18)] transition hover:-translate-y-0.5 hover:bg-[#172b63] disabled:cursor-wait disabled:opacity-60">
+    <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+      <button disabled={saving} type="submit" className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#244393] px-4 py-2.5 font-display text-sm font-extrabold text-white shadow-[0_12px_26px_rgba(36,67,147,0.18)] transition hover:-translate-y-0.5 hover:bg-[#172b63] disabled:cursor-wait disabled:opacity-60 sm:w-auto">
         {saving ? 'Saving...' : 'Save Work Order'}
       </button>
-      <button disabled={saving} type="button" onClick={onCancel} className="rounded-2xl border border-[rgba(23,32,51,0.12)] bg-white px-4 py-2.5 font-display text-sm font-extrabold text-[#334155] transition hover:-translate-y-0.5 hover:bg-slate-50">
+      <button disabled={saving} type="button" onClick={onCancel} className="w-full rounded-2xl border border-[rgba(23,32,51,0.12)] bg-white px-4 py-2.5 font-display text-sm font-extrabold text-[#334155] transition hover:-translate-y-0.5 hover:bg-slate-50 sm:w-auto">
         Cancel
       </button>
     </div>
@@ -464,12 +464,12 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, selec
       eyebrow="Work queue"
       title="Open Work Orders"
       description="Review dispatch-ready work, blocked follow-ups, PA Projects, KPI pressure, and incoming requests from WhatsApp, email, phone, or work-order systems."
-      action={canEdit ? <div className="flex flex-wrap gap-2">
-        <label className="inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-[#244393]/15 bg-[#e8eefc] px-4 py-2.5 font-display text-sm font-extrabold text-[#244393] transition hover:-translate-y-0.5 hover:bg-[#dfe8ff]">
+      action={canEdit ? <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
+        <label className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-[#244393]/15 bg-[#e8eefc] px-4 py-2.5 font-display text-sm font-extrabold text-[#244393] transition hover:-translate-y-0.5 hover:bg-[#dfe8ff] sm:w-auto">
           <FileUp size={16} /> {uploading ? 'Scanning...' : 'Scan Intake'}
           <input type="file" accept="image/png,image/jpeg,image/webp" disabled={uploading} onChange={(event) => { const file = event.target.files?.[0] || null; event.target.value = ''; void previewUpload(file) }} className="sr-only" />
         </label>
-        <button type="button" onClick={startCreate} className="inline-flex items-center gap-2 rounded-2xl bg-[#d84332] px-4 py-2.5 font-display text-sm font-extrabold text-white shadow-[0_12px_26px_rgba(216,67,50,0.2)] transition hover:-translate-y-0.5 hover:bg-[#bf3228]"><Plus size={16} /> New Work Order</button>
+        <button type="button" onClick={startCreate} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#d84332] px-4 py-2.5 font-display text-sm font-extrabold text-white shadow-[0_12px_26px_rgba(216,67,50,0.2)] transition hover:-translate-y-0.5 hover:bg-[#bf3228] sm:w-auto"><Plus size={16} /> New Work Order</button>
       </div> : <span className="tabular rounded-full bg-[#172b63] px-3 py-1.5 font-display text-xs font-extrabold uppercase tracking-[0.14em] text-white">{workOrders.length} records</span>}
     />
 
@@ -506,8 +506,8 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, selec
 
     {isFormOpen && <WorkOrderForm key={activeEditing?.id || 'new'} initialValues={formInitialValues} serviceLines={serviceLines} saving={saving} onCancel={() => { setShowForm(false); setEditing(null); onEditConsumed?.() }} onSubmit={submitForm} />}
 
-    <div className="border-b border-[rgba(23,32,51,0.1)] bg-white p-4">
-      <div className="grid gap-3 lg:grid-cols-[1fr_150px_160px_150px_160px_180px]">
+    <div className="border-b border-[rgba(23,32,51,0.1)] bg-white p-3 sm:p-4">
+      <div className="grid gap-2 sm:gap-3 lg:grid-cols-[1fr_150px_160px_150px_160px_180px]">
         <label className="relative block">
           <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#7b8798]" size={16} />
           <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search WO #, location, description, notes..." className="field-control w-full rounded-xl py-2 pl-9 pr-3 text-sm font-semibold text-[#172033]" />
@@ -547,9 +547,9 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, selec
           <option value="asc">Ascending</option>
           <option value="desc">Descending</option>
         </select>
-        <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={applyFilters} className="rounded-xl bg-[#244393] px-4 py-2 font-display text-sm font-extrabold text-white transition hover:-translate-y-0.5 hover:bg-[#172b63]">Apply filters</button>
-          <button type="button" onClick={clearFilters} className="rounded-xl border border-[rgba(23,32,51,0.12)] bg-white px-4 py-2 font-display text-sm font-extrabold text-[#334155] transition hover:-translate-y-0.5 hover:bg-slate-50">Clear</button>
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+          <button type="button" onClick={applyFilters} className="w-full rounded-xl bg-[#244393] px-4 py-2 font-display text-sm font-extrabold text-white transition hover:-translate-y-0.5 hover:bg-[#172b63] sm:w-auto">Apply filters</button>
+          <button type="button" onClick={clearFilters} className="w-full rounded-xl border border-[rgba(23,32,51,0.12)] bg-white px-4 py-2 font-display text-sm font-extrabold text-[#334155] transition hover:-translate-y-0.5 hover:bg-slate-50 sm:w-auto">Clear</button>
         </div>
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
@@ -559,7 +559,7 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, selec
       </div>
     </div>
 
-    <div className="space-y-2 p-3">
+    <div className="space-y-2 p-2 sm:p-3">
       {filteredWorkOrders.map((wo) => <WorkOrderRow key={wo.id} workOrder={wo} canEdit={canEdit} onEdit={startEdit} onArchive={onArchive} />)}
       {workOrders.length === 0 && hasActiveFilters && <p className="rounded-xl border border-dashed border-[rgba(23,32,51,0.18)] bg-[#f8faff] p-5 text-sm font-semibold text-[#526071]">No work orders match the current filters.</p>}
       {workOrders.length === 0 && !hasActiveFilters && <div className="rounded-2xl border border-dashed border-[rgba(36,67,147,0.22)] bg-[#f8faff] p-6">
@@ -567,9 +567,9 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, selec
         <p className="mt-2 max-w-2xl text-sm leading-6 text-[#526071]">Start by adding the first request John receives from WhatsApp, phone, email, or the work-order system. Once saved, it can be reviewed and scheduled.</p>
         {canEdit && <button onClick={startCreate} className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-[#244393] px-4 py-2.5 font-display text-sm font-extrabold text-white transition hover:-translate-y-0.5 hover:bg-[#172b63]"><Plus size={16} /> Add First Work Order</button>}
       </div>}
-      {workOrders.length > 0 && <div className="flex flex-wrap items-center justify-between gap-3 px-3 pb-2 text-xs font-bold uppercase tracking-[0.14em] text-[#7b8798]">
+      {workOrders.length > 0 && <div className="flex flex-col items-start justify-between gap-3 px-2 pb-2 text-xs font-bold uppercase tracking-[0.14em] text-[#7b8798] sm:flex-row sm:items-center sm:px-3">
         <span>{meta ? `${workOrders.length} shown · ${meta.total_count} total · page ${meta.page} of ${Math.max(meta.total_pages, 1)}` : `${workOrders.length} shown`}</span>
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
           <button type="button" disabled={!meta || meta.page <= 1} onClick={() => void onFetch(queryForAppliedPage((meta?.page || 1) - 1))} className="rounded-full border border-[rgba(23,32,51,0.12)] bg-white px-3 py-1.5 text-[#334155] disabled:cursor-not-allowed disabled:opacity-50">Previous</button>
           <button type="button" disabled={!meta || meta.page >= meta.total_pages} onClick={() => void onFetch(queryForAppliedPage((meta?.page || 1) + 1))} className="rounded-full border border-[rgba(23,32,51,0.12)] bg-white px-3 py-1.5 text-[#334155] disabled:cursor-not-allowed disabled:opacity-50">Next</button>
           {hasActiveFilters && <button className="inline-flex items-center gap-1 text-[#244393]" onClick={clearFilters}><X size={13} /> Clear filters</button>}

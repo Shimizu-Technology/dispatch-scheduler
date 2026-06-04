@@ -25,7 +25,7 @@ function ServiceLineForm({ initialValues, saving, onCancel, onSubmit }: { initia
     await onSubmit(values)
   }
 
-  return <form onSubmit={(event) => void submit(event)} className="border-b border-[rgba(23,32,51,0.1)] bg-[#f8faff] p-4">
+  return <form onSubmit={(event) => void submit(event)} className="border-b border-[rgba(23,32,51,0.1)] bg-[#f8faff] p-3 sm:p-4">
     <div className="grid gap-3 lg:grid-cols-[1fr_120px_130px]">
       <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
         Name
@@ -43,9 +43,9 @@ function ServiceLineForm({ initialValues, saving, onCancel, onSubmit }: { initia
       Notes
       <textarea value={values.notes || ''} onChange={(event) => setValues((current) => ({ ...current, notes: event.target.value }))} className="field-control mt-1 min-h-16 w-full rounded-xl px-3 py-2 text-sm text-[#334155]" />
     </label>
-    <div className="mt-4 flex flex-wrap gap-2">
-      <button disabled={saving} type="submit" className="rounded-2xl bg-[#244393] px-4 py-2.5 font-display text-sm font-extrabold text-white transition hover:-translate-y-0.5 hover:bg-[#172b63] disabled:cursor-wait disabled:opacity-60">{saving ? 'Saving...' : 'Save Service Line'}</button>
-      <button disabled={saving} type="button" onClick={onCancel} className="rounded-2xl border border-[rgba(23,32,51,0.12)] bg-white px-4 py-2.5 font-display text-sm font-extrabold text-[#334155] transition hover:-translate-y-0.5 hover:bg-slate-50">Cancel</button>
+    <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+      <button disabled={saving} type="submit" className="w-full rounded-2xl bg-[#244393] px-4 py-2.5 font-display text-sm font-extrabold text-white transition hover:-translate-y-0.5 hover:bg-[#172b63] disabled:cursor-wait disabled:opacity-60 sm:w-auto">{saving ? 'Saving...' : 'Save Service Line'}</button>
+      <button disabled={saving} type="button" onClick={onCancel} className="w-full rounded-2xl border border-[rgba(23,32,51,0.12)] bg-white px-4 py-2.5 font-display text-sm font-extrabold text-[#334155] transition hover:-translate-y-0.5 hover:bg-slate-50 sm:w-auto">Cancel</button>
     </div>
   </form>
 }
@@ -67,11 +67,11 @@ export function ServiceLinesPanel({ serviceLines, canAdmin, saving, onCreate, on
       eyebrow="Admin configuration"
       title="Service Lines"
       description="Manage JMI's contract/division labels without hard-coding Mobil, HKR, or school assumptions into the app. Work orders can be filtered and reported by this list."
-      action={canAdmin ? <button type="button" onClick={() => { setEditing(null); setShowForm(true) }} className="inline-flex items-center gap-2 rounded-2xl bg-[#d84332] px-4 py-2.5 font-display text-sm font-extrabold text-white transition hover:-translate-y-0.5 hover:bg-[#bf3228]"><Plus size={16} /> New Service Line</button> : undefined}
+      action={canAdmin ? <button type="button" onClick={() => { setEditing(null); setShowForm(true) }} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#d84332] px-4 py-2.5 font-display text-sm font-extrabold text-white transition hover:-translate-y-0.5 hover:bg-[#bf3228] sm:w-auto"><Plus size={16} /> New Service Line</button> : undefined}
     />
     {showForm && <ServiceLineForm key={editing?.id || 'new'} initialValues={initialValues} saving={saving} onCancel={() => { setEditing(null); setShowForm(false) }} onSubmit={submit} />}
-    <div className="space-y-3 p-4">
-      {serviceLines.map((line) => <article key={line.id} className="rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white p-4 shadow-[0_10px_26px_rgba(23,32,51,0.05)]">
+    <div className="space-y-3 p-3 sm:p-4">
+      {serviceLines.map((line) => <article key={line.id} className="rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white p-3 shadow-[0_10px_26px_rgba(23,32,51,0.05)] sm:p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="flex flex-wrap items-center gap-2">

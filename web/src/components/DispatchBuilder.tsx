@@ -68,7 +68,7 @@ function slaBadgeKind(status?: string | null) {
 }
 
 function ScheduleSummary({ summary }: { summary: DispatchSummary }) {
-  return <div className="grid gap-3 rounded-2xl border border-blue-100 bg-gradient-to-br from-[#f8faff] to-white p-4 text-sm text-[#172033] shadow-[0_14px_34px_rgba(36,67,147,0.08)] sm:grid-cols-4">
+  return <div className="grid gap-3 rounded-2xl border border-blue-100 bg-gradient-to-br from-[#f8faff] to-white p-3 text-sm text-[#172033] shadow-[0_14px_34px_rgba(36,67,147,0.08)] sm:grid-cols-4 sm:p-4">
     <strong className="font-display tabular text-lg font-extrabold">{summary.scheduled_items}{summary.daily_item_limit ? `/${summary.daily_item_limit}` : ''} scheduled</strong>
     <span className="font-semibold">{summary.eligible_work_orders} work orders</span>
     <span className="font-semibold">{summary.eligible_pm_tasks} PM tasks</span>
@@ -137,11 +137,11 @@ function DispatchCard({ item, scheduleDate, teams, disabled, canEdit, canEditOut
     }
   }
 
-  return <div className="rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white/92 p-4 shadow-[0_12px_28px_rgba(23,32,51,0.06)]">
+  return <div className="rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white/92 p-3 shadow-[0_12px_28px_rgba(23,32,51,0.06)] sm:p-4">
     <div className="flex items-start justify-between gap-2">
-      <div>
+      <div className="min-w-0">
         <p className="font-display tabular text-xs font-extrabold uppercase tracking-[0.16em] text-[#244393]">{scheduledTime || 'TBD'}</p>
-        <h4 className="font-display mt-1 font-extrabold tracking-tight text-[#172033]">{title}</h4>
+        <h4 className="font-display mt-1 line-clamp-2 font-extrabold tracking-tight text-[#172033]">{title}</h4>
       </div>
       <Badge kind={kind}>{wo?.normalized_priority || 'PM'}</Badge>
     </div>
@@ -209,7 +209,7 @@ function DispatchCard({ item, scheduleDate, teams, disabled, canEdit, canEditOut
           <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-[#64748b]">End-of-day outcome</p>
           <p className="mt-1 text-sm font-extrabold text-[#172033]">{outcomeLabel(item.outcome_status)}</p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
           {OUTCOME_OPTIONS.map((option) => <button key={option.status} type="button" title={`Sets work order to ${statusLabel(option.workOrderStatus)}. ${option.description}`} disabled={disabled} onClick={() => void onOutcome(item.id, { outcome_status: option.status, outcome_notes: outcomeNotes, carried_over_to_date: option.status === 'carry_over' ? carryOverDate : undefined })} className={`rounded-xl border px-3 py-2 text-xs font-extrabold transition hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-50 ${item.outcome_status === option.status ? 'border-[#244393] bg-[#244393] text-white' : 'border-[rgba(36,67,147,0.16)] bg-white text-[#244393] hover:bg-[#e8eefc]'}`}>{option.label}</button>)}
         </div>
       </div>
@@ -246,20 +246,20 @@ export function DispatchBuilder({ schedule, teams, working, canEdit, onSuggest, 
       eyebrow="Today’s dispatch"
       title="Dispatch Draft"
       description={canEditItems ? 'Draft assignments are editable. Review crew, time, route order, warnings, and notes before copying WhatsApp.' : 'Finalized and sent schedules are locked until reopened.'}
-      action={canEdit && <div className="flex flex-wrap gap-2">
-        {schedule?.status === 'draft' && <button disabled={working || schedule.items.length === 0} onClick={onFinalize} className="inline-flex items-center gap-2 rounded-2xl bg-[#16835f] px-4 py-2.5 font-display text-sm font-extrabold text-white shadow-[0_14px_30px_rgba(22,131,95,0.16)] transition hover:-translate-y-0.5 hover:bg-[#106a4c] disabled:cursor-not-allowed disabled:opacity-60"><CheckCircle2 size={16} /> Finalize</button>}
-        {schedule && schedule.status !== 'draft' && <button disabled={working} onClick={onReopen} className="inline-flex items-center gap-2 rounded-2xl border border-[rgba(36,67,147,0.18)] bg-white px-4 py-2.5 font-display text-sm font-extrabold text-[#244393] transition hover:-translate-y-0.5 hover:bg-[#e8eefc] disabled:cursor-wait disabled:opacity-60"><Unlock size={16} /> Reopen</button>}
-        <button disabled={working || Boolean(schedule && schedule.status !== 'draft')} onClick={onSuggest} className="rounded-2xl bg-[#244393] px-4 py-2.5 font-display text-sm font-extrabold text-white shadow-[0_14px_30px_rgba(36,67,147,0.18)] transition hover:-translate-y-0.5 hover:bg-[#172b63] disabled:cursor-not-allowed disabled:opacity-60">Generate Draft</button>
+      action={canEdit && <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
+        {schedule?.status === 'draft' && <button disabled={working || schedule.items.length === 0} onClick={onFinalize} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#16835f] px-4 py-2.5 font-display text-sm font-extrabold text-white shadow-[0_14px_30px_rgba(22,131,95,0.16)] transition hover:-translate-y-0.5 hover:bg-[#106a4c] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"><CheckCircle2 size={16} /> Finalize</button>}
+        {schedule && schedule.status !== 'draft' && <button disabled={working} onClick={onReopen} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-[rgba(36,67,147,0.18)] bg-white px-4 py-2.5 font-display text-sm font-extrabold text-[#244393] transition hover:-translate-y-0.5 hover:bg-[#e8eefc] disabled:cursor-wait disabled:opacity-60 sm:w-auto"><Unlock size={16} /> Reopen</button>}
+        <button disabled={working || Boolean(schedule && schedule.status !== 'draft')} onClick={onSuggest} className="w-full rounded-2xl bg-[#244393] px-4 py-2.5 font-display text-sm font-extrabold text-white shadow-[0_14px_30px_rgba(36,67,147,0.18)] transition hover:-translate-y-0.5 hover:bg-[#172b63] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto">Generate Draft</button>
       </div>}
     />
     {!schedule ? (
       <div className="p-8 text-center text-[#526071]">{canEdit ? <>Click <strong>Generate Draft</strong> to create the first-pass dispatch plan.</> : 'No draft schedule is loaded yet.'}</div>
     ) : (
-      <div className="space-y-4 p-4">
+      <div className="space-y-3 p-3 sm:space-y-4 sm:p-4">
         <StatusNotice schedule={schedule} />
         <ScheduleSummary summary={schedule.summary} />
         {Object.entries(groupedSchedule).map(([team, items]) => (
-          <div key={team} className="rounded-2xl border border-[rgba(36,67,147,0.12)] bg-[#f8faff]/85 p-4">
+          <div key={team} className="rounded-2xl border border-[rgba(36,67,147,0.12)] bg-[#f8faff]/85 p-3 sm:p-4">
             <h3 className="font-display font-extrabold tracking-tight text-[#172033]">{team}</h3>
             <div className="mt-3 space-y-3">
               {items.map((item, index) => <DispatchCard key={item.id} item={item} scheduleDate={schedule.date} teams={teams} disabled={working} canEdit={canEditItems} canEditOutcomes={canEditOutcomes} canMoveEarlier={index > 0} canMoveLater={index < items.length - 1} onUpdate={onUpdate} onOutcome={onOutcome} onWorkOrderStatus={onWorkOrderStatus} />)}

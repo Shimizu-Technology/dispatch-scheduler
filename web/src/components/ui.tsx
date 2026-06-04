@@ -26,12 +26,12 @@ export function Card({ children, className = '' }: { children: ReactNode; classN
 }
 
 export function PanelHeader({ eyebrow, title, description, action }: { eyebrow?: string; title: string; description: string; action?: ReactNode }) {
-  return <div className="flex flex-col gap-4 border-b border-[rgba(23,32,51,0.1)] bg-gradient-to-r from-[#f8faff] to-white p-4 sm:flex-row sm:items-start sm:justify-between">
-    <div>
-      {eyebrow && <p className="font-display text-[0.68rem] font-extrabold uppercase tracking-[0.24em] text-[#244393]">{eyebrow}</p>}
-      <h2 className="font-display mt-1 text-xl font-extrabold tracking-tight text-[#172033]">{title}</h2>
-      <p className="mt-1 max-w-2xl text-sm leading-6 text-[#526071]">{description}</p>
+  return <div className="flex flex-col gap-3 border-b border-[rgba(23,32,51,0.1)] bg-gradient-to-r from-[#f8faff] to-white p-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4 sm:p-4">
+    <div className="min-w-0">
+      {eyebrow && <p className="font-display text-[0.66rem] font-extrabold uppercase tracking-[0.2em] text-[#244393] sm:text-[0.68rem] sm:tracking-[0.24em]">{eyebrow}</p>}
+      <h2 className="font-display mt-1 text-lg font-extrabold tracking-tight text-[#172033] sm:text-xl">{title}</h2>
+      <p className="mt-1 max-w-2xl text-sm leading-5 text-[#526071] sm:leading-6">{description}</p>
     </div>
-    {action}
+    {action && <div className="w-full shrink-0 sm:w-auto">{action}</div>}
   </div>
 }

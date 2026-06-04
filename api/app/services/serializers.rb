@@ -19,17 +19,18 @@ module Serializers
 
   def schedule_summary(schedule)
     candidate_work_orders = eligible_work_orders_for(schedule.date)
-    candidate_pm_tasks = pm_tasks_due_for(schedule.date, candidate_work_orders)
+    candidate_pm_tasks = pm_tasks_due_for(schedule.date, work_order_location_scope: candidate_work_orders.select(:location_id).distinct)
     eligible_work_order_count = candidate_work_orders.count
     eligible_pm_task_count = candidate_pm_tasks.count
+    scheduled_items = schedule.dispatch_items.size
     candidate_count = eligible_work_order_count + eligible_pm_task_count
-    deferred = [ candidate_count - schedule.dispatch_items.size, 0 ].max
+    deferred = [ candidate_count - scheduled_items, 0 ].max
     blocked = blocked_work_orders_for(schedule.date).count
     unfinished = unfinished_previous_work_orders_for(schedule.date).count
     capacity_deferred = schedule.capacity_deferred_items_count
-    over_capacity = schedule.dispatch_items.count(&:capacity_overflow?)
+    over_capacity = over_capacity_items_for(schedule)
     {
-      scheduled_items: schedule.dispatch_items.size,
+      scheduled_items: scheduled_items,
       eligible_work_orders: eligible_work_order_count,
       eligible_pm_tasks: eligible_pm_task_count,
       deferred_items: deferred,
@@ -51,12 +52,19 @@ module Serializers
       .or(WorkOrder.where(id: unfinished_scope.select(:id)))
   end
 
-  def pm_tasks_due_for(date, work_orders = [])
+  def pm_tasks_due_for(date, work_order_location_scope: nil)
     explicit_due = PmTask.dispatchable_for_date(date)
-    location_ids = work_orders.map(&:location_id).uniq
-    return explicit_due unless location_ids.any?
+    return explicit_due unless work_order_location_scope
 
-    PmTask.where(id: explicit_due.select(:id)).or(PmTask.opportunistic_for_locations(date, location_ids))
+    PmTask.where(id: explicit_due.select(:id)).or(PmTask.opportunistic_for_locations(date, work_order_location_scope))
+  end
+
+  def over_capacity_items_for(schedule)
+    if schedule.association(:dispatch_items).loaded?
+      schedule.dispatch_items.count(&:capacity_overflow?)
+    else
+      schedule.dispatch_items.where(capacity_overflow: true).count
+    end
   end
 
   def unfinished_previous_work_orders_for(date)

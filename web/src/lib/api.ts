@@ -40,14 +40,14 @@ export async function getJson<T>(path: string): Promise<T> {
   return requestJson<T>(path)
 }
 
-export async function patchJson<T>(path: string, body: Record<string, unknown>): Promise<T> {
+export async function patchJson<T>(path: string, body: unknown): Promise<T> {
   return requestJson<T>(path, {
     method: 'PATCH',
     body: JSON.stringify(body),
   })
 }
 
-export async function postJson<T>(path: string, body: Record<string, unknown>): Promise<T> {
+export async function postJson<T>(path: string, body: unknown): Promise<T> {
   return requestJson<T>(path, {
     method: 'POST',
     body: JSON.stringify(body),

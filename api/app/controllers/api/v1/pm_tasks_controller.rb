@@ -1,7 +1,7 @@
 module Api
   module V1
     class PmTasksController < ApplicationController
-      before_action :require_dispatch_edit!, only: [ :update ]
+      before_action :require_dispatch_edit!, only: [ :create, :bulk_create, :update ]
 
       def index
         scope = PmTask.includes(:client, :location).order(:scheduled_date, :id)
@@ -13,6 +13,77 @@ module Api
         scope = scope.where(status: params[:status]) if params[:status].present?
         scope = scope.where(locations: { region: params[:region] }) if params[:region].present?
         render json: scope.limit(300).map { |pm| Serializers.pm_task(pm) }
+      end
+
+      def create
+        pm_task = nil
+        ApplicationRecord.transaction do
+          attrs = create_pm_task_params
+          pm_task = build_pm_task(attrs)
+          if duplicate_pm_task?(pm_task)
+            render json: { errors: [ "PM already exists for this month, location, task, and scheduled date" ] }, status: :conflict
+            raise ActiveRecord::Rollback
+          end
+          apply_location_region!(pm_task, attrs)
+          pm_task.save!
+          AuditEvent.record!(action: "pm_task.created", record: pm_task, user: current_user, metadata: pm_task_audit_metadata(pm_task))
+        end
+        render json: Serializers.pm_task(pm_task), status: :created if pm_task&.persisted?
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
+      rescue ArgumentError => e
+        render json: { errors: [ e.message ] }, status: :unprocessable_entity
+      end
+
+      def bulk_create
+        rows = bulk_rows
+        raise ArgumentError, "Add at least one PM row" if rows.blank?
+        raise ArgumentError, "Bulk PM setup is limited to 250 rows at a time" if rows.length > 250
+
+        created = []
+        created_signatures = {}
+        duplicates = []
+        invalid = []
+
+        ApplicationRecord.transaction do
+          rows.each_with_index do |row, index|
+            row_params = row.respond_to?(:permit) ? row : ActionController::Parameters.new(row)
+            pm_task = build_pm_task(row_params.permit(create_permitted_keys))
+            signature = duplicate_signature(pm_task)
+            if duplicate_pm_task?(pm_task) || created_signatures.key?(signature)
+              duplicates << duplicate_payload(pm_task, index)
+              next
+            end
+
+            if pm_task.valid?
+              apply_location_region!(pm_task, row_params)
+              pm_task.save!
+              created_signatures[signature] = true
+              created << pm_task
+              AuditEvent.record!(action: "pm_task.created", record: pm_task, user: current_user, metadata: pm_task_audit_metadata(pm_task).merge(source: "bulk_month_setup"))
+            else
+              invalid << { index: index, errors: pm_task.errors.full_messages }
+            end
+          rescue ArgumentError => e
+            invalid << { index: index, errors: [ e.message ] }
+          end
+
+          raise ActiveRecord::Rollback if invalid.present?
+        end
+
+        if invalid.present?
+          render json: { errors: [ "Some PM rows could not be saved" ], invalid: invalid }, status: :unprocessable_entity
+        else
+          render json: {
+            created: created.map { |pm| Serializers.pm_task(pm) },
+            duplicates: duplicates,
+            summary: { created_count: created.length, duplicate_count: duplicates.length }
+          }, status: :created
+        end
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
+      rescue ArgumentError => e
+        render json: { errors: [ e.message ] }, status: :unprocessable_entity
       end
 
       def update
@@ -43,6 +114,83 @@ module Api
 
       def pm_task_params
         params.permit(:status, :completed_at, :deferred_until, :notes)
+      end
+
+      def create_pm_task_params
+        params.permit(create_permitted_keys)
+      end
+
+      def create_permitted_keys
+        [ :client, :location, :region, :task_name, :trade_category, :frequency, :scheduled_date, :notes, :source_file, :status ]
+      end
+
+      def bulk_rows
+        rows = params[:pm_tasks] || params[:rows]
+        rows.respond_to?(:to_unsafe_h) ? rows.to_unsafe_h.values : rows
+      end
+
+      def build_pm_task(attrs)
+        scheduled_date = parse_required_date(attrs[:scheduled_date], "scheduled date")
+        client_name = attrs[:client].to_s.strip.presence || "Mobil"
+        location_name = attrs[:location].to_s.strip.presence || raise(ArgumentError, "Location can't be blank")
+        task_name = attrs[:task_name].to_s.strip.presence || raise(ArgumentError, "Task name can't be blank")
+        status = attrs[:status].presence || "pending"
+        raise ArgumentError, "Invalid PM status" if PmTask::STATUSES.exclude?(status)
+
+        client = Client.find_or_create_by!(name: client_name)
+        location = Location.find_or_initialize_by_normalized_name(client: client, name: location_name)
+        location.region ||= attrs[:region].to_s.strip.presence || "Unknown"
+
+        PmTask.new(
+          client: client,
+          location: location,
+          task_name: task_name,
+          trade_category: attrs[:trade_category].presence || "General",
+          frequency: attrs[:frequency].presence || "monthly",
+          scheduled_date: scheduled_date,
+          status: status,
+          notes: attrs[:notes].presence,
+          source_file: attrs[:source_file].presence || "manual_pm_month_setup"
+        )
+      end
+
+      def parse_required_date(value, label)
+        raise ArgumentError, "#{label.capitalize} can't be blank" if value.blank?
+
+        Date.parse(value.to_s)
+      rescue Date::Error
+        raise ArgumentError, "Invalid #{label}"
+      end
+
+      def apply_location_region!(pm_task, attrs)
+        region = attrs[:region].to_s.strip.presence
+        location = pm_task.location
+        location.name = location.name.to_s.strip
+        location.region = region if region.present? && location.region != region
+        location.save! if location.changed? || location.new_record?
+      end
+
+      def duplicate_pm_task?(pm_task)
+        return false unless pm_task.client_id && pm_task.location_id && pm_task.scheduled_date && pm_task.task_name.present?
+
+        PmTask.where(client_id: pm_task.client_id, location_id: pm_task.location_id, scheduled_date: pm_task.scheduled_date)
+          .where("LOWER(task_name) = ?", pm_task.task_name.downcase)
+          .exists?
+      end
+
+      def duplicate_signature(pm_task)
+        location_key = pm_task.location_id || pm_task.location&.name.to_s.downcase.strip
+        [ pm_task.client_id, location_key, pm_task.scheduled_date, pm_task.task_name.to_s.downcase.strip ]
+      end
+
+      def duplicate_payload(pm_task, index)
+        {
+          index: index,
+          client: pm_task.client.name,
+          location: pm_task.location.name,
+          task_name: pm_task.task_name,
+          scheduled_date: pm_task.scheduled_date
+        }
       end
 
       def pm_task_record_attributes(pm_task, attrs)

@@ -152,7 +152,7 @@ Implemented as of May 12, 2026:
 - Dashboard counts, work-order list, PA Projects workspace, team/technician availability, PM task view, and dispatch builder.
 - Work-order operational tracking for PA Projects, corrective maintenance, estimate-required work, and configurable service lines / contract lines.
 - SLA/KPI due-date modeling for reported time, assessment due time, assessed time, repair due time, and dashboard SLA pressure counts.
-- PM month workflow for pending/scheduled/completed/deferred preventive maintenance and incomplete-this-month tracking.
+- PM month workflow for manual PM creation, spreadsheet-paste month setup, duplicate-safe bulk creation, pending/scheduled/completed/deferred preventive maintenance, and incomplete-this-month tracking.
 - Rule-based daily schedule suggestion using priority, lifecycle status, SLA pressure, skill/trade, driver availability, region, PM commitments, and same-location “while you’re there” PM opportunities.
 - Idempotent draft regeneration by date with a configurable daily item cap.
 - Manual dispatch overrides for crew, scheduled time, order, and notes.
@@ -165,7 +165,7 @@ Still not implemented / still evolving:
 
 - Production upload/file intake.
 - Full PDF OCR and source-file storage.
-- Robust PM month setup and completion tracking.
+- Excel-file PM import beyond the current spreadsheet-paste month setup.
 - Production upload/file intake.
 - Full PDF OCR and source-file storage.
 - Deeper service-line-aware crew preferences/scheduler scoring.

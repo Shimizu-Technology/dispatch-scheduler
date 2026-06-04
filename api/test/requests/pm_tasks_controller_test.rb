@@ -15,6 +15,85 @@ class PmTasksControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ current.id ], payload.map { |item| item.fetch("id") }
   end
 
+  test "dispatcher creates a manual PM task" do
+    payload = {
+      client: "Mobil",
+      location: "Yona Mobil",
+      region: "South",
+      task_name: "Monthly electrical PM",
+      trade_category: "Electrical",
+      scheduled_date: DEFAULT_DATE.to_s,
+      notes: "June setup"
+    }
+
+    with_auth_env do
+      post "/api/v1/pm_tasks", params: payload, headers: auth_headers
+    end
+
+    assert_response :created
+    body = JSON.parse(response.body)
+    assert_equal "Yona Mobil", body.fetch("location")
+    assert_equal "pending", body.fetch("status")
+    assert_equal "pm_task.created", AuditEvent.last.action
+  end
+
+  test "dispatcher bulk creates PM month rows and skips duplicates" do
+    pm_task(task_name: "Existing PM", date: DEFAULT_DATE)
+
+    rows = [
+      { client: "Mobil", location: "Yigo North", region: "North", task_name: "Existing PM", trade_category: "General", scheduled_date: DEFAULT_DATE.to_s },
+      { client: "Mobil", location: "Agat Mobil", region: "South", task_name: "Water systems PM", trade_category: "Plumbing", scheduled_date: DEFAULT_DATE.to_s }
+    ]
+
+    with_auth_env do
+      post "/api/v1/pm_tasks/bulk_create", params: { pm_tasks: rows }, headers: auth_headers
+    end
+
+    assert_response :created
+    body = JSON.parse(response.body)
+    assert_equal 1, body.fetch("summary").fetch("created_count")
+    assert_equal 1, body.fetch("summary").fetch("duplicate_count")
+    assert_equal "Water systems PM", body.fetch("created").first.fetch("task_name")
+  end
+
+  test "bulk PM setup reuses and normalizes existing locations with trailing spaces" do
+    dirty_location = location(name: "Yona Mobil ", region: "South")
+
+    with_auth_env do
+      post "/api/v1/pm_tasks/bulk_create", params: { pm_tasks: [
+        { client: "Mobil", location: "Yona Mobil", region: "South", task_name: "Same-location PM", trade_category: "General", scheduled_date: DEFAULT_DATE.to_s }
+      ] }, headers: auth_headers
+    end
+
+    assert_response :created
+    pm = PmTask.find(JSON.parse(response.body).fetch("created").first.fetch("id"))
+    assert_equal dirty_location.id, pm.location_id
+    assert_equal "Yona Mobil", dirty_location.reload.name
+  end
+
+  test "bulk duplicate rows do not overwrite existing location region" do
+    existing_location = location(name: "Yigo North", region: "North")
+    pm_task(task_name: "Existing PM", date: DEFAULT_DATE, location_record: existing_location)
+
+    with_auth_env do
+      post "/api/v1/pm_tasks/bulk_create", params: { pm_tasks: [
+        { client: "Mobil", location: "Yigo North", region: "Typo Region", task_name: "Existing PM", trade_category: "General", scheduled_date: DEFAULT_DATE.to_s }
+      ] }, headers: auth_headers
+    end
+
+    assert_response :created
+    assert_equal "North", existing_location.reload.region
+    assert_equal 1, JSON.parse(response.body).fetch("summary").fetch("duplicate_count")
+  end
+
+  test "viewer cannot create PM task" do
+    with_auth_env do
+      post "/api/v1/pm_tasks", params: { location: "Yigo North", task_name: "PM", scheduled_date: DEFAULT_DATE.to_s }, headers: auth_headers("viewer_pm_create_123", "viewer-pm-create@example.com", "viewer")
+    end
+
+    assert_response :forbidden
+  end
+
   test "dispatcher updates PM task workflow status" do
     pm = pm_task(task_name: "Station PM", date: DEFAULT_DATE)
 

@@ -26,7 +26,11 @@ Rails.application.routes.draw do
           patch :daily_memberships
         end
       end
-      resources :pm_tasks, only: [ :index, :update ]
+      resources :pm_tasks, only: [ :index, :create, :update ] do
+        collection do
+          post :bulk_create
+        end
+      end
       resources :dispatch_items, only: [ :update ] do
         member do
           patch :outcome

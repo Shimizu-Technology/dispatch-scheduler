@@ -270,7 +270,11 @@ Inputs:
 - due PM tasks
 - today's actual crews
 - technician skills
+- immutable assignment snapshots from prior dispatches
+- unfinished prior-day dispatch outcomes
 - driver coverage
+- crew-day capacity
+- required technician count
 - priority/SLA
 - region/location
 
@@ -283,6 +287,10 @@ Rules:
 - Match trade/skill where possible.
 - Prefer matching configurable service line / contract line where possible.
 - Keep teams geographically sensible where possible.
+- Carry forward unfinished sent/finalized prior dispatch items for review, preferring the previous crew.
+- Do not automatically carry forward completed, blocked, or PA Project work unless the dispatcher explicitly schedules it.
+- Bundle same-location PMs when a crew is already visiting that site.
+- Cap normal crew-day capacity; urgent/carry-forward work may overflow with an explicit warning.
 - Warn when assumptions are weak.
 
 ### Step 6 — Manual dispatch review
@@ -295,6 +303,8 @@ Every suggested item must be editable:
 - order
 - time
 - notes
+
+When a crew is assigned, the app snapshots the actual technician names on that stop. Later default-crew edits should not rewrite historical dispatch assignments.
 
 The system suggests; the dispatcher decides.
 
@@ -390,8 +400,9 @@ The current top-level sections should evolve toward this mental model:
 
 3. **Crews**
    - should likely split internally into:
-     - Default Crews
      - Today's Crews
+     - Person Day View
+     - Default Crews
      - Technicians
    - or become separate nav sections if the page gets too dense
 
@@ -450,6 +461,8 @@ Likely additions/changes:
 - PA Project fields on work orders: `pa_project`, `pa_project_notes`, and future follow-up/ETA fields
 - corrective maintenance and estimate-required fields on work orders
 - optional service-line preference on crews/technicians later, after the base service-line model is in use
+- `dispatch_item_technicians` snapshots for immutable person-level dispatch history
+- `required_technician_count` on work orders for staffing-aware assignment
 - SLA/KPI due fields, likely assessment due and repair due timestamps derived from priority and lifecycle state
 - stronger seed/import distinction between default crews and historical daily assignments
 

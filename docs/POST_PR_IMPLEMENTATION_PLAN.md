@@ -1,6 +1,6 @@
 # Current Implementation Roadmap
 
-Last updated: 2026-05-26
+Last updated: 2026-06-02
 
 This plan tracks what is done after the dispatch workflow and Clerk-auth PRs
 merged, and what should come next to make the app solid for JMI operations.
@@ -14,9 +14,12 @@ Implemented in the POC:
 - Rails API with dashboard, work orders, teams, technicians, PM tasks, dispatch schedules, and WhatsApp export.
 - React dispatch board showing dashboard counts, work orders, team availability, PMs, suggested dispatch, and WhatsApp output.
 - Seed importer for John's provided Mobil workbook, PM workbook, Sodexo sample, and CBRE sample data.
-- Rule-based dispatch suggestion using priority, status, driver availability, skill match, region, and PM commitments.
+- Rule-based dispatch suggestion using priority, status, carry-forward continuity, crew-day capacity, driver availability, skill match, region, and PM commitments.
 - PM Month Setup workflow with manual PM creation, spreadsheet-paste bulk setup, duplicate-safe bulk creation, and pending/scheduled/completed/deferred tracking.
 - Manual dispatch item overrides for crew, time, order, and notes.
+- Immutable technician snapshots on dispatch stops, plus a person day view inside Crews.
+- Auto carry-forward of unfinished sent/finalized prior-day dispatch work, while completed/blocked/PA Project work stays held out unless explicitly scheduled.
+- Crew-day capacity guardrails with urgent/carry-forward overflow warnings and better same-location PM bundling.
 - Regenerate confirmation and idempotent draft rebuilding for a schedule date.
 - CI, Rails request/service tests, importer tests, frontend lint/build, Brakeman, and bundler-audit.
 - Clerk auth with Rails JWT verification, Clerk token-claim setup docs, `admin`/`dispatcher`/`viewer` roles, bootstrap-admin setup, in-app user management, role refresh on sign-in, and viewer-only UI/API mode.
@@ -30,6 +33,7 @@ Not implemented yet / still evolving:
 - Full production file upload/intake.
 - OpenRouter OCR review workflow.
 - Deeper technician-level service-line preferences beyond crew-level service-line preferences.
+- More configurable capacity settings by crew if John needs different day caps by crew type.
 - Production deployment hardening, backups, and monitoring.
 
 ## Completed Phase 1 - Secure Internal Access
@@ -166,15 +170,17 @@ Acceptance criteria:
 
 ## Current Milestone Branch
 
-Branch: `codex/jmi-pilot-readiness-fixes`
+Branch: `feature/dispatch-continuity-capacity`
 
 Scope implemented by this milestone:
 
-- Keep missing SLA data visible instead of inventing timestamps for manually entered work orders.
-- Use work-order estimated hours to space suggested stops for each crew.
-- Prefer matching service line / contract line before region when choosing among viable crews.
-- Make PA Project follow-up rows open the exact work order edit form.
-- Keep file storage/OCR intake, reporting, and technician-level service-line preferences for follow-up PRs.
+- Snapshot the assigned technicians for every generated/overridden dispatch stop so historical schedules do not change when default crews later change.
+- Add a person day view in Crews showing each technician's assigned dispatch stops for the selected date.
+- Carry forward unfinished sent/finalized prior-day work automatically, preferring the previous crew and labeling the context for dispatcher review.
+- Keep completed, blocked, and PA Project work out of automatic carry-forward unless the dispatcher explicitly schedules it.
+- Apply crew-day capacity caps using estimated work-order hours and shorter PM defaults; defer low-pressure overflow while allowing urgent/carry-forward overflow with warnings.
+- Add `required_technician_count` to work orders and prefer crews with enough available technicians.
+- Improve PM balancing by bundling incomplete same-location monthly PMs directly after the matching work-order stop.
 
 ## Definition Of Ready For John/JMI Pilot
 

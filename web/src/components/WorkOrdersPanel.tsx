@@ -110,6 +110,7 @@ function emptyForm(scheduledDate?: string): WorkOrderInput {
     reported_at: '',
     assessed_at: '',
     estimated_hours: '',
+    required_technician_count: 1,
     service_line_id: '',
     pa_project: false,
     pa_project_notes: '',
@@ -137,6 +138,7 @@ function formFromWorkOrder(workOrder: WorkOrder): WorkOrderInput {
     reported_at: datetimeLocalValue(workOrder.reported_at),
     assessed_at: datetimeLocalValue(workOrder.assessed_at),
     estimated_hours: workOrder.estimated_hours ?? '',
+    required_technician_count: workOrder.required_technician_count || 1,
     service_line_id: workOrder.service_line_id || '',
     pa_project: workOrder.pa_project,
     pa_project_notes: workOrder.pa_project_notes || '',
@@ -158,6 +160,7 @@ function WorkOrderRow({ workOrder, canEdit, onEdit, onArchive }: { workOrder: Wo
           {workOrder.pa_project && <Badge kind="waiting">PA Project</Badge>}
           {workOrder.corrective_maintenance && <Badge kind="approved">CM</Badge>}
           {workOrder.estimate_required && <Badge kind="scheduled">Estimate</Badge>}
+          {workOrder.required_technician_count > 1 && <Badge kind="approved">{workOrder.required_technician_count} techs</Badge>}
           <span className="font-display tabular text-[0.68rem] font-extrabold uppercase tracking-[0.14em] text-[#7b8798]">WO #{workOrder.external_id || 'N/A'}</span>
         </div>
         <h3 className="font-display mt-2 line-clamp-2 text-base font-black tracking-tight text-[#172033] sm:line-clamp-1 sm:text-lg">{workOrder.location} <span className="font-semibold text-[#64748b]">—</span> {workOrder.title}</h3>
@@ -203,6 +206,7 @@ function WorkOrderForm({ initialValues, serviceLines, saving, onCancel, onSubmit
       reported_at: datetimeLocalToIso(values.reported_at),
       assessed_at: datetimeLocalToIso(values.assessed_at),
       estimated_hours: values.estimated_hours === '' || values.estimated_hours === undefined ? null : values.estimated_hours,
+      required_technician_count: values.required_technician_count || 1,
     })
   }
 
@@ -271,7 +275,7 @@ function WorkOrderForm({ initialValues, serviceLines, saving, onCancel, onSubmit
       </label>
     </div>
 
-    <div className="mt-3 grid gap-3 lg:grid-cols-3">
+    <div className="mt-3 grid gap-3 lg:grid-cols-4">
       <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
         Reported at
         <input type="datetime-local" value={values.reported_at || ''} onChange={(event) => updateField('reported_at', event.target.value)} className="field-control tabular mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]" />
@@ -286,6 +290,11 @@ function WorkOrderForm({ initialValues, serviceLines, saving, onCancel, onSubmit
         Est. hours
         <input type="number" min="0.25" step="0.25" value={values.estimated_hours ?? ''} onChange={(event) => updateField('estimated_hours', event.target.value)} placeholder="2" className="field-control tabular mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]" />
         <span className="mt-1 block text-xs font-semibold normal-case tracking-normal text-[#64748b]">Used to space suggested crew stops.</span>
+      </label>
+      <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
+        Crew size
+        <input type="number" min="1" step="1" value={values.required_technician_count ?? 1} onChange={(event) => updateField('required_technician_count', event.target.value)} placeholder="1" className="field-control tabular mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]" />
+        <span className="mt-1 block text-xs font-semibold normal-case tracking-normal text-[#64748b]">Scheduler prefers crews with enough assigned techs.</span>
       </label>
     </div>
 

@@ -31,6 +31,7 @@ export type WorkOrder = {
   sla_status: 'missing' | 'overdue' | 'due_soon' | 'on_track'
   scheduled_date: string | null
   estimated_hours: number | null
+  required_technician_count: number
   source: string
   archived: boolean
   archived_at: string | null
@@ -78,6 +79,7 @@ export type WorkOrderInput = {
   assessed_at?: string
   scheduled_date?: string
   estimated_hours?: number | string | null
+  required_technician_count?: number | string | null
   notes?: string
   service_line_id?: number | string | null
   service_line?: string
@@ -203,12 +205,21 @@ export type PmTaskBulkCreatePayload = {
 
 export type DispatchOutcomeStatus = 'pending' | 'completed' | 'carry_over' | 'waiting_parts' | 'waiting_approval' | 'unable_to_access' | 'cancelled'
 
+export type DispatchItemTechnician = {
+  technician_id: number
+  name: string
+  primary_trade: string | null
+  is_driver: boolean
+  position: number | null
+}
+
 export type DispatchItem = {
   id: number
   team_id: number
   team_name: string
   crew_name: string
   technician_names: string[]
+  assigned_technicians: DispatchItemTechnician[]
   call_out_names: string[]
   order_index: number
   scheduled_time: string | null
@@ -230,6 +241,9 @@ export type DispatchSummary = {
   deferred_items: number
   daily_item_limit: number | null
   blocked_work_orders: number
+  unfinished_previous_items: number
+  capacity_deferred_items: number
+  over_capacity_items: number
   message: string
 }
 

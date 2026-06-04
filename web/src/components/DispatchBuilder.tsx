@@ -55,10 +55,10 @@ function estimatedHoursLabel(value?: number | null) {
 }
 
 function slaLabel(status?: string | null) {
-  if (status === 'overdue') return 'SLA overdue'
-  if (status === 'due_soon') return 'SLA due soon'
-  if (status === 'missing') return 'SLA missing'
-  return 'SLA on track'
+  if (status === 'overdue') return 'KPI overdue'
+  if (status === 'due_soon') return 'KPI due soon'
+  if (status === 'missing') return 'KPI missing'
+  return 'KPI on track'
 }
 
 function slaBadgeKind(status?: string | null) {
@@ -147,7 +147,7 @@ function DispatchCard({ item, scheduleDate, teams, disabled, canEdit, canEditOut
     </div>
 
     <div className="mt-3 flex flex-wrap gap-2 text-xs font-bold text-[#64748b]">
-      {wo && <><span>Client: {wo.client}</span><span>WO: {wo.external_id || 'N/A'}</span><span>Trade: {wo.trade_category}</span><span>Region: {wo.region}</span><span>Service line: {wo.service_line || 'Unassigned'}</span><span>Scheduled: {wo.scheduled_date || 'Not set'}</span>{estimatedHours && <span>Estimate: {estimatedHours}</span>}<span>SLA due: {shortDateTime(wo.sla_due_at)}</span><Badge kind={wo.status}>{statusLabel(wo.status)}</Badge><Badge kind={slaBadgeKind(wo.sla_status)}>{slaLabel(wo.sla_status)}</Badge>{wo.pa_project && <Badge kind="waiting">PA Project</Badge>}{wo.corrective_maintenance && <Badge kind="approved">CM</Badge>}{wo.estimate_required && <Badge kind="scheduled">Estimate</Badge>}</>}
+      {wo && <><span>Client: {wo.client}</span><span>WO: {wo.external_id || 'N/A'}</span><span>Trade: {wo.trade_category}</span><span>Region: {wo.region}</span><span>Service line: {wo.service_line || 'Unassigned'}</span><span>Scheduled: {wo.scheduled_date || 'Not set'}</span>{estimatedHours && <span>Estimate: {estimatedHours}</span>}<span>KPI due: {shortDateTime(wo.sla_due_at)}</span><Badge kind={wo.status}>{statusLabel(wo.status)}</Badge><Badge kind={slaBadgeKind(wo.sla_status)}>{slaLabel(wo.sla_status)}</Badge>{wo.pa_project && <Badge kind="waiting">PA Project</Badge>}{wo.corrective_maintenance && <Badge kind="approved">CM</Badge>}{wo.estimate_required && <Badge kind="scheduled">Estimate</Badge>}</>}
       {pm && <><span>Client: {pm.client}</span><span>Trade: {pm.trade_category}</span><span>Region: {pm.region}</span><span>Scheduled: {pm.scheduled_date}</span><Badge kind={pm.status}>{pm.status}</Badge>{pm.scheduled_date !== scheduleDate && <Badge kind="waiting">While you're there</Badge>}</>}
       <button type="button" onClick={() => setShowDetails((current) => !current)} className="font-extrabold text-[#244393] underline-offset-4 hover:underline">{showDetails ? 'Hide details' : 'Details'}</button>
     </div>
@@ -243,17 +243,17 @@ export function DispatchBuilder({ schedule, teams, working, canEdit, onSuggest, 
 
   return <Card className="overflow-hidden">
     <PanelHeader
-      eyebrow="Morning plan"
-      title="Dispatch Builder"
-      description={canEditItems ? 'Suggestions are a draft. Dispatchers can change crew, time, order, and notes before copying WhatsApp.' : 'Finalized and sent schedules are locked until reopened.'}
+      eyebrow="Today’s dispatch"
+      title="Dispatch Draft"
+      description={canEditItems ? 'Draft assignments are editable. Review crew, time, route order, warnings, and notes before copying WhatsApp.' : 'Finalized and sent schedules are locked until reopened.'}
       action={canEdit && <div className="flex flex-wrap gap-2">
         {schedule?.status === 'draft' && <button disabled={working || schedule.items.length === 0} onClick={onFinalize} className="inline-flex items-center gap-2 rounded-2xl bg-[#16835f] px-4 py-2.5 font-display text-sm font-extrabold text-white shadow-[0_14px_30px_rgba(22,131,95,0.16)] transition hover:-translate-y-0.5 hover:bg-[#106a4c] disabled:cursor-not-allowed disabled:opacity-60"><CheckCircle2 size={16} /> Finalize</button>}
         {schedule && schedule.status !== 'draft' && <button disabled={working} onClick={onReopen} className="inline-flex items-center gap-2 rounded-2xl border border-[rgba(36,67,147,0.18)] bg-white px-4 py-2.5 font-display text-sm font-extrabold text-[#244393] transition hover:-translate-y-0.5 hover:bg-[#e8eefc] disabled:cursor-wait disabled:opacity-60"><Unlock size={16} /> Reopen</button>}
-        <button disabled={working || Boolean(schedule && schedule.status !== 'draft')} onClick={onSuggest} className="rounded-2xl bg-[#244393] px-4 py-2.5 font-display text-sm font-extrabold text-white shadow-[0_14px_30px_rgba(36,67,147,0.18)] transition hover:-translate-y-0.5 hover:bg-[#172b63] disabled:cursor-not-allowed disabled:opacity-60">Regenerate Draft</button>
+        <button disabled={working || Boolean(schedule && schedule.status !== 'draft')} onClick={onSuggest} className="rounded-2xl bg-[#244393] px-4 py-2.5 font-display text-sm font-extrabold text-white shadow-[0_14px_30px_rgba(36,67,147,0.18)] transition hover:-translate-y-0.5 hover:bg-[#172b63] disabled:cursor-not-allowed disabled:opacity-60">Generate Draft</button>
       </div>}
     />
     {!schedule ? (
-      <div className="p-8 text-center text-[#526071]">{canEdit ? <>Click <strong>Suggest Today&apos;s Schedule</strong> to generate a draft dispatch plan.</> : 'No draft schedule is loaded yet.'}</div>
+      <div className="p-8 text-center text-[#526071]">{canEdit ? <>Click <strong>Generate Draft</strong> to create the first-pass dispatch plan.</> : 'No draft schedule is loaded yet.'}</div>
     ) : (
       <div className="space-y-4 p-4">
         <StatusNotice schedule={schedule} />

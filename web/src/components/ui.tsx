@@ -22,11 +22,11 @@ export function Badge({ children, kind = '' }: { children: ReactNode; kind?: str
 }
 
 export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <section className={`rounded-2xl border border-[rgba(23,32,51,0.12)] bg-white/92 shadow-[0_18px_50px_rgba(23,32,51,0.08)] backdrop-blur ${className}`}>{children}</section>
+  return <section className={`rounded-[1.25rem] border border-[rgba(23,32,51,0.11)] bg-white/94 shadow-[0_14px_38px_rgba(23,32,51,0.065)] backdrop-blur ${className}`}>{children}</section>
 }
 
 export function PanelHeader({ eyebrow, title, description, action }: { eyebrow?: string; title: string; description: string; action?: ReactNode }) {
-  return <div className="flex flex-col gap-4 border-b border-[rgba(23,32,51,0.1)] bg-gradient-to-r from-[#f8faff] to-white p-5 sm:flex-row sm:items-start sm:justify-between">
+  return <div className="flex flex-col gap-4 border-b border-[rgba(23,32,51,0.1)] bg-gradient-to-r from-[#f8faff] to-white p-4 sm:flex-row sm:items-start sm:justify-between">
     <div>
       {eyebrow && <p className="font-display text-[0.68rem] font-extrabold uppercase tracking-[0.24em] text-[#244393]">{eyebrow}</p>}
       <h2 className="font-display mt-1 text-xl font-extrabold tracking-tight text-[#172033]">{title}</h2>

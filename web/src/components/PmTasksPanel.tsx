@@ -156,8 +156,8 @@ export function PmTasksPanel({ pmTasks, canEdit, savingPmTaskId, selectedDate, o
   return <Card className="overflow-hidden">
     <PanelHeader
       eyebrow="Preventive maintenance"
-      title={`PM Month Workflow · ${monthString(selectedDate)}`}
-      description="Set up the month, track pending/completed station work, and keep same-location PMs available for while-you're-there dispatch suggestions."
+      title={`PM Month Setup · ${monthString(selectedDate)}`}
+      description="Load the month’s preventive work, track pending/completed stations, and keep same-location PMs available for while-you’re-there dispatch suggestions."
       action={<div className="flex flex-wrap items-center justify-end gap-2">
         {canEdit && <>
           <button onClick={() => setShowMonthSetup((value) => !value)} className="inline-flex items-center gap-2 rounded-2xl border border-[#244393]/15 bg-white px-4 py-2.5 text-sm font-extrabold text-[#244393] shadow-sm transition hover:-translate-y-0.5 hover:bg-[#e8eefc]"><ClipboardList size={17} /> Set Up Month</button>

@@ -42,29 +42,25 @@ function shortDateTime(value?: string | null) {
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'short', timeStyle: 'short' }).format(date)
 }
 
-function estimatedHoursLabel(value?: number | string | null) {
-  if (value === null || value === undefined || value === '') return 'Not set'
-  const numeric = Number(value)
-  if (Number.isNaN(numeric)) return String(value)
-  return `${Number.isInteger(numeric) ? numeric : numeric.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')}h`
-}
-
 function datetimeLocalToIso(value?: string | null) {
   if (!value) return undefined
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? value : date.toISOString()
 }
 
-function slaLabel(status?: string | null) {
-  if (status === 'overdue') return 'SLA overdue'
-  if (status === 'due_soon') return 'SLA due soon'
-  if (status === 'missing') return 'SLA missing'
-  return 'SLA on track'
+function slaLabel(workOrder: WorkOrder) {
+  if (workOrder.pa_project && workOrder.sla_status === 'overdue') return 'PA follow-up'
+  if ((workOrder.status === 'waiting_for_parts' || workOrder.status === 'waiting_for_approval') && workOrder.sla_status === 'overdue') return 'Blocked overdue'
+  if (workOrder.sla_status === 'overdue') return 'KPI overdue'
+  if (workOrder.sla_status === 'due_soon') return 'KPI due soon'
+  if (workOrder.sla_status === 'missing') return 'KPI missing'
+  return 'KPI on track'
 }
 
-function slaBadgeKind(status?: string | null) {
-  if (status === 'overdue') return 'p1'
-  if (status === 'due_soon' || status === 'missing') return 'waiting'
+function slaBadgeKind(workOrder: WorkOrder) {
+  if (workOrder.pa_project && workOrder.sla_status === 'overdue') return 'waiting'
+  if (workOrder.sla_status === 'overdue') return 'p1'
+  if (workOrder.sla_status === 'due_soon' || workOrder.sla_status === 'missing') return 'waiting'
   return 'closed'
 }
 
@@ -150,38 +146,40 @@ function formFromWorkOrder(workOrder: WorkOrder): WorkOrderInput {
 }
 
 function WorkOrderRow({ workOrder, canEdit, onEdit, onArchive }: { workOrder: WorkOrder; canEdit: boolean; onEdit: (workOrder: WorkOrder) => void; onArchive: (workOrderId: number, archived: boolean) => Promise<void> }) {
-  return <article className="grid gap-3 rounded-xl border border-transparent p-4 transition hover:border-[rgba(36,67,147,0.16)] hover:bg-[#f8faff] sm:grid-cols-[1fr_auto]">
-    <div>
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge kind={workOrder.normalized_priority}>{workOrder.normalized_priority}</Badge>
-        <Badge kind={workOrder.status}>{statusLabel(workOrder.status)}</Badge>
-        {workOrder.archived && <Badge kind="waiting">Archived</Badge>}
-        <Badge kind={slaBadgeKind(workOrder.sla_status)}>{slaLabel(workOrder.sla_status)}</Badge>
-        {workOrder.pa_project && <Badge kind="waiting">PA Project</Badge>}
-        {workOrder.corrective_maintenance && <Badge kind="approved">CM</Badge>}
-        {workOrder.estimate_required && <Badge kind="scheduled">Estimate</Badge>}
-        <span className="font-display tabular text-xs font-bold uppercase tracking-[0.12em] text-[#7b8798]">WO #{workOrder.external_id || 'N/A'}</span>
+  const isBlocked = workOrder.status === 'waiting_for_parts' || workOrder.status === 'waiting_for_approval'
+  return <article className="group rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white/96 shadow-[0_8px_22px_rgba(23,32,51,0.045)] transition hover:border-[#244393]/22 hover:shadow-[0_14px_32px_rgba(23,32,51,0.075)]">
+    <div className="grid gap-3 p-4 xl:grid-cols-[minmax(0,1fr)_13rem_8rem] xl:items-start">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge kind={workOrder.normalized_priority}>{workOrder.normalized_priority}</Badge>
+          <Badge kind={workOrder.status}>{statusLabel(workOrder.status)}</Badge>
+          <Badge kind={slaBadgeKind(workOrder)}>{slaLabel(workOrder)}</Badge>
+          {workOrder.archived && <Badge kind="waiting">Archived</Badge>}
+          {workOrder.pa_project && <Badge kind="waiting">PA Project</Badge>}
+          {workOrder.corrective_maintenance && <Badge kind="approved">CM</Badge>}
+          {workOrder.estimate_required && <Badge kind="scheduled">Estimate</Badge>}
+          <span className="font-display tabular text-[0.68rem] font-extrabold uppercase tracking-[0.14em] text-[#7b8798]">WO #{workOrder.external_id || 'N/A'}</span>
+        </div>
+        <h3 className="font-display mt-2 truncate text-base font-black tracking-tight text-[#172033] sm:text-lg">{workOrder.location} <span className="font-semibold text-[#64748b]">—</span> {workOrder.title}</h3>
+        <p className="mt-1 line-clamp-2 max-w-5xl text-sm leading-5 text-[#526071]">{workOrder.description}</p>
+        <div className={`mt-3 inline-flex rounded-xl border px-3 py-1.5 text-xs font-extrabold ${statusTone(workOrder.status)}`}>
+          {statusSummary(workOrder.status)}{isBlocked ? ' · follow-up required' : ''}
+        </div>
       </div>
-      <h3 className="font-display mt-2 font-extrabold tracking-tight text-[#172033]">{workOrder.location} - {workOrder.title}</h3>
-      <p className="mt-1 line-clamp-2 text-sm leading-6 text-[#526071]">{workOrder.description}</p>
-      <div className={`mt-3 inline-flex rounded-xl border px-3 py-2 text-xs font-extrabold ${statusTone(workOrder.status)}`}>
-        {statusSummary(workOrder.status)}
+
+      <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs font-semibold text-[#64748b] sm:grid-cols-4 xl:grid-cols-1">
+        <span><strong className="block text-[0.62rem] uppercase tracking-[0.12em] text-[#94a0b5]">Scheduled</strong>{shortDate(workOrder.scheduled_date)}</span>
+        <span><strong className="block text-[0.62rem] uppercase tracking-[0.12em] text-[#94a0b5]">KPI due</strong>{shortDateTime(workOrder.sla_due_at)}</span>
+        <span><strong className="block text-[0.62rem] uppercase tracking-[0.12em] text-[#94a0b5]">Service line</strong>{workOrder.service_line || 'Unassigned'}</span>
+        <span><strong className="block text-[0.62rem] uppercase tracking-[0.12em] text-[#94a0b5]">Source</strong>{workOrder.source}</span>
       </div>
-      <div className="mt-2 grid gap-1 text-xs font-semibold text-[#7b8798] sm:grid-cols-2 lg:grid-cols-4">
-        <span>Created: {shortDate(workOrder.created_at)}</span>
-        <span>Scheduled: {shortDate(workOrder.scheduled_date)}</span>
-        <span>SLA due: {shortDateTime(workOrder.sla_due_at)}</span>
-        <span>Source: {workOrder.source}</span>
-        <span>Service line: {workOrder.service_line || 'Unassigned'}</span>
-        <span>Estimate: {estimatedHoursLabel(workOrder.estimated_hours)}</span>
-        <span>Last dispatched: {shortDate(workOrder.last_dispatched_on)}{workOrder.last_crew_name ? ` · ${workOrder.last_crew_name}` : ''}</span>
+
+      <div className="flex flex-row flex-wrap gap-2 xl:flex-col xl:items-end">
+        <span className="font-display rounded-full bg-[#e8eefc] px-3 py-1 text-xs font-extrabold uppercase tracking-[0.1em] text-[#244393]">{workOrder.trade_category}</span>
+        <span className="rounded-full border border-[rgba(23,32,51,0.1)] bg-[#f8faff] px-3 py-1 text-xs font-extrabold text-[#526071]">{workOrder.region || 'Unknown'}</span>
+        {canEdit && <button type="button" onClick={() => onEdit(workOrder)} className="inline-flex items-center gap-1 rounded-full border border-[rgba(36,67,147,0.18)] bg-white px-3 py-1 text-xs font-extrabold text-[#244393] transition hover:-translate-y-0.5 hover:bg-[#e8eefc]"><Edit3 size={13} /> Edit</button>}
+        {canEdit && <button type="button" onClick={() => void onArchive(workOrder.id, !workOrder.archived)} className="inline-flex items-center gap-1 rounded-full border border-[rgba(23,32,51,0.14)] bg-white px-3 py-1 text-xs font-extrabold text-[#526071] transition hover:-translate-y-0.5 hover:bg-slate-50">{workOrder.archived ? <ArchiveRestore size={13} /> : <Archive size={13} />} {workOrder.archived ? 'Restore' : 'Archive'}</button>}
       </div>
-    </div>
-    <div className="flex flex-row gap-2 text-sm sm:flex-col sm:items-end">
-      <span className="font-display rounded-full bg-[#e8eefc] px-3 py-1 text-xs font-extrabold uppercase tracking-[0.1em] text-[#244393]">{workOrder.trade_category}</span>
-      <span className="font-semibold text-[#526071]">{workOrder.region}</span>
-      {canEdit && <button type="button" onClick={() => onEdit(workOrder)} className="inline-flex items-center gap-1 rounded-full border border-[rgba(36,67,147,0.18)] bg-white px-3 py-1 text-xs font-extrabold text-[#244393] transition hover:-translate-y-0.5 hover:bg-[#e8eefc]"><Edit3 size={13} /> Edit</button>}
-      {canEdit && <button type="button" onClick={() => void onArchive(workOrder.id, !workOrder.archived)} className="inline-flex items-center gap-1 rounded-full border border-[rgba(23,32,51,0.14)] bg-white px-3 py-1 text-xs font-extrabold text-[#526071] transition hover:-translate-y-0.5 hover:bg-slate-50">{workOrder.archived ? <ArchiveRestore size={13} /> : <Archive size={13} />} {workOrder.archived ? 'Restore' : 'Archive'}</button>}
     </div>
   </article>
 }
@@ -277,7 +275,7 @@ function WorkOrderForm({ initialValues, serviceLines, saving, onCancel, onSubmit
       <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
         Reported at
         <input type="datetime-local" value={values.reported_at || ''} onChange={(event) => updateField('reported_at', event.target.value)} className="field-control tabular mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]" />
-        <span className="mt-1 block text-xs font-semibold normal-case tracking-normal text-[#64748b]">Used to calculate assessment and repair KPI/SLA due times.</span>
+        <span className="mt-1 block text-xs font-semibold normal-case tracking-normal text-[#64748b]">Used to calculate assessment and repair KPI due times.</span>
       </label>
       <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
         Assessed at
@@ -463,12 +461,12 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, selec
 
   return <Card className="overflow-hidden">
     <PanelHeader
-      eyebrow="Incoming work"
-      title="Work Orders"
-      description="Add requests from WhatsApp, email, phone, or work-order systems. Approved and assessment work can be pulled into the dispatch draft."
+      eyebrow="Work queue"
+      title="Open Work Orders"
+      description="Review dispatch-ready work, blocked follow-ups, PA Projects, KPI pressure, and incoming requests from WhatsApp, email, phone, or work-order systems."
       action={canEdit ? <div className="flex flex-wrap gap-2">
         <label className="inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-[#244393]/15 bg-[#e8eefc] px-4 py-2.5 font-display text-sm font-extrabold text-[#244393] transition hover:-translate-y-0.5 hover:bg-[#dfe8ff]">
-          <FileUp size={16} /> {uploading ? 'Scanning...' : 'Upload Scan'}
+          <FileUp size={16} /> {uploading ? 'Scanning...' : 'Scan Intake'}
           <input type="file" accept="image/png,image/jpeg,image/webp" disabled={uploading} onChange={(event) => { const file = event.target.files?.[0] || null; event.target.value = ''; void previewUpload(file) }} className="sr-only" />
         </label>
         <button type="button" onClick={startCreate} className="inline-flex items-center gap-2 rounded-2xl bg-[#d84332] px-4 py-2.5 font-display text-sm font-extrabold text-white shadow-[0_12px_26px_rgba(216,67,50,0.2)] transition hover:-translate-y-0.5 hover:bg-[#bf3228]"><Plus size={16} /> New Work Order</button>
@@ -540,7 +538,7 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, selec
         <select value={sort} onChange={(event) => setSort(event.target.value)} className="field-control rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]">
           <option value="scheduled_date">Sort scheduled</option>
           <option value="created_at">Sort created</option>
-          <option value="sla_due_at">Sort SLA due</option>
+          <option value="sla_due_at">Sort KPI due</option>
           <option value="priority">Sort priority</option>
           <option value="status">Sort status</option>
           <option value="location">Sort location</option>

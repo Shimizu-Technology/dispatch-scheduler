@@ -86,6 +86,21 @@ class DispatchSuggestionServiceTest < ActiveSupport::TestCase
     assert_includes titles, due.title
   end
 
+  test "keeps unscheduled PA Projects out of SLA-driven suggestions until explicitly dated" do
+    team(name: "North Crew", skills: [ "General" ])
+    reported_at = Time.zone.local(2026, 4, 20, 8, 0, 0)
+    automatic_follow_up = work_order(title: "Waiting lights", priority: "P2", status: "approved", date: nil, reported_at: reported_at, pa_project: true)
+    explicitly_scheduled = work_order(title: "Parts arrived", priority: "P2", status: "approved", date: DEFAULT_DATE, reported_at: reported_at, pa_project: true)
+    normal_due = work_order(title: "Normal due work", priority: "P2", status: "approved", date: nil, reported_at: reported_at)
+
+    schedule = DispatchSuggestionService.new(date: DEFAULT_DATE).call
+    titles = schedule.dispatch_items.map(&:work_order).compact.map(&:title)
+
+    refute_includes titles, automatic_follow_up.title
+    assert_includes titles, explicitly_scheduled.title
+    assert_includes titles, normal_due.title
+  end
+
   test "orders overdue SLA work before later due work" do
     team(name: "North Crew", skills: [ "General" ])
     due_later = work_order(title: "Due later", priority: "P4", status: "needs_assessment", date: nil, reported_at: Time.zone.local(2026, 5, 1, 12, 0, 0))

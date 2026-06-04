@@ -53,7 +53,7 @@ PM suggestions should become opportunistic: “while you are there, also do thes
 
 ### 4. SLA/KPI timing needs to drive scheduling
 
-John clarified the contract response/repair expectations:
+John clarified the contract response/repair expectations. P1 is the highest priority John confirmed in the workflow; the later P0 mention was Leon speaking generically during the walkthrough, not John defining a separate P0 level.
 
 | Priority | Assessment expectation | Repair expectation |
 | --- | --- | --- |
@@ -92,6 +92,7 @@ John wants this modeled simply:
 - dedicated PA Projects tab or filtered workspace
 - status-independent: a work order can be in a PA Project regardless of normal status
 - notes/follow-up context for parts, ETA, and updates
+- scheduler behavior: keep PA Projects out of normal KPI/SLA-driven draft suggestions unless a dispatcher explicitly dates/schedules the work for the selected dispatch date
 
 This replaces a physical “PA project” folder John currently checks manually.
 

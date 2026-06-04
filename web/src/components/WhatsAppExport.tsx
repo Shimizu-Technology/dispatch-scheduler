@@ -30,17 +30,17 @@ export function WhatsAppExport({ schedule, message, crews, copied, working, canE
         eyebrow="Send-ready copy"
         title="WhatsApp Export"
         description={statusCopy(schedule)}
-        action={<div className="flex flex-wrap gap-2">
-          <button disabled={!message} onClick={onCopy} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#16835f] px-4 py-2.5 font-display text-sm font-extrabold text-white shadow-[0_12px_28px_rgba(22,131,95,0.22)] transition hover:-translate-y-0.5 hover:bg-[#106a4c] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none">
+        action={<div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
+          <button disabled={!message} onClick={onCopy} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#16835f] px-4 py-2.5 font-display text-sm font-extrabold text-white shadow-[0_12px_28px_rgba(22,131,95,0.22)] transition hover:-translate-y-0.5 hover:bg-[#106a4c] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none sm:w-auto">
             <Clipboard size={16} /> {copied ? 'Copied!' : 'Copy Dispatch'}
           </button>
-          {canEdit && <button disabled={!canMarkSent || working} onClick={onMarkSent} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#244393] px-4 py-2.5 font-display text-sm font-extrabold text-white shadow-[0_12px_28px_rgba(36,67,147,0.18)] transition hover:-translate-y-0.5 hover:bg-[#172b63] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none">
+          {canEdit && <button disabled={!canMarkSent || working} onClick={onMarkSent} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#244393] px-4 py-2.5 font-display text-sm font-extrabold text-white shadow-[0_12px_28px_rgba(36,67,147,0.18)] transition hover:-translate-y-0.5 hover:bg-[#172b63] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none sm:w-auto">
             <Send size={16} /> {schedule?.status === 'sent' ? 'Sent' : 'Mark Sent'}
           </button>}
         </div>}
       />
 
-      {message && <div className="grid gap-3 border-b border-[rgba(23,32,51,0.1)] bg-[#f8faff] p-4 md:grid-cols-3">
+      {message && <div className="grid gap-3 border-b border-[rgba(23,32,51,0.1)] bg-[#f8faff] p-3 sm:p-4 md:grid-cols-3">
         <div className="rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white p-4">
           <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-[#64748b]">Crews</p>
           <p className="font-display mt-1 text-2xl font-black text-[#172033]">{crews.length}</p>
@@ -55,8 +55,8 @@ export function WhatsAppExport({ schedule, message, crews, copied, working, canE
         </div>
       </div>}
 
-      {crews.length > 0 && <div className="grid gap-3 border-b border-[rgba(23,32,51,0.1)] p-4 lg:grid-cols-2">
-        {crews.map((crew) => <article key={crew.team_id} className="rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white/90 p-4 shadow-[0_10px_26px_rgba(23,32,51,0.05)]">
+      {crews.length > 0 && <div className="grid gap-3 border-b border-[rgba(23,32,51,0.1)] p-3 sm:p-4 lg:grid-cols-2">
+        {crews.map((crew) => <article key={crew.team_id} className="rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white/90 p-3 shadow-[0_10px_26px_rgba(23,32,51,0.05)] sm:p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="font-display text-sm font-black uppercase tracking-[0.08em] text-[#172033]">{crew.active_team_name || crew.team_name}</p>
@@ -71,7 +71,7 @@ export function WhatsAppExport({ schedule, message, crews, copied, working, canE
         </article>)}
       </div>}
 
-      <pre className="max-h-[720px] overflow-auto whitespace-pre-wrap bg-[#172033] p-5 text-sm leading-6 text-blue-50 shadow-inner">{message || 'Generate a schedule to preview the WhatsApp message.'}</pre>
+      <pre className="max-h-[720px] overflow-auto whitespace-pre-wrap bg-[#172033] p-3 text-sm leading-6 text-blue-50 shadow-inner sm:p-5">{message || 'Generate a schedule to preview the WhatsApp message.'}</pre>
     </Card>
   </div>
 }

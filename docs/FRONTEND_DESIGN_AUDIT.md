@@ -44,9 +44,21 @@ Before this pass:
 - Changed crew availability updates so a single technician save does not trigger the full-page loading state.
 - Preserved the existing API contract and product behavior; this is a design and usability pass, not a workflow rewrite.
 
+## Current Operations UI Polish
+
+The latest UI pass moves the app further from a demo-style dashboard toward a compact professional operations console:
+
+- Replaced the oversized hero with a tighter JMI command header that keeps branding, current section context, schedule date, user role, and the primary dispatch action visible without consuming the whole viewport.
+- Tightened the sticky navigation and renamed key areas around the operator workflow: Dispatch Draft, Work Queue, PM Month Setup.
+- Reworked the dashboard into a denser command-center view: command decision, dispatch state, work pressure, crew readiness, PA/CM/estimate follow-up, PM completion, and recent activity.
+- Converted work-order cards into compact operational rows for 45–100+ item queues while preserving badges, KPI pressure, PA Project, CM, estimate, blocked status, service line, and edit/archive actions.
+- Adjusted SLA wording toward KPI pressure so PA Projects and waiting-parts work feel closer to John’s CBRE/Mobil language.
+- Added a mobile pass across the shell, dashboard, work queue, PM setup, crews, dispatch, WhatsApp, service-line, PA Project, and activity panels: full-width touch actions, shortened mobile nav labels, reduced mobile padding, stacked dispatch-state metrics, and no horizontal page overflow at 390px.
+
 ## Remaining UX Work
 
-- Add a real search/filter layer for work orders once the intake phase starts.
-- Add empty states for filtered data after search is implemented.
-- Add richer schedule-finalization states after the schedule operations phase.
+- Confirm John’s real PM spreadsheet format and adapt the PM paste parser if needed.
+- Add a safe one-time location cleanup/merge task for existing production records with trailing spaces or duplicate capitalization.
+- Add richer parts-follow-up fields for PA Projects and waiting-parts work.
+- Add monthly reporting/export for KPI, PM completion, CM, estimates, and PA Projects.
 - Add upload/intake screens once private S3 storage and OCR review are implemented.

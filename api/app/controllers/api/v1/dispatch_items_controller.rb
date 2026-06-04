@@ -63,6 +63,7 @@ module Api
           order_changed = target_order.present?
           item.reassignment_reason = nil unless team_changed
           item.save!
+          item.snapshot_technicians! if team_changed
 
           if team_changed
             normalize_orders(item.dispatch_schedule, old_team_id)

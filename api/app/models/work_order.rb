@@ -21,6 +21,7 @@ class WorkOrder < ApplicationRecord
   before_validation :normalize_sla_due_dates
 
   validates :status, inclusion: { in: STATUSES }
+  validates :required_technician_count, numericality: { only_integer: true, greater_than_or_equal_to: 1 }
 
   scope :active_queue, -> { where(archived_at: nil) }
   scope :archived, -> { where.not(archived_at: nil) }

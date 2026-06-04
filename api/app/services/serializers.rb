@@ -2,7 +2,7 @@ module Serializers
   module_function
 
   def schedule(dispatch_schedule, summary: nil)
-    schedule = DispatchSchedule.includes(dispatch_items: [ :team, { work_order: [ :client, :location, :service_line ] }, { pm_task: [ :client, :location ] } ]).find(dispatch_schedule.id)
+    schedule = DispatchSchedule.includes(dispatch_items: [ :team, :dispatch_item_technicians, { work_order: [ :client, :location, :service_line ] }, { pm_task: [ :client, :location ] } ]).find(dispatch_schedule.id)
     team_contexts = dispatch_team_contexts(schedule)
     {
       id: schedule.id,
@@ -19,12 +19,14 @@ module Serializers
 
   def schedule_summary(schedule)
     candidate_work_orders = eligible_work_orders_for(schedule.date)
-    candidate_pm_tasks = pm_tasks_due_for(schedule.date)
+    candidate_pm_tasks = pm_tasks_due_for(schedule.date, candidate_work_orders)
     eligible_work_order_count = candidate_work_orders.count
     eligible_pm_task_count = candidate_pm_tasks.count
     candidate_count = eligible_work_order_count + eligible_pm_task_count
     deferred = [ candidate_count - schedule.dispatch_items.size, 0 ].max
     blocked = blocked_work_orders_for(schedule.date).count
+    unfinished = unfinished_previous_work_orders_for(schedule.date).count
+    over_capacity = schedule.dispatch_items.count { |item| item.notes.to_s.include?("Capacity warning") }
     {
       scheduled_items: schedule.dispatch_items.size,
       eligible_work_orders: eligible_work_order_count,
@@ -32,18 +34,40 @@ module Serializers
       deferred_items: deferred,
       daily_item_limit: daily_item_limit,
       blocked_work_orders: blocked,
-      message: schedule_summary_message(blocked, deferred)
+      unfinished_previous_items: unfinished,
+      capacity_deferred_items: 0,
+      over_capacity_items: over_capacity,
+      message: schedule_summary_message(blocked, deferred, unfinished, 0, over_capacity)
     }
   end
 
   def eligible_work_orders_for(date)
     scheduled_scope = WorkOrder.dispatchable.sla_dispatchable_for_date(date)
     carry_over_scope = WorkOrder.dispatchable.joins(:dispatch_items).where(dispatch_items: { outcome_status: "carry_over", carried_over_to_date: date })
-    WorkOrder.where(id: scheduled_scope.select(:id)).or(WorkOrder.where(id: carry_over_scope.select(:id)))
+    unfinished_scope = unfinished_previous_work_orders_for(date)
+    WorkOrder.where(id: scheduled_scope.select(:id))
+      .or(WorkOrder.where(id: carry_over_scope.select(:id)))
+      .or(WorkOrder.where(id: unfinished_scope.select(:id)))
   end
 
-  def pm_tasks_due_for(date)
-    PmTask.dispatchable_for_date(date)
+  def pm_tasks_due_for(date, work_orders = [])
+    explicit_due = PmTask.dispatchable_for_date(date)
+    location_ids = work_orders.map(&:location_id).uniq
+    return explicit_due unless location_ids.any?
+
+    PmTask.where(id: explicit_due.select(:id)).or(PmTask.opportunistic_for_locations(date, location_ids))
+  end
+
+  def unfinished_previous_work_orders_for(date)
+    WorkOrder.dispatchable
+      .where(pa_project: [ false, nil ])
+      .where(status: DispatchSuggestionService::UNFINISHED_WORK_ORDER_STATUSES)
+      .joins(dispatch_items: :dispatch_schedule)
+      .where(dispatch_items: { outcome_status: "pending" })
+      .where(dispatch_schedules: { status: %w[finalized sent] })
+      .where("dispatch_schedules.date < ?", date)
+      .where("work_orders.scheduled_date IS NULL OR work_orders.scheduled_date < ?", date)
+      .distinct
   end
 
   def blocked_work_orders_for(date)
@@ -56,9 +80,12 @@ module Serializers
     ENV.fetch("DISPATCH_DAILY_ITEM_LIMIT", DispatchSuggestionService::DEFAULT_DAILY_ITEM_LIMIT).to_i
   end
 
-  def schedule_summary_message(blocked, deferred)
+  def schedule_summary_message(blocked, deferred, unfinished = 0, capacity_deferred = 0, over_capacity = 0)
     notes = []
-    notes << "#{deferred} eligible item(s) deferred by the daily draft limit." if deferred.positive?
+    notes << "#{unfinished} unfinished prior dispatch item(s) were carried forward." if unfinished.positive?
+    notes << "#{deferred} eligible item(s) deferred by daily item/capacity limits." if deferred.positive?
+    notes << "#{capacity_deferred} item(s) could not fit within crew-day capacity." if capacity_deferred.positive?
+    notes << "#{over_capacity} urgent/carry-forward item(s) exceed normal crew-day capacity." if over_capacity.positive?
     notes << "#{blocked} waiting-for-parts/approval item(s) were held out of dispatch." if blocked.positive?
     notes.presence&.join(" ") || "No eligible or blocked items were held out."
   end
@@ -89,6 +116,7 @@ module Serializers
       sla_status: sla_status(work_order),
       scheduled_date: work_order.scheduled_date,
       estimated_hours: work_order.estimated_hours&.to_f,
+      required_technician_count: work_order.required_technician_count,
       source: work_order.source,
       archived_at: work_order.archived_at&.iso8601,
       archived: work_order.archived?,
@@ -261,16 +289,39 @@ module Serializers
     end
   end
 
+  def dispatch_item_technician(snapshot)
+    {
+      technician_id: snapshot.technician_id,
+      name: snapshot.technician_name,
+      primary_trade: snapshot.primary_trade,
+      is_driver: snapshot.is_driver,
+      position: snapshot.position
+    }
+  end
+
+  def technician_snapshot_fallback(technician)
+    {
+      technician_id: technician.id,
+      name: technician.name,
+      primary_trade: technician.primary_trade,
+      is_driver: technician.is_driver,
+      position: nil
+    }
+  end
+
   def dispatch_item(item, team_context:)
     schedulable = item.schedulable
     active_technicians = team_context.fetch(:active_technicians)
     call_outs = team_context.fetch(:call_outs)
+    snapshot_technicians = item.dispatch_item_technicians.to_a
+    crew_names = snapshot_technicians.present? ? snapshot_technicians.map(&:technician_name) : active_technicians.map(&:name)
     base = {
       id: item.id,
       team_id: item.team_id,
       team_name: item.team.name,
-      crew_name: active_technicians.map(&:name).join(" / ").presence || "No available technicians",
-      technician_names: active_technicians.map(&:name),
+      crew_name: crew_names.join(" / ").presence || "No available technicians",
+      technician_names: crew_names,
+      assigned_technicians: snapshot_technicians.present? ? snapshot_technicians.map { |snapshot| dispatch_item_technician(snapshot) } : active_technicians.map { |technician| technician_snapshot_fallback(technician) },
       call_out_names: call_outs.map(&:name),
       order_index: item.order_index,
       scheduled_time: item.scheduled_time&.strftime("%H:%M"),

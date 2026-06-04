@@ -1,13 +1,19 @@
+require "set"
+
 class DispatchSuggestionService
   START_TIME = Time.zone.parse("08:00")
   DEFAULT_DAILY_ITEM_LIMIT = 24
+  DEFAULT_CREW_DAILY_MINUTES = 480
   DEFAULT_ITEM_MINUTES = 120
+  DEFAULT_PM_MINUTES = 45
+  UNFINISHED_WORK_ORDER_STATUSES = %w[scheduled in_progress carry_over].freeze
 
   attr_reader :summary
 
   def initialize(date:)
     @date = Date.parse(date.to_s)
     @summary = {}
+    @previous_dispatch_contexts = {}
   end
 
   def call
@@ -22,29 +28,34 @@ class DispatchSuggestionService
       team_minutes = Hash.new(0)
       team_skills = teams.to_h { |team| [ team.id, team.skills(@date) ] }
       team_driver_status = teams.to_h { |team| [ team.id, team.has_driver?(@date) ] }
+      team_available_counts = teams.to_h { |team| [ team.id, team.available_technicians(@date).count ] }
       candidate_items = schedulables
-      carry_over_contexts = carry_over_contexts_for(candidate_items)
-      items = candidate_items.first(daily_item_limit)
+      previous_contexts = @previous_dispatch_contexts.presence || previous_dispatch_contexts_for(candidate_items)
 
-      items.each do |item|
-        carry_over_context = carry_over_context_for(item, carry_over_contexts)
-        team = choose_team(item, teams, counters, team_skills, team_driver_status, carry_over_context)
-        next unless team
+      candidate_items.each do |item|
+        break if schedule.dispatch_items.count >= daily_item_limit
 
+        previous_context = previous_context_for(item, previous_contexts)
+        item_minutes = estimated_minutes_for(item)
+        choice = choose_team(item, teams, counters, team_minutes, team_skills, team_driver_status, team_available_counts, previous_context, item_minutes)
+        next unless choice
+
+        team, capacity_overflow = choice
         index = counters[team.id]
         counters[team.id] += 1
-        schedule.dispatch_items.create!(
+        dispatch_item = schedule.dispatch_items.create!(
           work_order: item.is_a?(WorkOrder) ? item : nil,
           pm_task: item.is_a?(PmTask) ? item : nil,
           team: team,
           order_index: index,
           scheduled_time: START_TIME + team_minutes[team.id].minutes,
-          notes: notes_for(item, team, team_skills[team.id], team_driver_status[team.id], carry_over_context)
+          notes: notes_for(item, team, team_skills[team.id], team_driver_status[team.id], team_available_counts[team.id], previous_context, capacity_overflow)
         )
-        team_minutes[team.id] += estimated_minutes_for(item)
+        dispatch_item.snapshot_technicians!
+        team_minutes[team.id] += item_minutes
       end
 
-      @summary = build_summary(candidate_items, schedule)
+      @summary = build_summary(candidate_items, schedule, previous_contexts)
     end
 
     schedule
@@ -54,7 +65,42 @@ class DispatchSuggestionService
 
   def schedulables
     work_orders = eligible_work_orders
-    work_orders + pm_tasks_due(work_orders)
+    pm_tasks = pm_tasks_due(work_orders)
+    same_location_pms = pm_tasks.group_by(&:location_id)
+    used_pm_ids = Set.new
+    urgent_work_orders, flexible_work_orders = work_orders.partition { |work_order| high_pressure_work_order?(work_order) }
+    ordered_items = []
+
+    urgent_work_orders.each { |work_order| append_work_order_with_same_location_pms(ordered_items, work_order, same_location_pms, used_pm_ids) }
+
+    if pm_month_pressure?
+      explicit_due_pms = pm_tasks.select { |pm_task| explicit_pm_due?(pm_task) && !used_pm_ids.include?(pm_task.id) }
+      explicit_due_pms.each do |pm_task|
+        ordered_items << pm_task
+        used_pm_ids.add(pm_task.id)
+      end
+    end
+
+    flexible_work_orders.each { |work_order| append_work_order_with_same_location_pms(ordered_items, work_order, same_location_pms, used_pm_ids) }
+
+    pm_tasks.each do |pm_task|
+      next if used_pm_ids.include?(pm_task.id)
+
+      ordered_items << pm_task
+      used_pm_ids.add(pm_task.id)
+    end
+
+    ordered_items
+  end
+
+  def append_work_order_with_same_location_pms(items, work_order, same_location_pms, used_pm_ids)
+    items << work_order
+    same_location_pms.fetch(work_order.location_id, []).each do |pm_task|
+      next if used_pm_ids.include?(pm_task.id)
+
+      items << pm_task
+      used_pm_ids.add(pm_task.id)
+    end
   end
 
   def eligible_work_orders
@@ -65,9 +111,22 @@ class DispatchSuggestionService
       .dispatchable
       .joins(:dispatch_items)
       .where(dispatch_items: { outcome_status: "carry_over", carried_over_to_date: @date })
-    (scheduled_scope.to_a + carry_over_scope.to_a)
-      .uniq(&:id)
-      .sort_by { |wo| [ wo.status == "carry_over" ? 0 : 1, *wo.sla_sort_key(@date), wo.urgent_rank, region_rank(wo.location.region), wo.status == "needs_assessment" ? 0 : 1, wo.location.name.to_s, wo.id ] }
+    unfinished_scope = WorkOrder.includes(:client, :location, :team)
+      .dispatchable
+      .where(pa_project: [ false, nil ])
+      .where(status: UNFINISHED_WORK_ORDER_STATUSES)
+      .joins(dispatch_items: :dispatch_schedule)
+      .where(dispatch_items: { outcome_status: "pending" })
+      .where(dispatch_schedules: { status: %w[finalized sent] })
+      .where("dispatch_schedules.date < ?", @date)
+      .where("work_orders.scheduled_date IS NULL OR work_orders.scheduled_date < ?", @date)
+
+    work_orders = (scheduled_scope.to_a + carry_over_scope.to_a + unfinished_scope.to_a).uniq(&:id)
+    @previous_dispatch_contexts = previous_dispatch_contexts_for(work_orders)
+    work_orders.sort_by do |work_order|
+      previous_context = @previous_dispatch_contexts[work_order.id]
+      [ previous_context_rank(previous_context), *work_order.sla_sort_key(@date), work_order.urgent_rank, region_rank(work_order.location.region), work_order.status == "needs_assessment" ? 0 : 1, work_order.location.name.to_s, work_order.id ]
+    end
   end
 
   def pm_tasks_due(work_orders = [])
@@ -80,58 +139,99 @@ class DispatchSuggestionService
     end
     (explicit_due + opportunistic)
       .uniq(&:id)
-      .sort_by { |pm| [ pm.scheduled_date == @date ? 0 : 1, region_rank(pm.location.region), pm.location.name.to_s, pm.task_name.to_s, pm.id ] }
+      .sort_by { |pm| pm_sort_key(pm) }
   end
 
-  def choose_team(item, teams, counters, team_skills, team_driver_status, carry_over_context = nil)
+  def choose_team(item, teams, counters, team_minutes, team_skills, team_driver_status, team_available_counts, previous_context, item_minutes)
     return nil if teams.empty?
 
     trade = item.trade_category
     region = item.location.region
     available = teams.select { |team| team_driver_status[team.id] }
     skill_match = available.select { |team| team_skills[team.id].include?(trade) || trade == "General" }
-    candidates = skill_match.presence || available.presence || teams
-    previous_team = carry_over_context&.team
-    return previous_team if previous_team && candidates.include?(previous_team)
+    staffing_match = skill_match.select { |team| enough_technicians?(item, team_available_counts[team.id]) }
+    candidates = staffing_match.presence || skill_match.presence || available.presence || teams
+    previous_team = previous_context&.team
+    allow_overflow = capacity_overflow_allowed?(item, previous_context)
 
+    if previous_team && candidates.include?(previous_team)
+      if capacity_available?(previous_team, team_minutes[previous_team.id], item_minutes) || allow_overflow
+        return [ previous_team, !capacity_available?(previous_team, team_minutes[previous_team.id], item_minutes) ]
+      end
+    end
+
+    fitting_candidates = candidates.select { |team| capacity_available?(team, team_minutes[team.id], item_minutes) }
+    if fitting_candidates.any?
+      return [ best_team_for(item, fitting_candidates, counters, region), false ]
+    end
+
+    return [ best_team_for(item, candidates, counters, region), true ] if allow_overflow
+
+    nil
+  end
+
+  def best_team_for(item, candidates, counters, region)
     candidates.min_by { |team| [ service_line_penalty(team, item), region_penalty(team, region), counters[team.id], team.name.to_s ] }
   end
 
-  def notes_for(item, team, skills, has_driver, carry_over_context = nil)
+  def notes_for(item, team, skills, has_driver, available_count, previous_context = nil, capacity_overflow = false)
     warnings = []
-    if carry_over_context
-      previous = carry_over_context.team
-      warnings << "Carry-over from #{carry_over_context.dispatch_schedule.date.strftime('%b %-d')}"
+    if previous_context
+      previous = previous_context.team
+      if previous_context.outcome_status == "carry_over"
+        warnings << "Carry-over from #{previous_context.dispatch_schedule.date.strftime('%b %-d')}"
+      else
+        warnings << "Unfinished from #{previous_context.dispatch_schedule.date.strftime('%b %-d')}"
+      end
       warnings << "Previous crew: #{previous.name}"
       warnings << "Previous crew unavailable" if previous != team
-      warnings << carry_over_context.outcome_notes if carry_over_context.outcome_notes.present?
+      warnings << previous_context.outcome_notes if previous_context.outcome_notes.present?
     end
     warnings << "While you're there PM suggestion" if item.is_a?(PmTask) && item.scheduled_date != @date
     warnings << (has_driver ? "Driver OK" : "No driver warning")
     warnings << "Check skill match: #{item.trade_category}" unless skills.include?(item.trade_category) || item.trade_category == "General"
+    if item.is_a?(WorkOrder) && required_technician_count_for(item) > available_count
+      warnings << "Needs #{required_technician_count_for(item)} techs; assigned crew has #{available_count}"
+    end
+    warnings << "Capacity warning: exceeds #{format_minutes(team_capacity_minutes(team))} crew day" if capacity_overflow
     warnings << "Estimated #{format_hours(item.estimated_hours)}" if item.respond_to?(:estimated_hours) && item.estimated_hours.present?
     warnings << "Keep in #{item.location.region} route if possible"
     warnings.join(" | ")
   end
 
-  def carry_over_context_for(item, contexts)
+  def previous_context_for(item, contexts)
     return nil unless item.is_a?(WorkOrder)
 
     contexts[item.id]
   end
 
-  def carry_over_contexts_for(items)
+  def previous_dispatch_contexts_for(items)
     work_order_ids = items.select { |item| item.is_a?(WorkOrder) }.map(&:id)
-    DispatchItem.includes(:dispatch_schedule, :team)
+    return {} if work_order_ids.empty?
+
+    explicit = DispatchItem.includes(:dispatch_schedule, :team)
       .joins(:dispatch_schedule)
       .where(work_order_id: work_order_ids, outcome_status: "carry_over", carried_over_to_date: @date)
       .order("dispatch_schedules.date DESC", id: :desc)
       .each_with_object({}) { |dispatch_item, contexts| contexts[dispatch_item.work_order_id] ||= dispatch_item }
+
+    pending = DispatchItem.includes(:dispatch_schedule, :team)
+      .joins(:dispatch_schedule)
+      .where(work_order_id: work_order_ids, outcome_status: "pending")
+      .where(dispatch_schedules: { status: %w[finalized sent] })
+      .where("dispatch_schedules.date < ?", @date)
+      .order("dispatch_schedules.date DESC", id: :desc)
+      .each_with_object({}) { |dispatch_item, contexts| contexts[dispatch_item.work_order_id] ||= dispatch_item }
+
+    pending.merge(explicit)
   end
 
-  def build_summary(candidate_items, schedule)
+  def build_summary(candidate_items, schedule, previous_contexts)
     blocked = blocked_work_orders.count
     deferred = [ candidate_items.size - schedule.dispatch_items.count, 0 ].max
+    unfinished = candidate_items.count { |item| item.is_a?(WorkOrder) && previous_contexts[item.id]&.outcome_status == "pending" }
+    capacity_deferred = capacity_deferred_items(candidate_items, schedule).count
+    over_capacity = schedule.dispatch_items.count { |item| item.notes.to_s.include?("Capacity warning") }
     {
       scheduled_items: schedule.dispatch_items.count,
       eligible_work_orders: candidate_items.count { |item| item.is_a?(WorkOrder) },
@@ -139,13 +239,27 @@ class DispatchSuggestionService
       deferred_items: deferred,
       daily_item_limit: daily_item_limit,
       blocked_work_orders: blocked,
-      message: summary_message(blocked, deferred)
+      unfinished_previous_items: unfinished,
+      capacity_deferred_items: capacity_deferred,
+      over_capacity_items: over_capacity,
+      message: summary_message(blocked, deferred, unfinished, capacity_deferred, over_capacity)
     }
   end
 
-  def summary_message(blocked, deferred)
+  def capacity_deferred_items(candidate_items, schedule)
+    scheduled_work_order_ids = schedule.dispatch_items.pluck(:work_order_id).compact
+    scheduled_pm_task_ids = schedule.dispatch_items.pluck(:pm_task_id).compact
+    candidate_items.reject do |item|
+      item.is_a?(WorkOrder) ? scheduled_work_order_ids.include?(item.id) : scheduled_pm_task_ids.include?(item.id)
+    end.select { |item| estimated_minutes_for(item) <= crew_daily_minutes }
+  end
+
+  def summary_message(blocked, deferred, unfinished, capacity_deferred, over_capacity)
     notes = []
-    notes << "#{deferred} eligible item(s) deferred by the daily draft limit." if deferred.positive?
+    notes << "#{unfinished} unfinished prior dispatch item(s) were carried forward." if unfinished.positive?
+    notes << "#{deferred} eligible item(s) deferred by daily item/capacity limits." if deferred.positive?
+    notes << "#{capacity_deferred} item(s) could not fit within crew-day capacity." if capacity_deferred.positive?
+    notes << "#{over_capacity} urgent/carry-forward item(s) exceed normal crew-day capacity." if over_capacity.positive?
     notes << "#{blocked} waiting-for-parts/approval item(s) were held out of dispatch." if blocked.positive?
     notes.presence&.join(" ") || "No eligible or blocked items were held out."
   end
@@ -158,6 +272,14 @@ class DispatchSuggestionService
 
   def daily_item_limit
     ENV.fetch("DISPATCH_DAILY_ITEM_LIMIT", DEFAULT_DAILY_ITEM_LIMIT).to_i
+  end
+
+  def crew_daily_minutes
+    ENV.fetch("DISPATCH_CREW_DAILY_MINUTES", DEFAULT_CREW_DAILY_MINUTES).to_i
+  end
+
+  def team_capacity_minutes(_team)
+    crew_daily_minutes
   end
 
   def blocked_statuses
@@ -186,10 +308,62 @@ class DispatchSuggestionService
   end
 
   def estimated_minutes_for(item)
+    return DEFAULT_PM_MINUTES if item.is_a?(PmTask)
     return DEFAULT_ITEM_MINUTES unless item.respond_to?(:estimated_hours) && item.estimated_hours.present?
 
     minutes = (item.estimated_hours.to_d * 60).ceil
     minutes.positive? ? minutes : DEFAULT_ITEM_MINUTES
+  end
+
+  def required_technician_count_for(item)
+    return 1 unless item.respond_to?(:required_technician_count)
+
+    [ item.required_technician_count.to_i, 1 ].max
+  end
+
+  def enough_technicians?(item, available_count)
+    available_count.to_i >= required_technician_count_for(item)
+  end
+
+  def capacity_available?(team, used_minutes, item_minutes)
+    used_minutes + item_minutes <= team_capacity_minutes(team)
+  end
+
+  def capacity_overflow_allowed?(item, previous_context = nil)
+    return false unless item.is_a?(WorkOrder)
+    return true if previous_context.present?
+    item.urgent_rank <= 1
+  end
+
+  def high_pressure_work_order?(work_order)
+    return true if @previous_dispatch_contexts[work_order.id].present?
+    return true if work_order.scheduled_date == @date
+    return true if work_order.urgent_rank <= 1
+
+    due_rank, = work_order.sla_sort_key(@date)
+    due_rank.zero?
+  end
+
+  def explicit_pm_due?(pm_task)
+    return true if pm_task.scheduled_date == @date
+    return true if pm_task.deferred_until.present? && pm_task.deferred_until <= @date
+
+    false
+  end
+
+  def pm_month_pressure?
+    @date >= (@date.end_of_month - 7.days)
+  end
+
+  def pm_sort_key(pm_task)
+    [ explicit_pm_due?(pm_task) ? 0 : 1, pm_task.scheduled_date || Date.new(2999, 12, 31), region_rank(pm_task.location.region), pm_task.location.name.to_s, pm_task.task_name.to_s, pm_task.id ]
+  end
+
+  def previous_context_rank(previous_context)
+    return 2 unless previous_context
+    return 0 if previous_context.outcome_status == "carry_over"
+
+    1
   end
 
   def format_hours(value)
@@ -198,6 +372,15 @@ class DispatchSuggestionService
       "#{decimal.to_i}h"
     else
       "#{decimal.to_f.round(2)}h"
+    end
+  end
+
+  def format_minutes(value)
+    hours = value.to_d / 60
+    if (hours % 1).zero?
+      "#{hours.to_i}h"
+    else
+      "#{hours.to_f.round(2)}h"
     end
   end
 end

@@ -22,7 +22,10 @@ module Api
             date: schedule.date,
             scheduled_items: service.summary[:scheduled_items],
             deferred_items: service.summary[:deferred_items],
-            blocked_work_orders: service.summary[:blocked_work_orders]
+            blocked_work_orders: service.summary[:blocked_work_orders],
+            unfinished_previous_items: service.summary[:unfinished_previous_items],
+            capacity_deferred_items: service.summary[:capacity_deferred_items],
+            over_capacity_items: service.summary[:over_capacity_items]
           })
         end
         render json: Serializers.schedule(schedule, summary: service.summary), status: :created
@@ -35,7 +38,7 @@ module Api
       end
 
       def whatsapp_export
-        schedule = DispatchSchedule.includes(dispatch_items: [ :team, { work_order: [ :client, :location ] }, { pm_task: [ :client, :location ] } ]).find(params[:id])
+        schedule = DispatchSchedule.includes(dispatch_items: [ :team, :dispatch_item_technicians, { work_order: [ :client, :location ] }, { pm_task: [ :client, :location ] } ]).find(params[:id])
         export = WhatsAppExportService.new(schedule)
         render json: { id: schedule.id, date: schedule.date, status: schedule.status, message: export.call, crews: export.crews }
       end
@@ -46,6 +49,7 @@ module Api
         return render json: Serializers.schedule(schedule) if schedule.finalized?
 
         ApplicationRecord.transaction do
+          snapshot_schedule_technicians!(schedule)
           schedule.finalize!(current_user)
           transition_schedule_work_orders!(schedule, "scheduled")
           transition_schedule_pm_tasks!(schedule, "scheduled")
@@ -63,6 +67,7 @@ module Api
         return render json: Serializers.schedule(schedule) if schedule.sent?
 
         ApplicationRecord.transaction do
+          snapshot_schedule_technicians!(schedule)
           schedule.mark_sent!(current_user)
           transition_schedule_work_orders!(schedule, "in_progress")
           AuditEvent.record!(action: "dispatch_schedule.sent", record: schedule, user: current_user, metadata: { date: schedule.date, status: schedule.status })
@@ -97,6 +102,12 @@ module Api
 
       def status_order
         Arel.sql("CASE status WHEN 'sent' THEN 0 WHEN 'finalized' THEN 1 ELSE 2 END")
+      end
+
+      def snapshot_schedule_technicians!(schedule)
+        schedule.dispatch_items.includes(:dispatch_item_technicians, :team).find_each do |item|
+          item.snapshot_technicians! if item.dispatch_item_technicians.empty?
+        end
       end
 
       def transition_schedule_work_orders!(schedule, status)

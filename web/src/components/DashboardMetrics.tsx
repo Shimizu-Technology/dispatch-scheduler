@@ -109,9 +109,10 @@ export function DashboardMetrics({ dashboard, workOrders, teams, technicians, pm
   const waitingForParts = dashboard?.counts.waiting_for_parts ?? workOrders.filter((workOrder) => workOrder.status === 'waiting_for_parts').length
   const incompletePmTasks = dashboard?.counts.pm_incomplete_month ?? pmTasks.filter((pm) => pm.status !== 'completed').length
   const completedPmTasks = dashboard?.counts.pm_completed_month ?? pmTasks.filter((pm) => pm.status === 'completed').length
-  const slaOverdue = dashboard?.counts.sla_overdue ?? workOrders.filter((workOrder) => workOrder.sla_status === 'overdue').length
-  const slaDueSoon = dashboard?.counts.sla_due_soon ?? workOrders.filter((workOrder) => workOrder.sla_status === 'due_soon').length
-  const slaMissing = dashboard?.counts.sla_missing ?? workOrders.filter((workOrder) => workOrder.sla_status === 'missing').length
+  const kpiWorkOrders = workOrders.filter((workOrder) => !workOrder.pa_project)
+  const slaOverdue = dashboard?.counts.sla_overdue ?? kpiWorkOrders.filter((workOrder) => workOrder.sla_status === 'overdue').length
+  const slaDueSoon = dashboard?.counts.sla_due_soon ?? kpiWorkOrders.filter((workOrder) => workOrder.sla_status === 'due_soon').length
+  const slaMissing = dashboard?.counts.sla_missing ?? kpiWorkOrders.filter((workOrder) => workOrder.sla_status === 'missing').length
   const next = nextAction(schedule, driverIssues, canEdit)
   const scheduleItems = schedule?.items.length || 0
   const recentEvents = auditEvents.slice(0, 5)

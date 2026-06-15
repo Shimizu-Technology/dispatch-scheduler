@@ -18,6 +18,8 @@ module Api
             pa_projects: WorkOrder.active_queue.open.where(pa_project: true).count,
             corrective_maintenance: WorkOrder.active_queue.open.where(corrective_maintenance: true).count,
             estimate_required: WorkOrder.active_queue.open.where(estimate_required: true).count,
+            follow_up_due_today: WorkOrder.active_queue.open.where.not(follow_up_due_on: nil).where("follow_up_due_on <= ?", date).count,
+            parts_eta_due_soon: WorkOrder.active_queue.open.where.not(parts_eta: nil).where(parts_eta: ..(date + 7.days)).count,
             sla_overdue: kpi_work_orders.sla_overdue_at.count,
             sla_due_soon: kpi_work_orders.sla_due_soon_at.count,
             sla_missing: kpi_work_orders.sla_missing.count,

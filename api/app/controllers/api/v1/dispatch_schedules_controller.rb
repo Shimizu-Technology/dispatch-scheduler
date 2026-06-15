@@ -65,6 +65,7 @@ module Api
       def mark_sent
         schedule = DispatchSchedule.find(params[:id])
         return render json: Serializers.schedule(schedule) if schedule.sent?
+        return render json: { errors: [ "Finalize this schedule before marking it sent." ] }, status: :conflict unless schedule.finalized?
 
         ApplicationRecord.transaction do
           snapshot_schedule_technicians!(schedule)

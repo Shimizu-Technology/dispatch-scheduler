@@ -67,6 +67,13 @@ function nextAction(schedule: DispatchSchedule | null, driverIssues: number, can
   return { label: 'Copy WhatsApp dispatch', detail: 'The schedule is locked and ready. Copy the crew message and mark it sent after delivery.', target: 'whatsapp' as const, cta: 'Open WhatsApp' }
 }
 
+function datePlusDays(dateString: string, days: number) {
+  const [year, month, day] = dateString.split('-').map(Number)
+  const date = new Date(year, month - 1, day)
+  date.setDate(date.getDate() + days)
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 10)
+}
+
 function priorityCount(workOrders: WorkOrder[]) {
   return workOrders.filter((workOrder) => ['P1', 'P2'].includes(workOrder.normalized_priority || workOrder.priority || '')).length
 }
@@ -107,6 +114,10 @@ export function DashboardMetrics({ dashboard, workOrders, teams, technicians, pm
   const correctiveMaintenance = dashboard?.counts.corrective_maintenance ?? workOrders.filter((workOrder) => workOrder.corrective_maintenance).length
   const estimateRequired = dashboard?.counts.estimate_required ?? workOrders.filter((workOrder) => workOrder.estimate_required).length
   const waitingForParts = dashboard?.counts.waiting_for_parts ?? workOrders.filter((workOrder) => workOrder.status === 'waiting_for_parts').length
+  const dashboardDate = dashboard?.date
+  const partsEtaCutoff = dashboardDate ? datePlusDays(dashboardDate, 7) : null
+  const followUpDueToday = dashboard?.counts.follow_up_due_today ?? workOrders.filter((workOrder) => workOrder.follow_up_due_on && dashboardDate && workOrder.follow_up_due_on <= dashboardDate).length
+  const partsEtaDueSoon = dashboard?.counts.parts_eta_due_soon ?? workOrders.filter((workOrder) => workOrder.parts_eta && (!partsEtaCutoff || workOrder.parts_eta <= partsEtaCutoff)).length
   const incompletePmTasks = dashboard?.counts.pm_incomplete_month ?? pmTasks.filter((pm) => pm.status !== 'completed').length
   const completedPmTasks = dashboard?.counts.pm_completed_month ?? pmTasks.filter((pm) => pm.status === 'completed').length
   const kpiWorkOrders = workOrders.filter((workOrder) => !workOrder.pa_project)
@@ -170,8 +181,10 @@ export function DashboardMetrics({ dashboard, workOrders, teams, technicians, pm
       </Card>
     </div>
 
-    <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
+    <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-6">
       <Metric icon={<FolderKanban size={18} />} label="PA Projects" value={paProjects} detail="Long-lead follow-up workspace" tone={paProjects > 0 ? 'amber' : 'steel'} onClick={() => onGoToSection('pa-projects')} />
+      <Metric icon={<Clock3 size={18} />} label="Follow-up due" value={followUpDueToday} detail="Due today or overdue" tone={followUpDueToday > 0 ? 'amber' : 'green'} onClick={() => onGoToSection('pa-projects')} />
+      <Metric icon={<Clock3 size={18} />} label="Parts ETA" value={partsEtaDueSoon} detail="Due within 7 days" tone={partsEtaDueSoon > 0 ? 'amber' : 'steel'} onClick={() => onGoToSection('pa-projects')} />
       <Metric icon={<Wrench size={18} />} label="Corrective Maint." value={correctiveMaintenance} detail="CM-flagged open work" tone="blue" onClick={() => onGoToSection('work-orders')} />
       <Metric icon={<FileText size={18} />} label="Estimates" value={estimateRequired} detail="Estimate-required open work" tone={estimateRequired > 0 ? 'amber' : 'steel'} onClick={() => onGoToSection('work-orders')} />
       <Metric icon={<CalendarDays size={18} />} label="PM month" value={`${completedPmTasks}/${completedPmTasks + incompletePmTasks}`} detail="Completed this month" tone={incompletePmTasks > 0 ? 'amber' : 'green'} onClick={() => onGoToSection('pm-tasks')} />

@@ -1,6 +1,17 @@
 require "test_helper"
 
 class WorkOrderTest < ActiveSupport::TestCase
+  test "uses Guam local time for SLA calculations" do
+    assert_equal "Guam", Time.zone.name
+
+    reported_at = Time.zone.parse("2026-05-05 23:30")
+    order = work_order(title: "Late Guam request", priority: "P3", status: "needs_assessment", reported_at: reported_at)
+
+    assert_equal 10.hours, order.reported_at.utc_offset
+    assert_equal Time.zone.parse("2026-05-06 23:30"), order.assessment_due_at
+    assert_equal Time.zone.parse("2026-05-07 23:30"), order.repair_due_at
+  end
+
   test "calculates P1 and P2 assessment and repair SLA due dates" do
     reported_at = Time.zone.local(2026, 5, 5, 8, 0, 0)
     order = work_order(title: "Emergency", priority: "P1", status: "needs_assessment", reported_at: reported_at)

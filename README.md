@@ -13,7 +13,7 @@ Stack:
 Current state:
 
 - Sanitized demo data imports from John's real review examples in `docs/examples-from-john/`.
-- Dashboard, work-order list, PA Projects workspace, configurable service lines, SLA/KPI due-date tracking, PM month workflow with manual PM creation and bulk spreadsheet-paste month setup, opportunistic “while you’re there” PM suggestions, AI-assisted work-order image upload preview, teams/availability, dispatch builder, manual overrides, and WhatsApp export are implemented.
+- Dashboard, work-order list, PA Projects workspace with structured parts/follow-up tracking, configurable service lines, SLA/KPI due-date tracking, monthly KPI/PM/CM/estimate CSV reporting, PM month workflow with manual PM creation and bulk spreadsheet-paste month setup, opportunistic “while you’re there” PM suggestions, AI-assisted work-order intake preview from images/PDF/text/paste, teams/availability, dispatch builder with per-stop technician overrides, manual overrides, and WhatsApp export are implemented.
 - Clerk authentication is implemented with Rails JWT verification, `admin` / `dispatcher` / `viewer` roles, a bootstrap admin email, and in-app user management.
 - CI covers Rails tests/lint/security, frontend lint/build, and Python importer tests.
 
@@ -35,9 +35,9 @@ cd api && bundle exec rails jmi:clear_demo_data
 cd api && CONFIRM=clear_demo_data bundle exec rails jmi:clear_demo_data
 ```
 
-AI-assisted work-order upload uses OpenRouter vision models. Configure these API env vars when enabling it:
+AI-assisted work-order intake uses OpenRouter models for screenshots/images and pasted/PDF/text requests. Configure these API env vars when enabling it:
 
-- `OPENROUTER_API_KEY` - required for upload preview extraction.
+- `OPENROUTER_API_KEY` - required for intake preview extraction.
 - `OPENROUTER_WORK_ORDER_OCR_MODEL` - optional, defaults to `google/gemini-2.5-flash`.
 - `OPENROUTER_HTTP_REFERER` - optional request attribution header.
 

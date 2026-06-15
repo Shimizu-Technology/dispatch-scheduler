@@ -129,6 +129,15 @@ module Serializers
       pa_project_notes: work_order.pa_project_notes,
       corrective_maintenance: work_order.corrective_maintenance,
       estimate_required: work_order.estimate_required,
+      estimate_number: work_order.estimate_number,
+      parts_status: work_order.parts_status,
+      parts_ordered: work_order.parts_ordered,
+      parts_ordered_at: work_order.parts_ordered_at&.iso8601,
+      parts_eta: work_order.parts_eta,
+      follow_up_due_on: work_order.follow_up_due_on,
+      follow_up_owner: work_order.follow_up_owner,
+      vendor_reference: work_order.vendor_reference,
+      latest_follow_up_note: work_order.latest_follow_up_note,
       last_dispatched_on: last_dispatch&.dispatch_schedule&.date,
       last_crew_name: last_dispatch&.team&.name,
       last_outcome_status: last_dispatch&.outcome_status
@@ -242,9 +251,9 @@ module Serializers
 
   def skills_for(technician)
     if technician.association(:technician_skills).loaded?
-      technician.technician_skills.map(&:skill)
+      technician.technician_skills.map(&:skill).sort
     else
-      technician.technician_skills.pluck(:skill)
+      technician.technician_skills.order(:skill).pluck(:skill)
     end
   end
 

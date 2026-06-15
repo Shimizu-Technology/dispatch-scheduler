@@ -22,6 +22,42 @@ class DispatchItemsControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ 1, 2 ], [ target_first.reload.order_index, target_second.reload.order_index ]
   end
 
+  test "custom technician ids update stop snapshot without changing the whole crew" do
+    crew = team(name: "Crew With Helper", skills: [ "General" ])
+    driver = crew.technicians.first
+    helper = Technician.create!(name: "Special Helper", primary_trade: "Electrical", is_driver: false, active: true)
+    other_team = team(name: "Other Crew", skills: [ "HVAC" ])
+    other_tech = other_team.technicians.first
+    schedule = DispatchSchedule.create!(date: DEFAULT_DATE, status: "draft")
+    item = schedule.dispatch_items.create!(team: crew, work_order: work_order(title: "Needs helper"), order_index: 0)
+
+    with_auth_env do
+      patch "/api/v1/dispatch_items/#{item.id}", params: { technician_ids: [ helper.id, driver.id ], reassignment_reason: "Needs second tech" }, headers: auth_headers
+    end
+
+    assert_response :success
+    item.reload
+    assert_equal crew.id, item.team_id
+    assert_equal [ helper.id, driver.id ], item.dispatch_item_technicians.order(:position).pluck(:technician_id)
+    assert_empty item.dispatch_item_technicians.where(technician_id: other_tech.id)
+    assert_equal "dispatch_item.reassigned", AuditEvent.last.action
+    assert_equal [ helper.id, driver.id ], AuditEvent.last.metadata_hash.fetch("technician_ids")
+  end
+
+  test "rejects inactive custom technician ids" do
+    crew = team(name: "Crew Active", skills: [ "General" ])
+    inactive = Technician.create!(name: "Inactive Helper", primary_trade: "General", is_driver: false, active: false)
+    schedule = DispatchSchedule.create!(date: DEFAULT_DATE, status: "draft")
+    item = schedule.dispatch_items.create!(team: crew, work_order: work_order(title: "Bad helper"), order_index: 0)
+
+    with_auth_env do
+      patch "/api/v1/dispatch_items/#{item.id}", params: { technician_ids: [ inactive.id ] }, headers: auth_headers
+    end
+
+    assert_response :unprocessable_entity
+    assert_empty item.reload.dispatch_item_technicians
+  end
+
   test "does not update finalized schedule items" do
     assert_locked_schedule_item_is_not_updated("finalized")
   end

@@ -44,6 +44,18 @@ class DispatchSchedulesControllerTest < ActionDispatch::IntegrationTest
     assert_nil JSON.parse(response.body).fetch("schedule")
   end
 
+  test "mark sent rejects draft schedules" do
+    schedule = DispatchSchedule.create!(date: DEFAULT_DATE, status: "draft")
+
+    with_auth_env do
+      post "/api/v1/dispatch_schedules/#{schedule.id}/mark_sent", headers: auth_headers
+    end
+
+    assert_response :conflict
+    assert_equal "draft", schedule.reload.status
+    assert_includes JSON.parse(response.body).fetch("errors").first, "Finalize"
+  end
+
   test "finalizes marks sent and reopens schedule" do
     crew = team(name: "Finalize Crew")
     schedule = DispatchSchedule.create!(date: DEFAULT_DATE, status: "draft")
@@ -214,7 +226,8 @@ class DispatchSchedulesControllerTest < ActionDispatch::IntegrationTest
     crew.team_memberships.create!(technician: helper)
     schedule = DispatchSchedule.create!(date: DEFAULT_DATE, status: "finalized")
     work = work_order(title: "Export work", priority: "P2", trade: "HVAC")
-    schedule.dispatch_items.create!(team: crew, work_order: work, order_index: 0, scheduled_time: "08:30", notes: "Bring ladder")
+    item = schedule.dispatch_items.create!(team: crew, work_order: work, order_index: 0, scheduled_time: "08:30", notes: "Bring ladder")
+    item.snapshot_technicians!
 
     with_auth_env do
       get "/api/v1/dispatch_schedules/#{schedule.id}/whatsapp_export", headers: auth_headers
@@ -226,6 +239,7 @@ class DispatchSchedulesControllerTest < ActionDispatch::IntegrationTest
     assert_includes payload.fetch("message"), "JMI Dispatch - Tuesday, May 5, 2026"
     assert_includes payload.fetch("message"), "EXPORT CREW DRIVER"
     assert_includes payload.fetch("message"), "Crew: Export Crew Driver (Driver)"
+    assert_includes payload.fetch("message"), "Techs: Export Crew Driver (Driver)"
     assert_includes payload.fetch("message"), "Out today: Export Helper - Test call-out"
     assert_includes payload.fetch("message"), "8:30 AM - Mobil / Yigo North"
     assert_includes payload.fetch("message"), "WO: #{work.external_id} | P2 | HVAC"

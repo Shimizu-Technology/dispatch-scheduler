@@ -43,6 +43,15 @@ export type WorkOrder = {
   pa_project_notes: string | null
   corrective_maintenance: boolean
   estimate_required: boolean
+  estimate_number: string | null
+  parts_status: string | null
+  parts_ordered: boolean
+  parts_ordered_at: string | null
+  parts_eta: string | null
+  follow_up_due_on: string | null
+  follow_up_owner: string | null
+  vendor_reference: string | null
+  latest_follow_up_note: string | null
   last_dispatched_on?: string | null
   last_crew_name?: string | null
   last_outcome_status?: DispatchOutcomeStatus | null
@@ -87,6 +96,51 @@ export type WorkOrderInput = {
   pa_project_notes?: string
   corrective_maintenance?: boolean
   estimate_required?: boolean
+  estimate_number?: string
+  parts_status?: string
+  parts_ordered?: boolean
+  parts_ordered_at?: string
+  parts_eta?: string
+  follow_up_due_on?: string
+  follow_up_owner?: string
+  vendor_reference?: string
+  latest_follow_up_note?: string
+}
+
+export type MonthlyReport = {
+  month: string
+  generated_at: string
+  period: { starts_on: string; ends_on: string }
+  work_orders: {
+    total: number
+    open: number
+    completed_or_closed: number
+    corrective_maintenance: number
+    estimate_required: number
+    pa_projects: number
+    waiting_for_parts: number
+    waiting_for_approval: number
+    kpi_overdue: number
+    kpi_due_soon: number
+    kpi_missing: number
+    by_status: Record<string, number>
+    by_priority: Record<string, number>
+    by_service_line: Record<string, number>
+  }
+  pm_tasks: {
+    total: number
+    completed: number
+    incomplete: number
+    deferred: number
+    by_status: Record<string, number>
+    by_region: Record<string, number>
+  }
+  follow_ups: {
+    due_today: number
+    due_this_month: number
+    parts_eta_this_month: number
+    pa_projects_due_this_month: number
+  }
 }
 
 export type ServiceLine = {

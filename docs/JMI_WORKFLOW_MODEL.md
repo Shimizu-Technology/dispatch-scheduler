@@ -381,6 +381,8 @@ Purpose: keep long-running blocked work visible.
 
 A PA Project flag should be independent of the normal work order status. Most PA Projects are waiting on parts/materials, but not all. PA Projects should be easy to filter, report, and follow up on.
 
+The pilot app now tracks the minimum structured follow-up data John needs to keep blocked work from disappearing: parts status, ordered flag/date, parts ETA, follow-up due date, owner, vendor reference/PO/quote number, estimate number, and latest follow-up note. PA Projects stay out of normal KPI-driven dispatch suggestions unless explicitly scheduled, but they remain visible in dashboards and monthly reports.
+
 ## 6. UI Information Architecture Direction
 
 The current top-level sections should evolve toward this mental model:
@@ -414,23 +416,29 @@ The current top-level sections should evolve toward this mental model:
 5. **PA Projects**
    - work orders marked as PA Projects
    - parts/materials/follow-up notes
+   - follow-up owner, due date, ETA, vendor reference, and latest note
    - visibility into long-running work that should not be lost
 
-6. **Service Lines / Contract Lines**
+6. **Reports**
+   - monthly KPI/PM/CM/estimate/PA Project summary
+   - CSV export for Mobil/CBRE/JMI conversations
+   - follow-up and parts ETA counts
+
+7. **Service Lines / Contract Lines**
    - admin-configurable list, not hard-coded
    - seeded defaults may include Mobil / CBRE, HKR, Public Schools / Sodexo, General
    - used to classify work orders and optionally prefer crews/technicians
 
-7. **Today's Dispatch**
+8. **Today's Dispatch**
    - schedule suggestion and manual edits
 
-8. **WhatsApp**
+9. **WhatsApp**
    - copy final schedule
 
-9. **Activity**
+10. **Activity**
    - audit trail
 
-10. **Users**
+11. **Users**
    - admin-only access control
 
 ## 7. Data Model Direction
@@ -458,8 +466,9 @@ Likely additions/changes:
 - optional `preferred_region`/route field beyond current `region_preference`
 - configurable `service_lines` / `contract_lines` table managed by admins
 - service-line selection on work orders
-- PA Project fields on work orders: `pa_project`, `pa_project_notes`, and future follow-up/ETA fields
-- corrective maintenance and estimate-required fields on work orders
+- PA Project fields on work orders: `pa_project`, `pa_project_notes`
+- parts/follow-up fields on work orders: `parts_status`, `parts_ordered`, `parts_ordered_at`, `parts_eta`, `follow_up_due_on`, `follow_up_owner`, `vendor_reference`, `latest_follow_up_note`
+- corrective maintenance, estimate-required, and estimate-number fields on work orders
 - optional service-line preference on crews/technicians later, after the base service-line model is in use
 - `dispatch_item_technicians` snapshots for immutable person-level dispatch history
 - `required_technician_count` on work orders for staffing-aware assignment

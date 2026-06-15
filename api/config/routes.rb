@@ -5,6 +5,7 @@ Rails.application.routes.draw do
     namespace :v1 do
       get "me", to: "me#show"
       get "dashboard", to: "dashboard#index"
+      get "reports/monthly", to: "reports#monthly"
       resources :users, only: [ :index, :create, :update, :destroy ] do
         member do
           post :resend_invitation

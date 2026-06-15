@@ -74,9 +74,16 @@ class WhatsAppExportService
         "   Task: #{clean_text(schedulable.task_name)} | #{schedulable.trade_category}"
       ]
     end
+    lines << "   Techs: #{item_technician_line(item)}" if item.dispatch_item_technicians.any?
     lines << "   Notes: #{clean_text(item.notes)}" if item.notes.present?
     lines << ""
     lines
+  end
+
+  def item_technician_line(item)
+    item.dispatch_item_technicians.sort_by { |technician| technician.position || 0 }.map do |technician|
+      technician.is_driver? ? "#{technician.technician_name} (Driver)" : technician.technician_name
+    end.join(", ")
   end
 
   def crew_line(crew)

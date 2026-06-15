@@ -146,29 +146,29 @@ Principles:
 
 ## 5. Current Implementation Snapshot
 
-Implemented as of May 12, 2026:
+Implemented as of June 15, 2026:
 
 - Rails API and React/Vite frontend monorepo.
 - Sanitized seed/import flow from John's Mobil workbook, PM workbook, Sodexo sample, and CBRE PDF sample.
-- Dashboard counts, work-order list, PA Projects workspace, team/technician availability, PM task view, and dispatch builder.
-- Work-order operational tracking for PA Projects, corrective maintenance, estimate-required work, and configurable service lines / contract lines.
-- SLA/KPI due-date modeling for reported time, assessment due time, assessed time, repair due time, and dashboard SLA pressure counts.
+- Dashboard counts, work-order list, PA Projects workspace, team/technician availability, PM task view, monthly reports, and dispatch builder.
+- Work-order operational tracking for PA Projects, corrective maintenance, estimate-required work, structured parts/ETA/follow-up owner/vendor references, and configurable service lines / contract lines.
+- SLA/KPI due-date modeling for reported time, assessment due time, assessed time, repair due time, Guam-local time, and dashboard SLA pressure counts.
 - PM month workflow for manual PM creation, spreadsheet-paste month setup, duplicate-safe bulk creation, pending/scheduled/completed/deferred preventive maintenance, and incomplete-this-month tracking.
 - Rule-based daily schedule suggestion using priority, lifecycle status, SLA pressure, skill/trade, driver availability, region, PM commitments, and same-location “while you’re there” PM opportunities.
 - Idempotent draft regeneration by date with a configurable daily item cap.
-- Manual dispatch overrides for crew, scheduled time, order, and notes.
-- WhatsApp-ready schedule export.
+- Manual dispatch overrides for crew, per-stop technician assignment, scheduled time, order, and notes.
+- WhatsApp-ready schedule export with finalized-before-sent guard.
+- AI-assisted intake preview from screenshot/image upload, PDF text, text file, pasted request text, and pasted screenshots; extracted drafts require human review/edit before saving.
+- Monthly JSON/CSV report endpoint for Mobil/CBRE/JMI conversations covering KPI pressure, PM completion, CM, estimates, PA Projects, parts, and follow-ups.
 - Clerk auth with JWT verification, `FRONTEND_URL` / `VITE_API_URL` wiring, bootstrap-admin setup, in-app user management, and role refresh on sign-in.
 - Viewer mode hides/disables mutating controls and Rails guards mutating endpoints.
 - CI for Rails tests/lint/security, frontend lint/build, and Python importer tests.
 
 Still not implemented / still evolving:
 
-- Production upload/file intake.
-- Full PDF OCR and source-file storage.
+- Source-file storage for uploaded intake files after preview/save.
+- Scanned-image PDF OCR beyond readable PDF text extraction.
 - Excel-file PM import beyond the current spreadsheet-paste month setup.
-- Production upload/file intake.
-- Full PDF OCR and source-file storage.
 - Deeper service-line-aware crew preferences/scheduler scoring.
 - Production deployment/backups/monitoring.
 
@@ -202,7 +202,7 @@ dispatch-scheduler/
 
 - Rails API
 - PostgreSQL in production direction; SQLite is acceptable for fastest local POC if desired, but Postgres keeps us aligned with deploy path
-- Private S3 presigned uploads later for intake attachments; not required for the current dispatch board because upload intake is not implemented yet
+- Private S3 presigned uploads later for retained intake attachments; current intake preview sends uploaded/pasted content directly for extraction and does not retain source files
 - Simple seed/import scripts from XLSX → normalized seed JSON/database rows
 
 ### Frontend
@@ -216,15 +216,14 @@ dispatch-scheduler/
 ### AI/OCR
 
 Phase 1 POC:
-- Stub/controlled parser from sample text/image extraction results.
-- Demonstrate "paste text → suggested fields → human review".
+- OpenRouter-backed extraction for images/screenshots, PDF text, text files, pasted text, and pasted screenshots.
+- Extracted drafts show confidence/issues and must be reviewed/edited before saving.
+- Intake defaults avoid forcing newly created work into today's dispatch unless the dispatcher explicitly sets a dispatch date.
 
 Later:
-- Private S3 upload storage for source files
-- OCR for images/PDFs
-- LLM field extraction
-- Confidence indicators
-- Human review before saving
+- Private S3 upload storage for retained source files
+- OCR for scanned/non-text PDFs
+- Deeper vendor-specific parsing rules as John provides more samples
 
 ## 7. Data Model Draft
 

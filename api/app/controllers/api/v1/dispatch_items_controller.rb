@@ -11,9 +11,10 @@ module Api
 
         previous_team = item.team
         ApplicationRecord.transaction do
-          update_item(item, dispatch_item_params)
-          action = item.team_id == previous_team.id ? "dispatch_item.updated" : "dispatch_item.reassigned"
-          AuditEvent.record!(action: action, record: item, user: current_user, metadata: dispatch_item_audit_metadata(item).merge(previous_team: previous_team.name, new_team: item.team.name, reassignment_reason: item.reassignment_reason))
+          attrs, technician_ids = dispatch_item_attrs
+          update_item(item, attrs, technician_ids: technician_ids)
+          action = item.team_id == previous_team.id && technician_ids.nil? ? "dispatch_item.updated" : "dispatch_item.reassigned"
+          AuditEvent.record!(action: action, record: item, user: current_user, metadata: dispatch_item_audit_metadata(item).merge(previous_team: previous_team.name, new_team: item.team.name, reassignment_reason: item.reassignment_reason, technician_ids: item.dispatch_item_technicians.order(:position).pluck(:technician_id)))
         end
         render json: Serializers.schedule(item.dispatch_schedule)
       rescue ActiveRecord::RecordNotFound => e
@@ -53,7 +54,7 @@ module Api
         }
       end
 
-      def update_item(item, attrs)
+      def update_item(item, attrs, technician_ids: nil)
         old_team_id = item.team_id
         target_order = attrs.delete(:order_index)
 
@@ -61,9 +62,15 @@ module Api
           item.assign_attributes(attrs)
           team_changed = item.team_id != old_team_id
           order_changed = target_order.present?
-          item.reassignment_reason = nil unless team_changed
+          technicians_changed = !technician_ids.nil?
+          item.reassignment_reason = nil unless team_changed || technicians_changed
+          item.reassignment_reason ||= "Custom technician assignment" if technicians_changed
           item.save!
-          item.snapshot_technicians! if team_changed
+          if technicians_changed
+            replace_item_technicians!(item, technician_ids)
+          elsif team_changed
+            item.snapshot_technicians!
+          end
 
           if team_changed
             normalize_orders(item.dispatch_schedule, old_team_id)
@@ -153,12 +160,33 @@ module Api
         DispatchItem.where(id: changes.map(&:first)).update_all(order_index: order_case, updated_at: timestamp)
       end
 
-      def dispatch_item_params
-        permitted = params.permit(:team_id, :order_index, :scheduled_time, :notes, :reassignment_reason)
+      def dispatch_item_attrs
+        permitted = params.permit(:team_id, :order_index, :scheduled_time, :notes, :reassignment_reason, technician_ids: [])
+        technician_ids = params.key?(:technician_ids) ? Array(permitted.delete(:technician_ids)).reject(&:blank?).map(&:to_i).uniq : nil
         if params.key?(:scheduled_time)
           permitted[:scheduled_time] = permitted[:scheduled_time].present? ? normalize_time(permitted[:scheduled_time]) : nil
         end
-        permitted
+        [ permitted, technician_ids ]
+      end
+
+      def replace_item_technicians!(item, technician_ids)
+        raise ArgumentError, "Select at least one technician for this dispatch stop" if technician_ids.empty?
+
+        technicians = Technician.active.where(id: technician_ids).index_by(&:id)
+        missing_ids = technician_ids - technicians.keys
+        raise ArgumentError, "Active technician(s) not found: #{missing_ids.join(', ')}" if missing_ids.any?
+
+        item.dispatch_item_technicians.delete_all
+        technician_ids.each_with_index do |technician_id, index|
+          technician = technicians.fetch(technician_id)
+          item.dispatch_item_technicians.create!(
+            technician: technician,
+            technician_name: technician.name,
+            primary_trade: technician.primary_trade,
+            is_driver: technician.is_driver,
+            position: index
+          )
+        end
       end
 
       def outcome_params

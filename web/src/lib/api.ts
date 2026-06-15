@@ -36,6 +36,16 @@ async function requestForm<T>(path: string, body: FormData): Promise<T> {
   return res.json()
 }
 
+async function requestBlob(path: string): Promise<Blob> {
+  const headers = new Headers()
+  const token = await getAuthToken?.()
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+
+  const res = await fetch(`${API}${path}`, { headers })
+  if (!res.ok) throw new Error(await errorMessage(res))
+  return res.blob()
+}
+
 export async function getJson<T>(path: string): Promise<T> {
   return requestJson<T>(path)
 }
@@ -60,4 +70,8 @@ export async function deleteJson<T>(path: string): Promise<T> {
 
 export async function postForm<T>(path: string, body: FormData): Promise<T> {
   return requestForm<T>(path, body)
+}
+
+export async function getBlob(path: string): Promise<Blob> {
+  return requestBlob(path)
 }

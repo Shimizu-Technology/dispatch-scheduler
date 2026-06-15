@@ -50,7 +50,16 @@ export function PaProjectsPanel({ workOrders, meta, onPage, onEdit, canEdit }: {
           <span>Last dispatched: {shortDate(workOrder.last_dispatched_on)}</span>
           <span>Trade: {workOrder.trade_category}</span>
         </div>
-        {workOrder.pa_project_notes && <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold leading-6 text-amber-950">{workOrder.pa_project_notes}</p>}
+        <div className="mt-3 grid gap-2 text-xs font-semibold text-[#64748b] sm:grid-cols-4">
+          <span>Parts: {workOrder.parts_status || 'Not set'}</span>
+          <span>Ordered: {workOrder.parts_ordered ? 'Yes' : 'No'}</span>
+          <span>Parts ETA: {shortDate(workOrder.parts_eta)}</span>
+          <span>Follow-up due: {shortDate(workOrder.follow_up_due_on)}</span>
+          <span>Owner: {workOrder.follow_up_owner || 'Unassigned'}</span>
+          <span>Vendor ref: {workOrder.vendor_reference || 'None'}</span>
+          <span>Estimate #: {workOrder.estimate_number || 'None'}</span>
+        </div>
+        {(workOrder.pa_project_notes || workOrder.latest_follow_up_note) && <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold leading-6 text-amber-950">{workOrder.pa_project_notes || workOrder.latest_follow_up_note}{workOrder.pa_project_notes && workOrder.latest_follow_up_note ? ` · Latest: ${workOrder.latest_follow_up_note}` : ''}</p>}
       </article>)}
       {paProjects.length === 0 && <p className="rounded-2xl border border-dashed border-[rgba(36,67,147,0.22)] bg-[#f8faff] p-6 text-sm font-semibold text-[#526071]">No PA Projects are marked yet. Check the PA Project box on a work order to make it appear here.</p>}
       {meta && meta.total_count > 0 && <div className="flex flex-wrap items-center justify-between gap-3 px-1 pt-2 text-xs font-bold uppercase tracking-[0.14em] text-[#7b8798]">

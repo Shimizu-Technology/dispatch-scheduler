@@ -88,7 +88,16 @@ class WorkOrdersControllerTest < ActionDispatch::IntegrationTest
         pa_project: true,
         pa_project_notes: "Waiting for lights until September",
         corrective_maintenance: true,
-        estimate_required: true
+        estimate_required: true,
+        estimate_number: "EST-55",
+        parts_status: "Ordered from vendor",
+        parts_ordered: true,
+        parts_ordered_at: "2026-05-05T10:30:00+10:00",
+        parts_eta: "2026-05-20",
+        follow_up_due_on: "2026-05-12",
+        follow_up_owner: "John",
+        vendor_reference: "PO-55",
+        latest_follow_up_note: "Vendor confirmed ETA"
       }, headers: auth_headers
     end
 
@@ -100,6 +109,14 @@ class WorkOrdersControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Waiting for lights until September", payload.fetch("pa_project_notes")
     assert_equal true, payload.fetch("corrective_maintenance")
     assert_equal true, payload.fetch("estimate_required")
+    assert_equal "EST-55", payload.fetch("estimate_number")
+    assert_equal "Ordered from vendor", payload.fetch("parts_status")
+    assert_equal true, payload.fetch("parts_ordered")
+    assert_equal "2026-05-20", payload.fetch("parts_eta")
+    assert_equal "2026-05-12", payload.fetch("follow_up_due_on")
+    assert_equal "John", payload.fetch("follow_up_owner")
+    assert_equal "PO-55", payload.fetch("vendor_reference")
+    assert_equal "Vendor confirmed ETA", payload.fetch("latest_follow_up_note")
   end
 
   test "manual work order without report time keeps SLA missing" do

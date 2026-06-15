@@ -4,7 +4,7 @@ module Api
       before_action :require_dispatch_edit!
 
       def preview
-        result = WorkOrderOcrExtractor.extract(params[:file])
+        result = WorkOrderOcrExtractor.extract(params[:file], text: params[:text])
         if result[:success]
           render json: { work_orders: result[:work_orders] }
         else

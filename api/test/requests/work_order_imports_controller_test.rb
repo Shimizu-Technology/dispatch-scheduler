@@ -30,9 +30,11 @@ class WorkOrderImportsControllerTest < ActionDispatch::IntegrationTest
 
     original_extract = WorkOrderOcrExtractor.method(:extract)
     seen_filename = nil
+    seen_text = :not_seen
     begin
-      WorkOrderOcrExtractor.define_singleton_method(:extract) do |file|
+      WorkOrderOcrExtractor.define_singleton_method(:extract) do |file = nil, **kwargs|
         seen_filename = file.original_filename
+        seen_text = kwargs[:text]
         extractor_response
       end
       with_auth_env do
@@ -43,11 +45,58 @@ class WorkOrderImportsControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_equal "work-order.png", seen_filename
+    assert_nil seen_text
     assert_response :success
     payload = JSON.parse(response.body).fetch("work_orders")
     assert_equal 1, payload.size
     assert_equal "WO-900", payload.first.fetch("external_id")
     assert_equal "Sink leak", payload.first.fetch("title")
+  end
+
+  test "dispatcher previews pasted intake text" do
+    extractor_response = {
+      success: true,
+      work_orders: [
+        {
+          client: "Mobil",
+          location: "Dededo",
+          region: "North",
+          external_id: nil,
+          source: "pasted_text",
+          title: "Door closer broken",
+          description: "WhatsApp note says door closer broken",
+          priority: "P3",
+          normalized_priority: "P3",
+          status: "needs_assessment",
+          trade_category: "General",
+          scheduled_date: nil,
+          reported_at: nil,
+          notes: "Pasted from WhatsApp",
+          confidence: "medium",
+          issues: []
+        }
+      ]
+    }
+
+    original_extract = WorkOrderOcrExtractor.method(:extract)
+    seen_text = nil
+    begin
+      WorkOrderOcrExtractor.define_singleton_method(:extract) do |_file = nil, **kwargs|
+        seen_text = kwargs[:text]
+        extractor_response
+      end
+      with_auth_env do
+        post "/api/v1/work_order_imports/preview", params: { text: "Door closer broken at Dededo" }, headers: auth_headers
+      end
+    ensure
+      WorkOrderOcrExtractor.define_singleton_method(:extract, original_extract)
+    end
+
+    assert_equal "Door closer broken at Dededo", seen_text
+    assert_response :success
+    payload = JSON.parse(response.body).fetch("work_orders")
+    assert_equal "pasted_text", payload.first.fetch("source")
+    assert_equal "Door closer broken", payload.first.fetch("title")
   end
 
   test "viewer cannot preview work order uploads" do
@@ -61,7 +110,7 @@ class WorkOrderImportsControllerTest < ActionDispatch::IntegrationTest
   test "returns extractor errors" do
     original_extract = WorkOrderOcrExtractor.method(:extract)
     begin
-      WorkOrderOcrExtractor.define_singleton_method(:extract) { |_file| { success: false, error: "OpenRouter API key not configured" } }
+      WorkOrderOcrExtractor.define_singleton_method(:extract) { |_file = nil, **_kwargs| { success: false, error: "OpenRouter API key not configured" } }
       with_auth_env do
         post "/api/v1/work_order_imports/preview", params: { file: image_upload }, headers: auth_headers
       end

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, Save, Unlock } from 'lucide-react'
 import { Badge, Card, PanelHeader } from './ui'
-import type { DispatchItem, DispatchOutcomeStatus, DispatchSchedule, DispatchSummary, Team, WorkOrderStatus } from '../types'
+import type { DispatchItem, DispatchOutcomeStatus, DispatchSchedule, DispatchSummary, Team, Technician, WorkOrderStatus } from '../types'
 
 const OUTCOME_OPTIONS: Array<{ status: DispatchOutcomeStatus; label: string; workOrderStatus: WorkOrderStatus; description: string }> = [
   { status: 'pending', label: 'Pending', workOrderStatus: 'scheduled', description: 'Keep assigned, no final result yet.' },
@@ -90,7 +90,7 @@ function StatusNotice({ schedule }: { schedule: DispatchSchedule }) {
   return <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-900">Sent schedule: this dispatch has been marked as sent to the crews.</div>
 }
 
-function DispatchCard({ item, scheduleDate, teams, disabled, canEdit, canEditOutcomes, canMoveEarlier, canMoveLater, onUpdate, onOutcome, onWorkOrderStatus }: { item: DispatchItem; scheduleDate: string; teams: Team[]; disabled: boolean; canEdit: boolean; canEditOutcomes: boolean; canMoveEarlier: boolean; canMoveLater: boolean; onUpdate: (itemId: number, changes: Record<string, unknown>) => Promise<void>; onOutcome: (itemId: number, changes: { outcome_status: DispatchOutcomeStatus; outcome_notes?: string; carried_over_to_date?: string }) => Promise<void>; onWorkOrderStatus: (workOrderId: number, status: WorkOrderStatus) => Promise<void> }) {
+function DispatchCard({ item, scheduleDate, teams, technicians, disabled, canEdit, canEditOutcomes, canMoveEarlier, canMoveLater, onUpdate, onOutcome, onWorkOrderStatus }: { item: DispatchItem; scheduleDate: string; teams: Team[]; technicians: Technician[]; disabled: boolean; canEdit: boolean; canEditOutcomes: boolean; canMoveEarlier: boolean; canMoveLater: boolean; onUpdate: (itemId: number, changes: Record<string, unknown>) => Promise<void>; onOutcome: (itemId: number, changes: { outcome_status: DispatchOutcomeStatus; outcome_notes?: string; carried_over_to_date?: string }) => Promise<void>; onWorkOrderStatus: (workOrderId: number, status: WorkOrderStatus) => Promise<void> }) {
   const wo = item.work_order
   const pm = item.pm_task
   const persistedTeamId = String(item.team_id)
@@ -103,6 +103,8 @@ function DispatchCard({ item, scheduleDate, teams, disabled, canEdit, canEditOut
   const [outcomeNotes, setOutcomeNotes] = useState(item.outcome_notes || '')
   const [carryOverDate, setCarryOverDate] = useState(item.carried_over_to_date || nextDateString(scheduleDate))
   const [showDetails, setShowDetails] = useState(false)
+  const [showTechnicians, setShowTechnicians] = useState(false)
+  const [selectedTechnicianIds, setSelectedTechnicianIds] = useState<number[]>(item.assigned_technicians.map((technician) => technician.technician_id))
   const [workOrderStatus, setWorkOrderStatus] = useState<WorkOrderStatus>(wo?.status || 'scheduled')
 
   useEffect(() => {
@@ -113,16 +115,22 @@ function DispatchCard({ item, scheduleDate, teams, disabled, canEdit, canEditOut
     setNotes(persistedNotes)
     setOutcomeNotes(item.outcome_notes || '')
     setCarryOverDate(item.carried_over_to_date || nextDateString(scheduleDate))
+    setSelectedTechnicianIds(item.assigned_technicians.map((technician) => technician.technician_id))
     setWorkOrderStatus(wo?.status || 'scheduled')
-  }, [persistedTeamId, persistedTime, persistedNotes, item.outcome_notes, item.carried_over_to_date, scheduleDate, wo?.status])
+  }, [persistedTeamId, persistedTime, persistedNotes, item.outcome_notes, item.carried_over_to_date, item.assigned_technicians, scheduleDate, wo?.status])
 
-  const isDirty = teamId !== persistedTeamId || scheduledTime !== persistedTime || notes !== persistedNotes
+  const persistedTechnicianIds = item.assigned_technicians.map((technician) => technician.technician_id)
+  const techniciansDirty = selectedTechnicianIds.join(',') !== persistedTechnicianIds.join(',')
+  const isDirty = teamId !== persistedTeamId || scheduledTime !== persistedTime || notes !== persistedNotes || techniciansDirty
   const workOrderStatusDirty = Boolean(wo && workOrderStatus !== wo.status)
   const isSaving = disabled || saveState === 'saving'
   const title = wo ? `${wo.location} - ${wo.title}` : `${pm?.location} - ${pm?.task_name}`
   const kind = wo?.normalized_priority || 'pm'
   const estimatedHours = estimatedHoursLabel(wo?.estimated_hours)
   const assignedCrewLine = item.assigned_technicians.map((technician) => `${technician.name}${technician.is_driver ? ' (Driver)' : ''}`).join(', ')
+  const activeTechnicians = technicians.filter((technician) => technician.active)
+  const selectedTeam = teams.find((team) => String(team.id) === teamId)
+  const selectedTeamTechnicianIds = selectedTeam?.technicians.filter((technician) => technician.active && technician.availability !== 'unavailable').map((technician) => technician.id) || []
 
   function markDirty() {
     if (saveState === 'saved') setSaveState('idle')
@@ -130,9 +138,15 @@ function DispatchCard({ item, scheduleDate, teams, disabled, canEdit, canEditOut
 
   async function saveOverride() {
     if (!isDirty || isSaving) return
+    const changes: Record<string, unknown> = { team_id: Number(teamId), scheduled_time: scheduledTime, notes }
+    if (teamId !== persistedTeamId || techniciansDirty) {
+      changes.technician_ids = selectedTechnicianIds
+      changes.reassignment_reason = teamId !== persistedTeamId ? 'Manual crew reassignment' : 'Custom technician assignment'
+    }
+
     setSaveState('saving')
     try {
-      await onUpdate(item.id, { team_id: Number(teamId), scheduled_time: scheduledTime, notes, reassignment_reason: teamId !== persistedTeamId ? 'Manual crew reassignment' : undefined })
+      await onUpdate(item.id, changes)
       setSaveState('saved')
     } catch {
       setSaveState('idle')
@@ -180,7 +194,7 @@ function DispatchCard({ item, scheduleDate, teams, disabled, canEdit, canEditOut
     <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_120px]">
       <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
         Crew
-        <select disabled={disabled || !canEdit} value={teamId} onChange={(event) => { markDirty(); setTeamId(event.target.value) }} className="field-control mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]">
+        <select disabled={disabled || !canEdit} value={teamId} onChange={(event) => { const nextTeamId = event.target.value; const team = teams.find((candidate) => String(candidate.id) === nextTeamId); markDirty(); setTeamId(nextTeamId); setSelectedTechnicianIds(team?.technicians.filter((technician) => technician.active && technician.availability !== 'unavailable').map((technician) => technician.id) || []) }} className="field-control mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]">
           {teams.map((team) => <option key={team.id} value={team.id}>{team.today_crew_name || team.name}</option>)}
         </select>
       </label>
@@ -190,9 +204,31 @@ function DispatchCard({ item, scheduleDate, teams, disabled, canEdit, canEditOut
       </label>
     </div>
 
-    {assignedCrewLine && <p className="mt-2 rounded-xl border border-blue-100 bg-[#f8faff] px-3 py-2 text-xs font-extrabold text-[#244393]">Snapshot crew for this stop: {assignedCrewLine}</p>}
+    {assignedCrewLine && <p className="mt-2 rounded-xl border border-blue-100 bg-[#f8faff] px-3 py-2 text-xs font-extrabold text-[#244393]">Assigned technicians for this stop: {assignedCrewLine}</p>}
 
     {item.call_out_names.length > 0 && <p className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-extrabold text-amber-900">Out today from default crew: {item.call_out_names.join(', ')}. The active crew shown above excludes call-outs.</p>}
+
+    {canEdit && <div className="mt-3 rounded-2xl border border-[rgba(36,67,147,0.12)] bg-[#fbfcff] p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">Stop technicians</p>
+          <p className="mt-1 text-xs font-semibold text-[#64748b]">Add helpers for larger jobs without changing the whole day’s crew.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" disabled={disabled} onClick={() => { markDirty(); setSelectedTechnicianIds(selectedTeamTechnicianIds) }} className="rounded-xl border border-[#244393]/15 bg-white px-3 py-2 text-xs font-extrabold text-[#244393] transition hover:bg-[#e8eefc] disabled:cursor-not-allowed disabled:opacity-50">Use selected crew</button>
+          <button type="button" onClick={() => setShowTechnicians((current) => !current)} className="rounded-xl bg-[#244393] px-3 py-2 text-xs font-extrabold text-white">{showTechnicians ? 'Hide people' : 'Customize people'}</button>
+        </div>
+      </div>
+      {showTechnicians && <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {activeTechnicians.map((technician) => {
+          const checked = selectedTechnicianIds.includes(technician.id)
+          return <label key={technician.id} className={`flex cursor-pointer items-start gap-2 rounded-xl border p-2 text-xs transition ${checked ? 'border-[#244393] bg-white text-[#172033]' : 'border-[rgba(23,32,51,0.1)] bg-white/70 text-[#526071]'}`}>
+            <input disabled={disabled} type="checkbox" checked={checked} onChange={() => { markDirty(); setSelectedTechnicianIds((current) => current.includes(technician.id) ? current.filter((id) => id !== technician.id) : [...current, technician.id]) }} className="mt-0.5 accent-[#244393]" />
+            <span><span className="font-display block font-extrabold">{technician.name}{technician.is_driver ? ' (Driver)' : ''}</span><span className="font-semibold text-[#64748b]">{technician.primary_trade}{technician.availability === 'unavailable' ? ' · out today' : ''}</span></span>
+          </label>
+        })}
+      </div>}
+    </div>}
 
     <label className="mt-2 block text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
       Notes / warnings
@@ -234,7 +270,7 @@ function DispatchCard({ item, scheduleDate, teams, disabled, canEdit, canEditOut
   </div>
 }
 
-export function DispatchBuilder({ schedule, teams, working, canEdit, onSuggest, onUpdate, onOutcome, onWorkOrderStatus, onFinalize, onReopen }: { schedule: DispatchSchedule | null; teams: Team[]; working: boolean; canEdit: boolean; onSuggest: () => Promise<void>; onUpdate: (itemId: number, changes: Record<string, unknown>) => Promise<void>; onOutcome: (itemId: number, changes: { outcome_status: DispatchOutcomeStatus; outcome_notes?: string; carried_over_to_date?: string }) => Promise<void>; onWorkOrderStatus: (workOrderId: number, status: WorkOrderStatus) => Promise<void>; onFinalize: () => Promise<void>; onReopen: () => Promise<void> }) {
+export function DispatchBuilder({ schedule, teams, technicians, working, canEdit, onSuggest, onUpdate, onOutcome, onWorkOrderStatus, onFinalize, onReopen }: { schedule: DispatchSchedule | null; teams: Team[]; technicians: Technician[]; working: boolean; canEdit: boolean; onSuggest: () => Promise<void>; onUpdate: (itemId: number, changes: Record<string, unknown>) => Promise<void>; onOutcome: (itemId: number, changes: { outcome_status: DispatchOutcomeStatus; outcome_notes?: string; carried_over_to_date?: string }) => Promise<void>; onWorkOrderStatus: (workOrderId: number, status: WorkOrderStatus) => Promise<void>; onFinalize: () => Promise<void>; onReopen: () => Promise<void> }) {
   const groupedSchedule = useMemo(() => {
     const groups: Record<string, DispatchItem[]> = {}
     schedule?.items.forEach((item) => {
@@ -269,7 +305,7 @@ export function DispatchBuilder({ schedule, teams, working, canEdit, onSuggest, 
           <div key={team} className="rounded-2xl border border-[rgba(36,67,147,0.12)] bg-[#f8faff]/85 p-3 sm:p-4">
             <h3 className="font-display font-extrabold tracking-tight text-[#172033]">{team}</h3>
             <div className="mt-3 space-y-3">
-              {items.map((item, index) => <DispatchCard key={item.id} item={item} scheduleDate={schedule.date} teams={teams} disabled={working} canEdit={canEditItems} canEditOutcomes={canEditOutcomes} canMoveEarlier={index > 0} canMoveLater={index < items.length - 1} onUpdate={onUpdate} onOutcome={onOutcome} onWorkOrderStatus={onWorkOrderStatus} />)}
+              {items.map((item, index) => <DispatchCard key={item.id} item={item} scheduleDate={schedule.date} teams={teams} technicians={technicians} disabled={working} canEdit={canEditItems} canEditOutcomes={canEditOutcomes} canMoveEarlier={index > 0} canMoveLater={index < items.length - 1} onUpdate={onUpdate} onOutcome={onOutcome} onWorkOrderStatus={onWorkOrderStatus} />)}
             </div>
           </div>
         ))}

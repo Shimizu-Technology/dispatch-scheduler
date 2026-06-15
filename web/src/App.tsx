@@ -1,25 +1,26 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Activity, CalendarDays, ClipboardList, FolderKanban, LayoutDashboard, LockKeyhole, MessageSquareText, RefreshCw, Settings2, UserCog, Users, Wrench } from 'lucide-react'
+import { Activity, BarChart3, CalendarDays, ClipboardList, FolderKanban, LayoutDashboard, LockKeyhole, MessageSquareText, RefreshCw, Settings2, UserCog, Users, Wrench } from 'lucide-react'
 import { SignInButton, UserButton } from '@clerk/react'
 import { ActivityPanel } from './components/ActivityPanel'
 import { DashboardMetrics } from './components/DashboardMetrics'
 import { DispatchBuilder } from './components/DispatchBuilder'
 import { PaProjectsPanel } from './components/PaProjectsPanel'
 import { PmTasksPanel } from './components/PmTasksPanel'
+import { ReportsPanel } from './components/ReportsPanel'
 import { ServiceLinesPanel } from './components/ServiceLinesPanel'
 import { TeamsPanel } from './components/TeamsPanel'
 import { UserManagementPanel } from './components/UserManagementPanel'
 import { WhatsAppExport } from './components/WhatsAppExport'
 import { WorkOrdersPanel } from './components/WorkOrdersPanel'
 import { useAuthContext } from './contexts/useAuthContext'
-import { deleteJson, getJson, patchJson, postJson } from './lib/api'
-import type { AuditEvent, Dashboard, DispatchOutcomeStatus, DispatchSchedule, ManagedUser, PaginationMeta, PmTask, PmTaskBulkCreatePayload, PmTaskInput, ServiceLine, ServiceLineInput, Team, TeamInput, Technician, TechnicianInput, WhatsAppCrewExport, WhatsAppExportPayload, WorkOrder, WorkOrderInput, WorkOrderListPayload, WorkOrderStatus } from './types'
+import { deleteJson, getBlob, getJson, patchJson, postJson } from './lib/api'
+import type { AuditEvent, Dashboard, DispatchOutcomeStatus, DispatchSchedule, ManagedUser, MonthlyReport, PaginationMeta, PmTask, PmTaskBulkCreatePayload, PmTaskInput, ServiceLine, ServiceLineInput, Team, TeamInput, Technician, TechnicianInput, WhatsAppCrewExport, WhatsAppExportPayload, WorkOrder, WorkOrderInput, WorkOrderListPayload, WorkOrderStatus } from './types'
 import './index.css'
 
-type ActiveSection = 'overview' | 'dispatch' | 'work-orders' | 'pa-projects' | 'teams' | 'pm-tasks' | 'service-lines' | 'whatsapp' | 'activity' | 'users'
+type ActiveSection = 'overview' | 'dispatch' | 'work-orders' | 'pa-projects' | 'teams' | 'pm-tasks' | 'service-lines' | 'reports' | 'whatsapp' | 'activity' | 'users'
 
-const SECTION_IDS: ActiveSection[] = ['overview', 'dispatch', 'work-orders', 'pa-projects', 'teams', 'pm-tasks', 'service-lines', 'whatsapp', 'activity', 'users']
+const SECTION_IDS: ActiveSection[] = ['overview', 'dispatch', 'work-orders', 'pa-projects', 'teams', 'pm-tasks', 'service-lines', 'reports', 'whatsapp', 'activity', 'users']
 const SELECTED_DATE_STORAGE_KEY = 'dispatch-scheduler:selected-date'
 const DEFAULT_WORK_ORDER_QUERY = 'archived=active&page=1&per_page=50&sort=scheduled_date&direction=asc'
 
@@ -53,6 +54,8 @@ function DispatchApp() {
   const [pmTasks, setPmTasks] = useState<PmTask[]>([])
   const [serviceLines, setServiceLines] = useState<ServiceLine[]>([])
   const [managedUsers, setManagedUsers] = useState<ManagedUser[]>([])
+  const [monthlyReport, setMonthlyReport] = useState<MonthlyReport | null>(null)
+  const [reportLoading, setReportLoading] = useState(false)
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([])
   const [schedule, setSchedule] = useState<DispatchSchedule | null>(null)
   const [whatsApp, setWhatsApp] = useState('')
@@ -130,6 +133,17 @@ function DispatchApp() {
     void fetchPaProjects(1)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSection, user?.id])
+
+  useEffect(() => {
+    if (!user?.id || activeSection !== 'reports') return
+
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setReportLoading(true)
+    void getJson<MonthlyReport>(`/reports/monthly?month=${selectedDate.slice(0, 7)}`)
+      .then(setMonthlyReport)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Unable to load report'))
+      .finally(() => setReportLoading(false))
+  }, [activeSection, selectedDate, user?.id])
 
   useEffect(() => {
     if (!user?.permissions.can_admin) return
@@ -454,7 +468,29 @@ function DispatchApp() {
   }
 
   async function markScheduleSent() {
+    if (schedule?.status !== 'finalized') {
+      setError('Finalize the dispatch schedule before marking it sent.')
+      return
+    }
     await updateScheduleStatus('mark_sent', 'Unable to mark schedule sent')
+  }
+
+  async function downloadMonthlyReportCsv() {
+    setError('')
+    try {
+      const month = selectedDate.slice(0, 7)
+      const blob = await getBlob(`/reports/monthly.csv?month=${month}`)
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `jmi-dispatch-report-${month}.csv`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to download monthly report')
+    }
   }
 
   async function reopenSchedule() {
@@ -789,6 +825,7 @@ function DispatchApp() {
     { id: 'teams', label: 'Crews', description: 'Drivers and call-outs', icon: <Users size={18} />, count: teams.length },
     { id: 'pm-tasks', label: 'PMs', description: 'Preventive work', icon: <CalendarDays size={18} />, count: pmTasks.length },
     { id: 'service-lines', label: 'Service Lines', mobileLabel: 'Lines', description: 'Contracts and divisions', icon: <Settings2 size={18} />, count: serviceLines.filter((line) => line.active).length },
+    { id: 'reports', label: 'Reports', mobileLabel: 'Rpt', description: 'Monthly KPI exports', icon: <BarChart3 size={18} /> },
     { id: 'whatsapp', label: 'WhatsApp', mobileLabel: 'WA', description: 'Copy send-ready text', icon: <MessageSquareText size={18} /> },
     { id: 'activity', label: 'Activity', description: 'Audit history', icon: <Activity size={18} /> },
     ...(user?.permissions.can_admin ? [{ id: 'users' as const, label: 'Users', description: 'Roles and access', icon: <UserCog size={18} />, count: managedUsers.length }] : []),
@@ -942,17 +979,19 @@ function DispatchApp() {
 
         {currentSection === 'overview' && <DashboardMetrics dashboard={dashboard} workOrders={workOrders.filter((workOrder) => !workOrder.archived)} teams={teams} technicians={technicians} pmTasks={pmTasks} schedule={schedule} auditEvents={auditEvents} canEdit={canEditDispatch} working={working} onGoToSection={goToSection} onSuggest={suggestSchedule} />}
 
-        {currentSection === 'work-orders' && (user ? <WorkOrdersPanel workOrders={workOrders} meta={workOrderMeta} serviceLines={serviceLines} canEdit={canEditDispatch} selectedDate={selectedDate} saving={workOrderSaving} workOrderToEdit={workOrderToEdit} onEditConsumed={clearWorkOrderToEdit} onFetch={fetchWorkOrders} onCreate={createWorkOrder} onUpdate={updateWorkOrder} onArchive={archiveWorkOrder} /> : <SignInRequiredPanel title="Sign in to review work orders" />)}
+        {currentSection === 'work-orders' && (user ? <WorkOrdersPanel workOrders={workOrders} meta={workOrderMeta} serviceLines={serviceLines} canEdit={canEditDispatch} saving={workOrderSaving} workOrderToEdit={workOrderToEdit} onEditConsumed={clearWorkOrderToEdit} onFetch={fetchWorkOrders} onCreate={createWorkOrder} onUpdate={updateWorkOrder} onArchive={archiveWorkOrder} /> : <SignInRequiredPanel title="Sign in to review work orders" />)}
 
         {currentSection === 'pa-projects' && (user ? <PaProjectsPanel workOrders={paProjectWorkOrders} meta={paProjectMeta} canEdit={canEditDispatch} onPage={fetchPaProjects} onEdit={openWorkOrderFromPaProject} /> : <SignInRequiredPanel title="Sign in to review PA Projects" />)}
 
         {currentSection === 'teams' && (user ? <TeamsPanel teams={teams} technicians={technicians} serviceLines={serviceLines} schedule={schedule} canEdit={canEditDispatch} savingTechnicianId={availabilitySavingId} savingTeamId={teamSavingId} onToggleAvailability={toggleAvailability} onUpdateDailyCrew={updateDailyCrew} onUpdateDefaultCrew={updateDefaultCrew} onCreateTeam={createTeam} onArchiveTeam={archiveTeam} onCreateTechnician={createTechnician} onUpdateTechnician={updateTechnician} onArchiveTechnician={archiveTechnician} /> : <SignInRequiredPanel title="Sign in to check crews" />)}
 
-        {currentSection === 'dispatch' && (user ? <DispatchBuilder schedule={schedule} teams={teams} working={working} canEdit={canEditDispatch} onSuggest={suggestSchedule} onUpdate={updateDispatchItem} onOutcome={updateDispatchItemOutcome} onWorkOrderStatus={updateWorkOrderStatus} onFinalize={finalizeSchedule} onReopen={reopenSchedule} /> : <SignInRequiredPanel title="Sign in to build today's dispatch" />)}
+        {currentSection === 'dispatch' && (user ? <DispatchBuilder schedule={schedule} teams={teams} technicians={technicians} working={working} canEdit={canEditDispatch} onSuggest={suggestSchedule} onUpdate={updateDispatchItem} onOutcome={updateDispatchItemOutcome} onWorkOrderStatus={updateWorkOrderStatus} onFinalize={finalizeSchedule} onReopen={reopenSchedule} /> : <SignInRequiredPanel title="Sign in to build today's dispatch" />)}
 
         {currentSection === 'pm-tasks' && (user ? <PmTasksPanel key={selectedDate} pmTasks={pmTasks} canEdit={canEditDispatch} savingPmTaskId={pmTaskSavingId} selectedDate={selectedDate} onUpdate={updatePmTask} onCreate={createPmTask} onBulkCreate={bulkCreatePmTasks} /> : <SignInRequiredPanel title="Sign in to review PM tasks" />)}
 
         {currentSection === 'service-lines' && (user ? <ServiceLinesPanel serviceLines={serviceLines} canAdmin={Boolean(user.permissions.can_admin)} saving={serviceLineSaving} onCreate={createServiceLine} onUpdate={updateServiceLine} /> : <SignInRequiredPanel title="Sign in to review service lines" />)}
+
+        {currentSection === 'reports' && (user ? <ReportsPanel report={monthlyReport} loading={reportLoading} onDownloadCsv={downloadMonthlyReportCsv} /> : <SignInRequiredPanel title="Sign in to review monthly reports" />)}
 
         {currentSection === 'whatsapp' && (user ? <WhatsAppExport schedule={schedule} message={whatsApp} crews={whatsAppCrews} copied={copied} working={working} canEdit={canEditDispatch} onCopy={copyWhatsApp} onMarkSent={markScheduleSent} /> : <SignInRequiredPanel title="Sign in to copy WhatsApp output" />)}
 

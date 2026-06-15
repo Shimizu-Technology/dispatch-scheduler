@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_28_101000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_15_102016) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -251,15 +251,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_28_101000) do
     t.boolean "corrective_maintenance", default: false, null: false
     t.datetime "created_at", null: false
     t.text "description"
+    t.string "estimate_number"
     t.boolean "estimate_required", default: false, null: false
     t.decimal "estimated_hours"
     t.string "external_id"
+    t.date "follow_up_due_on"
+    t.string "follow_up_owner"
+    t.text "latest_follow_up_note"
     t.integer "location_id", null: false
     t.string "normalized_priority"
     t.text "notes"
     t.string "original_status_text"
     t.boolean "pa_project", default: false, null: false
     t.text "pa_project_notes"
+    t.date "parts_eta"
+    t.boolean "parts_ordered", default: false, null: false
+    t.datetime "parts_ordered_at"
+    t.string "parts_status"
     t.string "priority"
     t.datetime "repair_due_at"
     t.datetime "reported_at"
@@ -275,13 +283,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_28_101000) do
     t.string "title"
     t.string "trade_category"
     t.datetime "updated_at", null: false
+    t.string "vendor_reference"
     t.index ["archived_at"], name: "index_work_orders_on_archived_at"
     t.index ["assessment_due_at"], name: "index_work_orders_on_assessment_due_at"
     t.index ["client_id"], name: "index_work_orders_on_client_id"
     t.index ["corrective_maintenance"], name: "index_work_orders_on_corrective_maintenance"
+    t.index ["estimate_number"], name: "index_work_orders_on_estimate_number"
     t.index ["estimate_required"], name: "index_work_orders_on_estimate_required"
+    t.index ["follow_up_due_on"], name: "index_work_orders_on_follow_up_due_on"
     t.index ["location_id"], name: "index_work_orders_on_location_id"
     t.index ["pa_project"], name: "index_work_orders_on_pa_project"
+    t.index ["parts_eta"], name: "index_work_orders_on_parts_eta"
     t.index ["repair_due_at"], name: "index_work_orders_on_repair_due_at"
     t.index ["reported_at"], name: "index_work_orders_on_reported_at"
     t.index ["service_line_id"], name: "index_work_orders_on_service_line_id"

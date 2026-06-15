@@ -57,10 +57,23 @@ class WorkOrderOcrExtractorTest < ActiveSupport::TestCase
   end
 
   test "rejects unsupported uploads before calling OpenRouter" do
-    result = WorkOrderOcrExtractor.extract(text_upload)
+    result = WorkOrderOcrExtractor.extract(binary_upload)
 
     assert_equal false, result[:success]
     assert_includes result[:error], "Unsupported file type"
+  end
+
+  test "text uploads route through text extraction" do
+    result = nil
+    with_openrouter_response({ work_orders: [ { title: "Pasted issue", description: "Door closer broken", priority: "P3", status: "needs_assessment", trade_category: "General", parts_status: "ordered", parts_eta: "2026-06-20", follow_up_due_on: "2026-06-15" } ] }.to_json) do
+      result = WorkOrderOcrExtractor.extract(text_upload)
+    end
+
+    assert_equal true, result[:success], result.inspect
+    row = result[:work_orders].first
+    assert_equal "ordered", row.fetch(:parts_status)
+    assert_equal "2026-06-20", row.fetch(:parts_eta)
+    assert_equal "2026-06-15", row.fetch(:follow_up_due_on)
   end
 
   test "rejects spoofed image content type" do
@@ -85,10 +98,38 @@ class WorkOrderOcrExtractorTest < ActiveSupport::TestCase
     Rack::Test::UploadedFile.new(file.path, "image/png", true, original_filename: "work-order.png")
   end
 
+  def with_openrouter_response(content)
+    response = Struct.new(:code, :body).new("200", { choices: [ { message: { content: content } } ] }.to_json)
+    fake_http = Object.new
+    fake_http.define_singleton_method(:use_ssl=) { |_value| }
+    fake_http.define_singleton_method(:open_timeout=) { |_value| }
+    fake_http.define_singleton_method(:read_timeout=) { |_value| }
+    fake_http.define_singleton_method(:request) { |_request| response }
+
+    previous_key = ENV["OPENROUTER_API_KEY"]
+    ENV["OPENROUTER_API_KEY"] = "test-key"
+    original_new = Net::HTTP.method(:new)
+    begin
+      Net::HTTP.define_singleton_method(:new) { |_host, _port| fake_http }
+      yield
+    ensure
+      Net::HTTP.define_singleton_method(:new, original_new)
+      previous_key.nil? ? ENV.delete("OPENROUTER_API_KEY") : ENV["OPENROUTER_API_KEY"] = previous_key
+    end
+  end
+
   def text_upload
     file = Tempfile.new([ "work-order", ".txt" ])
     file.write("not image")
     file.rewind
     Rack::Test::UploadedFile.new(file.path, "text/plain", false, original_filename: "work-order.txt")
+  end
+
+  def binary_upload
+    file = Tempfile.new([ "work-order", ".bin" ])
+    file.binmode
+    file.write("not supported")
+    file.rewind
+    Rack::Test::UploadedFile.new(file.path, "application/octet-stream", true, original_filename: "work-order.bin")
   end
 end

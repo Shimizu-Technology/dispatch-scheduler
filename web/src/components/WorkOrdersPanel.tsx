@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
-import type { FormEvent } from 'react'
-import { Archive, ArchiveRestore, Edit3, FileUp, Plus, Search, Sparkles, X } from 'lucide-react'
+import type { ClipboardEvent, FormEvent } from 'react'
+import { Archive, ArchiveRestore, ClipboardPaste, Edit3, FileUp, Plus, Search, Sparkles, X } from 'lucide-react'
 import { Badge, Card, PanelHeader } from './ui'
-import { postForm } from '../lib/api'
+import { postForm, postJson } from '../lib/api'
 import type { OcrWorkOrderDraft, PaginationMeta, ServiceLine, WorkOrder, WorkOrderImportPreview, WorkOrderInput, WorkOrderStatus } from '../types'
 
 const priorities = ['P1', 'P2', 'P3', 'P4']
@@ -25,6 +25,12 @@ function statusLabel(status: string) {
 function shortDate(value?: string | null) {
   if (!value) return 'Not set'
   return value.slice(0, 10)
+}
+
+function datetimeLocalNow() {
+  const date = new Date()
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
+  return local.toISOString().slice(0, 16)
 }
 
 function datetimeLocalValue(value?: string | null) {
@@ -93,7 +99,7 @@ function statusSummary(status: string) {
   return summaries[status] || statusLabel(status)
 }
 
-function emptyForm(scheduledDate?: string): WorkOrderInput {
+function emptyForm(): WorkOrderInput {
   return {
     client: 'Mobil',
     location: '',
@@ -103,11 +109,11 @@ function emptyForm(scheduledDate?: string): WorkOrderInput {
     title: '',
     description: '',
     priority: 'P3',
-    status: 'approved',
+    status: 'needs_assessment',
     trade_category: 'General',
-    scheduled_date: scheduledDate || '',
+    scheduled_date: '',
     notes: '',
-    reported_at: '',
+    reported_at: datetimeLocalNow(),
     assessed_at: '',
     estimated_hours: '',
     required_technician_count: 1,
@@ -116,6 +122,41 @@ function emptyForm(scheduledDate?: string): WorkOrderInput {
     pa_project_notes: '',
     corrective_maintenance: false,
     estimate_required: false,
+    estimate_number: '',
+    parts_status: '',
+    parts_ordered: false,
+    parts_ordered_at: '',
+    parts_eta: '',
+    follow_up_due_on: '',
+    follow_up_owner: '',
+    vendor_reference: '',
+    latest_follow_up_note: '',
+  }
+}
+
+function formFromImportDraft(draft: ImportDraft): WorkOrderInput {
+  return {
+    ...draft,
+    normalized_priority: draft.priority,
+    original_status_text: draft.original_status_text || draft.status,
+    scheduled_date: draft.scheduled_date || '',
+    reported_at: draft.reported_at ? datetimeLocalValue(draft.reported_at) : datetimeLocalNow(),
+    assessed_at: draft.assessed_at ? datetimeLocalValue(draft.assessed_at) : '',
+    estimated_hours: draft.estimated_hours ?? '',
+    required_technician_count: draft.required_technician_count || 1,
+    pa_project: Boolean(draft.pa_project),
+    pa_project_notes: draft.pa_project_notes || '',
+    corrective_maintenance: Boolean(draft.corrective_maintenance),
+    estimate_required: Boolean(draft.estimate_required),
+    estimate_number: draft.estimate_number || '',
+    parts_status: draft.parts_status || '',
+    parts_ordered: Boolean(draft.parts_ordered),
+    parts_ordered_at: draft.parts_ordered_at ? datetimeLocalValue(draft.parts_ordered_at) : '',
+    parts_eta: draft.parts_eta || '',
+    follow_up_due_on: draft.follow_up_due_on || '',
+    follow_up_owner: draft.follow_up_owner || '',
+    vendor_reference: draft.vendor_reference || '',
+    latest_follow_up_note: draft.latest_follow_up_note || '',
   }
 }
 
@@ -144,6 +185,15 @@ function formFromWorkOrder(workOrder: WorkOrder): WorkOrderInput {
     pa_project_notes: workOrder.pa_project_notes || '',
     corrective_maintenance: workOrder.corrective_maintenance,
     estimate_required: workOrder.estimate_required,
+    estimate_number: workOrder.estimate_number || '',
+    parts_status: workOrder.parts_status || '',
+    parts_ordered: workOrder.parts_ordered,
+    parts_ordered_at: datetimeLocalValue(workOrder.parts_ordered_at),
+    parts_eta: workOrder.parts_eta || '',
+    follow_up_due_on: workOrder.follow_up_due_on || '',
+    follow_up_owner: workOrder.follow_up_owner || '',
+    vendor_reference: workOrder.vendor_reference || '',
+    latest_follow_up_note: workOrder.latest_follow_up_note || '',
   }
 }
 
@@ -159,7 +209,9 @@ function WorkOrderRow({ workOrder, canEdit, onEdit, onArchive }: { workOrder: Wo
           {workOrder.archived && <Badge kind="waiting">Archived</Badge>}
           {workOrder.pa_project && <Badge kind="waiting">PA Project</Badge>}
           {workOrder.corrective_maintenance && <Badge kind="approved">CM</Badge>}
-          {workOrder.estimate_required && <Badge kind="scheduled">Estimate</Badge>}
+          {workOrder.estimate_required && <Badge kind="scheduled">Estimate{workOrder.estimate_number ? ` #${workOrder.estimate_number}` : ''}</Badge>}
+          {workOrder.follow_up_due_on && <Badge kind={new Date(workOrder.follow_up_due_on) <= new Date() ? 'waiting' : 'closed'}>Follow-up {shortDate(workOrder.follow_up_due_on)}</Badge>}
+          {workOrder.parts_eta && <Badge kind="waiting">Parts ETA {shortDate(workOrder.parts_eta)}</Badge>}
           {workOrder.required_technician_count > 1 && <Badge kind="approved">{workOrder.required_technician_count} techs</Badge>}
           <span className="font-display tabular text-[0.68rem] font-extrabold uppercase tracking-[0.14em] text-[#7b8798]">WO #{workOrder.external_id || 'N/A'}</span>
         </div>
@@ -168,6 +220,7 @@ function WorkOrderRow({ workOrder, canEdit, onEdit, onArchive }: { workOrder: Wo
         <div className={`mt-3 inline-flex rounded-xl border px-3 py-1.5 text-xs font-extrabold ${statusTone(workOrder.status)}`}>
           {statusSummary(workOrder.status)}{isBlocked ? ' · follow-up required' : ''}
         </div>
+        {(workOrder.parts_status || workOrder.latest_follow_up_note) && <p className="mt-2 line-clamp-2 rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs font-semibold leading-5 text-amber-950">{workOrder.parts_status ? `Parts: ${workOrder.parts_status}` : ''}{workOrder.parts_status && workOrder.latest_follow_up_note ? ' · ' : ''}{workOrder.latest_follow_up_note || ''}</p>}
       </div>
 
       <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs font-semibold text-[#64748b] sm:grid-cols-4 xl:grid-cols-1">
@@ -205,6 +258,7 @@ function WorkOrderForm({ initialValues, serviceLines, saving, onCancel, onSubmit
       service_line_id: values.service_line_id || null,
       reported_at: datetimeLocalToIso(values.reported_at),
       assessed_at: datetimeLocalToIso(values.assessed_at),
+      parts_ordered_at: datetimeLocalToIso(values.parts_ordered_at),
       estimated_hours: values.estimated_hours === '' || values.estimated_hours === undefined ? null : values.estimated_hours,
       required_technician_count: values.required_technician_count || 1,
     })
@@ -263,8 +317,9 @@ function WorkOrderForm({ initialValues, serviceLines, saving, onCancel, onSubmit
         </select>
       </label>
       <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
-        Schedule date
+        Force dispatch date
         <input type="date" value={values.scheduled_date || ''} onChange={(event) => updateField('scheduled_date', event.target.value)} className="field-control tabular mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]" />
+        <span className="mt-1 block text-xs font-semibold normal-case tracking-normal text-[#64748b]">Leave blank so KPI timing decides when it appears in dispatch.</span>
       </label>
       <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
         Service line
@@ -278,7 +333,7 @@ function WorkOrderForm({ initialValues, serviceLines, saving, onCancel, onSubmit
     <div className="mt-3 grid gap-3 lg:grid-cols-4">
       <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
         Reported at
-        <input type="datetime-local" value={values.reported_at || ''} onChange={(event) => updateField('reported_at', event.target.value)} className="field-control tabular mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]" />
+        <input required type="datetime-local" value={values.reported_at || ''} onChange={(event) => updateField('reported_at', event.target.value)} className="field-control tabular mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]" />
         <span className="mt-1 block text-xs font-semibold normal-case tracking-normal text-[#64748b]">Used to calculate assessment and repair KPI due times.</span>
       </label>
       <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
@@ -316,10 +371,54 @@ function WorkOrderForm({ initialValues, serviceLines, saving, onCancel, onSubmit
       </label>
     </div>
 
+    <div className="mt-3 grid gap-3 lg:grid-cols-4">
+      <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
+        Estimate #
+        <input value={values.estimate_number || ''} onChange={(event) => updateField('estimate_number', event.target.value)} placeholder="Optional" className="field-control mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]" />
+      </label>
+      <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
+        Parts status
+        <input value={values.parts_status || ''} onChange={(event) => updateField('parts_status', event.target.value)} placeholder="Needed, ordered, arrived..." className="field-control mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]" />
+      </label>
+      <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
+        Parts ETA
+        <input type="date" value={values.parts_eta || ''} onChange={(event) => updateField('parts_eta', event.target.value)} className="field-control mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]" />
+      </label>
+      <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
+        Follow-up due
+        <input type="date" value={values.follow_up_due_on || ''} onChange={(event) => updateField('follow_up_due_on', event.target.value)} className="field-control mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]" />
+      </label>
+    </div>
+
+    <div className="mt-3 grid gap-3 lg:grid-cols-4">
+      <label className="rounded-2xl border border-[rgba(36,67,147,0.12)] bg-white p-3 text-sm font-bold text-[#172033]">
+        <input type="checkbox" checked={Boolean(values.parts_ordered)} onChange={(event) => updateField('parts_ordered', event.target.checked)} className="mr-2 accent-[#244393]" />
+        Parts Ordered
+        <span className="mt-1 block text-xs font-semibold leading-5 text-[#64748b]">Track whether someone actually ordered parts/materials.</span>
+      </label>
+      <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
+        Ordered at
+        <input type="datetime-local" value={values.parts_ordered_at || ''} onChange={(event) => updateField('parts_ordered_at', event.target.value)} className="field-control mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]" />
+      </label>
+      <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
+        Follow-up owner
+        <input value={values.follow_up_owner || ''} onChange={(event) => updateField('follow_up_owner', event.target.value)} placeholder="John, George, vendor..." className="field-control mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]" />
+      </label>
+      <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
+        Vendor ref
+        <input value={values.vendor_reference || ''} onChange={(event) => updateField('vendor_reference', event.target.value)} placeholder="PO, quote, order #" className="field-control mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]" />
+      </label>
+    </div>
+
     {values.pa_project && <label className="mt-3 block text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
       PA Project notes
       <textarea value={values.pa_project_notes || ''} onChange={(event) => updateField('pa_project_notes', event.target.value)} placeholder="Parts/materials status, ETA, CBRE update, follow-up context..." className="field-control mt-1 min-h-16 w-full rounded-xl px-3 py-2 text-sm text-[#334155]" />
     </label>}
+
+    <label className="mt-3 block text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
+      Latest follow-up note
+      <textarea value={values.latest_follow_up_note || ''} onChange={(event) => updateField('latest_follow_up_note', event.target.value)} placeholder="Last call, vendor update, ordering note, CBRE update..." className="field-control mt-1 min-h-16 w-full rounded-xl px-3 py-2 text-sm text-[#334155]" />
+    </label>
 
     <label className="mt-3 block text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
       Notes
@@ -337,13 +436,15 @@ function WorkOrderForm({ initialValues, serviceLines, saving, onCancel, onSubmit
   </form>
 }
 
-export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, selectedDate, saving, workOrderToEdit, onEditConsumed, onFetch, onCreate, onUpdate, onArchive }: { workOrders: WorkOrder[]; meta: PaginationMeta | null; serviceLines: ServiceLine[]; canEdit: boolean; selectedDate: string; saving: boolean; workOrderToEdit?: WorkOrder | null; onEditConsumed?: () => void; onFetch: (query: string) => Promise<void>; onCreate: (values: WorkOrderInput) => Promise<void>; onUpdate: (id: number, values: WorkOrderInput) => Promise<void>; onArchive: (workOrderId: number, archived: boolean) => Promise<void> }) {
+export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, saving, workOrderToEdit, onEditConsumed, onFetch, onCreate, onUpdate, onArchive }: { workOrders: WorkOrder[]; meta: PaginationMeta | null; serviceLines: ServiceLine[]; canEdit: boolean; saving: boolean; workOrderToEdit?: WorkOrder | null; onEditConsumed?: () => void; onFetch: (query: string) => Promise<void>; onCreate: (values: WorkOrderInput) => Promise<void>; onUpdate: (id: number, values: WorkOrderInput) => Promise<void>; onArchive: (workOrderId: number, archived: boolean) => Promise<void> }) {
   const [showForm, setShowForm] = useState(false)
+  const [showPasteIntake, setShowPasteIntake] = useState(false)
   const [editing, setEditing] = useState<WorkOrder | null>(null)
+  const [reviewDraft, setReviewDraft] = useState<ImportDraft | null>(null)
   const [uploading, setUploading] = useState(false)
-  const [importingDraftId, setImportingDraftId] = useState<string | null>(null)
   const [importDrafts, setImportDrafts] = useState<ImportDraft[]>([])
   const [importError, setImportError] = useState('')
+  const [pasteText, setPasteText] = useState('')
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [priorityFilter, setPriorityFilter] = useState('')
@@ -360,7 +461,7 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, selec
   const filteredWorkOrders = workOrders
   const hasActiveFilters = Boolean(query || archiveFilter !== 'active' || statusFilter || priorityFilter || regionFilter || serviceLineFilter || paProjectFilter || correctiveMaintenanceFilter || estimateRequiredFilter)
   const activeEditing = editing ?? workOrderToEdit ?? null
-  const isFormOpen = showForm || Boolean(workOrderToEdit)
+  const isFormOpen = showForm || Boolean(workOrderToEdit) || Boolean(reviewDraft)
 
   function queryFor(page = 1) {
     const params = new URLSearchParams()
@@ -409,15 +510,17 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, selec
     void onFetch(nextQuery)
   }
 
-  const formInitialValues = activeEditing ? formFromWorkOrder(activeEditing) : emptyForm(selectedDate)
+  const formInitialValues = activeEditing ? formFromWorkOrder(activeEditing) : reviewDraft ? formFromImportDraft(reviewDraft) : emptyForm()
 
   async function submitForm(values: WorkOrderInput) {
     if (activeEditing) {
       await onUpdate(activeEditing.id, values)
     } else {
       await onCreate(values)
+      if (reviewDraft) setImportDrafts((currentDrafts) => currentDrafts.filter((draft) => draft.draftId !== reviewDraft.draftId))
     }
     setEditing(null)
+    setReviewDraft(null)
     setShowForm(false)
     onEditConsumed?.()
   }
@@ -425,12 +528,14 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, selec
   function startCreate() {
     onEditConsumed?.()
     setEditing(null)
+    setReviewDraft(null)
     setShowForm(true)
   }
 
   function startEdit(workOrder: WorkOrder) {
     onEditConsumed?.()
     setEditing(workOrder)
+    setReviewDraft(null)
     setShowForm(true)
   }
 
@@ -451,20 +556,27 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, selec
     }
   }
 
-  async function importDraft(draft: ImportDraft) {
-    setImportingDraftId(draft.draftId)
+  async function previewPastedText() {
+    if (!pasteText.trim()) return setImportError('Paste a WhatsApp, email, or work-order note first.')
+    setUploading(true)
     setImportError('')
     try {
-      await onCreate({
-        ...draft,
-        normalized_priority: draft.priority,
-        original_status_text: draft.original_status_text || draft.status,
-      })
-      setImportDrafts((currentDrafts) => currentDrafts.filter((candidate) => candidate.draftId !== draft.draftId))
+      const payload = await postJson<WorkOrderImportPreview>('/work_order_imports/preview', { text: pasteText })
+      const newDrafts = payload.work_orders.map((draft, index) => ({ ...draft, draftId: draftId(draft, index) }))
+      setImportDrafts((currentDrafts) => [...currentDrafts, ...newDrafts])
+      setPasteText('')
     } catch (err) {
-      setImportError(err instanceof Error ? err.message : 'Unable to import extracted work order')
+      setImportError(err instanceof Error ? err.message : 'Unable to preview pasted intake')
     } finally {
-      setImportingDraftId(null)
+      setUploading(false)
+    }
+  }
+
+  function handleClipboardPaste(event: ClipboardEvent<HTMLTextAreaElement>) {
+    const file = Array.from(event.clipboardData.files).find((candidate) => candidate.type.startsWith('image/') || candidate.type === 'application/pdf')
+    if (file) {
+      event.preventDefault()
+      void previewUpload(file)
     }
   }
 
@@ -474,9 +586,10 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, selec
       title="Open Work Orders"
       description="Review dispatch-ready work, blocked follow-ups, PA Projects, KPI pressure, and incoming requests from WhatsApp, email, phone, or work-order systems."
       action={canEdit ? <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
+        <button type="button" onClick={() => setShowPasteIntake((current) => !current)} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-[#244393]/15 bg-white px-4 py-2.5 font-display text-sm font-extrabold text-[#244393] transition hover:-translate-y-0.5 hover:bg-[#e8eefc] sm:w-auto"><ClipboardPaste size={16} /> Paste Intake</button>
         <label className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-[#244393]/15 bg-[#e8eefc] px-4 py-2.5 font-display text-sm font-extrabold text-[#244393] transition hover:-translate-y-0.5 hover:bg-[#dfe8ff] sm:w-auto">
-          <FileUp size={16} /> {uploading ? 'Scanning...' : 'Scan Intake'}
-          <input type="file" accept="image/png,image/jpeg,image/webp" disabled={uploading} onChange={(event) => { const file = event.target.files?.[0] || null; event.target.value = ''; void previewUpload(file) }} className="sr-only" />
+          <FileUp size={16} /> {uploading ? 'Scanning...' : 'Scan File'}
+          <input type="file" accept="image/png,image/jpeg,image/webp,application/pdf,text/plain" disabled={uploading} onChange={(event) => { const file = event.target.files?.[0] || null; event.target.value = ''; void previewUpload(file) }} className="sr-only" />
         </label>
         <button type="button" onClick={startCreate} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#d84332] px-4 py-2.5 font-display text-sm font-extrabold text-white shadow-[0_12px_26px_rgba(216,67,50,0.2)] transition hover:-translate-y-0.5 hover:bg-[#bf3228] sm:w-auto"><Plus size={16} /> New Work Order</button>
       </div> : <span className="tabular rounded-full bg-[#172b63] px-3 py-1.5 font-display text-xs font-extrabold uppercase tracking-[0.14em] text-white">{workOrders.length} records</span>}
@@ -484,11 +597,26 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, selec
 
     {importError && <div className="border-b border-red-100 bg-red-50 p-4 text-sm font-bold text-red-800">{importError}</div>}
 
+    {showPasteIntake && <div className="border-b border-[rgba(23,32,51,0.1)] bg-[#f8faff] p-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="font-display text-sm font-extrabold uppercase tracking-[0.16em] text-[#244393]">Paste intake</p>
+          <p className="mt-1 text-sm text-[#526071]">Paste a WhatsApp/email request, or paste a screenshot directly into this box. The app creates reviewable drafts only.</p>
+        </div>
+        <button type="button" onClick={() => setShowPasteIntake(false)} className="rounded-2xl border border-[rgba(23,32,51,0.12)] bg-white px-3 py-2 font-display text-xs font-extrabold uppercase tracking-[0.12em] text-[#334155]">Close</button>
+      </div>
+      <textarea value={pasteText} onPaste={handleClipboardPaste} onChange={(event) => setPasteText(event.target.value)} rows={5} placeholder="Paste text here, or click in this box and paste a screenshot from the clipboard..." className="field-control w-full rounded-2xl px-4 py-3 text-sm font-semibold leading-6 text-[#172033]" />
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button type="button" disabled={uploading || !pasteText.trim()} onClick={() => void previewPastedText()} className="rounded-xl bg-[#244393] px-4 py-2 text-sm font-extrabold text-white transition hover:-translate-y-0.5 hover:bg-[#172b63] disabled:cursor-not-allowed disabled:opacity-50">Preview pasted text</button>
+        <span className="rounded-xl border border-blue-100 bg-white px-3 py-2 text-xs font-bold text-[#64748b]">Screenshots are scanned immediately when pasted.</span>
+      </div>
+    </div>}
+
     {importDrafts.length > 0 && <div className="border-b border-[rgba(23,32,51,0.1)] bg-[#f8faff] p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="font-display text-sm font-extrabold uppercase tracking-[0.16em] text-[#244393]">AI upload preview</p>
-          <p className="mt-1 text-sm text-[#526071]">Review each extracted request before importing it as a work order.</p>
+          <p className="font-display text-sm font-extrabold uppercase tracking-[0.16em] text-[#244393]">AI intake preview</p>
+          <p className="mt-1 text-sm text-[#526071]">Open each extracted request, correct the fields, then save it as a work order. Nothing enters dispatch until reviewed.</p>
         </div>
         <button type="button" onClick={() => setImportDrafts([])} className="rounded-2xl border border-[rgba(23,32,51,0.12)] bg-white px-3 py-2 font-display text-xs font-extrabold uppercase tracking-[0.12em] text-[#334155]">Clear</button>
       </div>
@@ -503,7 +631,7 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, selec
               </div>
               <h3 className="font-display mt-2 font-extrabold text-[#172033]">{draft.location} - {draft.title}</h3>
             </div>
-            <button type="button" disabled={importingDraftId !== null || saving} onClick={() => void importDraft(draft)} className="shrink-0 rounded-2xl bg-[#16835f] px-3 py-2 font-display text-xs font-extrabold uppercase tracking-[0.12em] text-white transition hover:-translate-y-0.5 hover:bg-[#106a4c] disabled:cursor-wait disabled:opacity-60">{importingDraftId === draft.draftId ? 'Importing...' : 'Import'}</button>
+            <button type="button" disabled={saving} onClick={() => { setReviewDraft(draft); setShowForm(false); setEditing(null); onEditConsumed?.() }} className="shrink-0 rounded-2xl bg-[#16835f] px-3 py-2 font-display text-xs font-extrabold uppercase tracking-[0.12em] text-white transition hover:-translate-y-0.5 hover:bg-[#106a4c] disabled:cursor-wait disabled:opacity-60">Review/Edit</button>
           </div>
           <p className="mt-2 text-sm leading-6 text-[#526071]">{draft.description}</p>
           <p className="mt-2 text-xs font-semibold text-[#7b8798]">{draft.client} • {draft.region} • {draft.trade_category} • WO #{draft.external_id || 'N/A'}</p>
@@ -513,7 +641,7 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, selec
       </div>
     </div>}
 
-    {isFormOpen && <WorkOrderForm key={activeEditing?.id || 'new'} initialValues={formInitialValues} serviceLines={serviceLines} saving={saving} onCancel={() => { setShowForm(false); setEditing(null); onEditConsumed?.() }} onSubmit={submitForm} />}
+    {isFormOpen && <WorkOrderForm key={activeEditing?.id || reviewDraft?.draftId || 'new'} initialValues={formInitialValues} serviceLines={serviceLines} saving={saving} onCancel={() => { setShowForm(false); setEditing(null); setReviewDraft(null); onEditConsumed?.() }} onSubmit={submitForm} />}
 
     <div className="border-b border-[rgba(23,32,51,0.1)] bg-white p-3 sm:p-4">
       <div className="grid gap-2 sm:gap-3 lg:grid-cols-[1fr_150px_160px_150px_160px_180px]">

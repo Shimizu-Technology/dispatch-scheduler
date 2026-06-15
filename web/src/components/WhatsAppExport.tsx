@@ -17,11 +17,11 @@ function statusCopy(schedule: DispatchSchedule | null) {
   if (!schedule) return 'Generate a schedule to preview the send-ready crew assignments.'
   if (schedule.status === 'sent') return `Marked sent${schedule.sent_by ? ` by ${schedule.sent_by}` : ''}.`
   if (schedule.status === 'finalized') return 'Finalized and ready to copy into WhatsApp. Mark sent after the message is sent.'
-  return 'Draft preview. Finalize the schedule before sending the crew assignments.'
+  return 'Draft preview. Finalize the schedule before marking it sent.'
 }
 
 export function WhatsAppExport({ schedule, message, crews, copied, working, canEdit, onCopy, onMarkSent }: WhatsAppExportProps) {
-  const canMarkSent = Boolean(message && schedule && schedule.status !== 'sent' && canEdit)
+  const canMarkSent = Boolean(message && schedule?.status === 'finalized' && canEdit)
   const totalStops = crews.reduce((sum, crew) => sum + crew.stops_count, 0)
 
   return <div className="space-y-4">

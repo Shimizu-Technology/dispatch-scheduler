@@ -15,6 +15,7 @@ module Api
         scope = scope.where(pa_project: true) if truthy_param?(:pa_project)
         scope = scope.where(corrective_maintenance: true) if truthy_param?(:corrective_maintenance)
         scope = scope.where(estimate_required: true) if truthy_param?(:estimate_required)
+        scope = scope.where("follow_up_due_on <= ?", Date.current) if truthy_param?(:follow_up_due)
         scope = scope.where(scheduled_date: scheduled_date_param) if params[:scheduled_date].present?
         scope = scope.where("LOWER(clients.name) LIKE ?", "%#{ActiveRecord::Base.sanitize_sql_like(params[:client].to_s.downcase)}%") if params[:client].present?
         scope = scope.where(locations: { region: params[:region] }) if params[:region].present?
@@ -202,7 +203,8 @@ module Api
         count_scope = scope.except(:order, :limit, :offset)
         {
           waiting_for_parts: count_scope.where(status: "waiting_for_parts").count,
-          estimate_required: count_scope.where(estimate_required: true).count
+          estimate_required: count_scope.where(estimate_required: true).count,
+          follow_up_due: count_scope.where.not(follow_up_due_on: nil).where("follow_up_due_on <= ?", Date.current).count
         }
       end
 
@@ -260,7 +262,16 @@ module Api
           pa_project: boolean_attr(attrs, :pa_project, existing&.pa_project),
           pa_project_notes: attrs.key?(:pa_project_notes) ? attrs[:pa_project_notes] : existing&.pa_project_notes,
           corrective_maintenance: boolean_attr(attrs, :corrective_maintenance, existing&.corrective_maintenance),
-          estimate_required: boolean_attr(attrs, :estimate_required, existing&.estimate_required)
+          estimate_required: boolean_attr(attrs, :estimate_required, existing&.estimate_required),
+          estimate_number: attrs.key?(:estimate_number) ? attrs[:estimate_number].presence : existing&.estimate_number,
+          parts_status: attrs.key?(:parts_status) ? attrs[:parts_status].presence : existing&.parts_status,
+          parts_ordered: boolean_attr(attrs, :parts_ordered, existing&.parts_ordered),
+          parts_ordered_at: datetime_attr(attrs, :parts_ordered_at, existing&.parts_ordered_at),
+          parts_eta: date_attr(attrs, :parts_eta, existing&.parts_eta),
+          follow_up_due_on: date_attr(attrs, :follow_up_due_on, existing&.follow_up_due_on),
+          follow_up_owner: attrs.key?(:follow_up_owner) ? attrs[:follow_up_owner].presence : existing&.follow_up_owner,
+          vendor_reference: attrs.key?(:vendor_reference) ? attrs[:vendor_reference].presence : existing&.vendor_reference,
+          latest_follow_up_note: attrs.key?(:latest_follow_up_note) ? attrs[:latest_follow_up_note].presence : existing&.latest_follow_up_note
         }
       rescue Date::Error
         raise ActionController::BadRequest, "Invalid scheduled date"
@@ -279,6 +290,12 @@ module Api
           pa_project: work_order.pa_project,
           corrective_maintenance: work_order.corrective_maintenance,
           estimate_required: work_order.estimate_required,
+          estimate_number: work_order.estimate_number,
+          parts_status: work_order.parts_status,
+          parts_ordered: work_order.parts_ordered,
+          parts_eta: work_order.parts_eta,
+          follow_up_due_on: work_order.follow_up_due_on,
+          follow_up_owner: work_order.follow_up_owner,
           estimated_hours: work_order.estimated_hours&.to_f,
           required_technician_count: work_order.required_technician_count,
           sla_due_at: work_order.sla_due_at&.iso8601,
@@ -311,6 +328,15 @@ module Api
 
         BigDecimal(attrs[key].to_s)
       rescue ArgumentError, TypeError
+        raise ActionController::BadRequest, "Invalid #{key.to_s.humanize.downcase}"
+      end
+
+      def date_attr(attrs, key, fallback)
+        return fallback unless attrs.key?(key)
+        return nil if attrs[key].blank?
+
+        Date.parse(attrs[key].to_s)
+      rescue Date::Error, TypeError
         raise ActionController::BadRequest, "Invalid #{key.to_s.humanize.downcase}"
       end
 
@@ -369,7 +395,16 @@ module Api
           :pa_project,
           :pa_project_notes,
           :corrective_maintenance,
-          :estimate_required
+          :estimate_required,
+          :estimate_number,
+          :parts_status,
+          :parts_ordered,
+          :parts_ordered_at,
+          :parts_eta,
+          :follow_up_due_on,
+          :follow_up_owner,
+          :vendor_reference,
+          :latest_follow_up_note
         )
       end
     end

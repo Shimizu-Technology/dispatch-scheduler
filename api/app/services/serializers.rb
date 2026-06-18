@@ -2,7 +2,7 @@ module Serializers
   module_function
 
   def schedule(dispatch_schedule, summary: nil)
-    schedule = DispatchSchedule.includes(dispatch_items: [ :team, :dispatch_item_technicians, { work_order: [ :client, :location, :service_line ] }, { pm_task: [ :client, :location ] } ]).find(dispatch_schedule.id)
+    schedule = DispatchSchedule.includes(dispatch_items: [ :team, :dispatch_item_technicians, { work_order: [ :client, :location, :service_line ] }, { pm_task: [ :client, :location, :pm_template ] } ]).find(dispatch_schedule.id)
     team_contexts = dispatch_team_contexts(schedule)
     {
       id: schedule.id,

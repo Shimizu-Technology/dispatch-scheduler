@@ -62,6 +62,36 @@ class PmTemplateGenerationServiceTest < ActiveSupport::TestCase
     assert_equal 1, PmTask.count
   end
 
+  test "unexpected generation failures roll back already-created PM rows" do
+    site = location(name: "Rollback Station")
+    template = pm_template(
+      locations: [ site ],
+      items: [
+        { task_name: "Electrical Inspection", trade_category: "Electrical" },
+        { task_name: "Generator Inspection", trade_category: "General" }
+      ]
+    )
+    dispatcher = User.create!(clerk_id: "rollback_dispatcher", email: "rollback-dispatcher@example.com", role: "dispatcher")
+    original_record = AuditEvent.method(:record!)
+    calls = 0
+    AuditEvent.define_singleton_method(:record!) do |**kwargs|
+      calls += 1
+      raise StandardError, "audit failure" if calls == 2
+
+      original_record.call(**kwargs)
+    end
+
+    assert_raises(StandardError) do
+      PmTemplateGenerationService.new(template: template, month: "2026-06", user: dispatcher).generate!
+    end
+    assert_equal 0, PmTask.count
+    assert_equal 0, AuditEvent.where(action: "pm_task.created").count
+  ensure
+    AuditEvent.define_singleton_method(:record!) do |**kwargs|
+      original_record.call(**kwargs)
+    end if original_record
+  end
+
   test "database enforces generated PM uniqueness by item location and period" do
     site = location(name: "Race Guard Station")
     template = pm_template(locations: [ site ])

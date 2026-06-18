@@ -35,19 +35,21 @@ class PmTemplateGenerationService
     rows = candidate_rows
     duplicate_lookup = duplicate_lookup_for(rows)
 
-    rows.each_with_index do |row, index|
-      if duplicate_pm_task?(row, duplicate_lookup)
-        duplicates << duplicate_payload(row, index)
-        next
-      end
+    ApplicationRecord.transaction do
+      rows.each_with_index do |row, index|
+        if duplicate_pm_task?(row, duplicate_lookup)
+          duplicates << duplicate_payload(row, index)
+          next
+        end
 
-      begin
-        pm_task = create_pm_task_with_audit!(row)
-        created << pm_task
-        remember_duplicate(row, duplicate_lookup)
-      rescue ActiveRecord::RecordNotUnique
-        duplicates << duplicate_payload(row, index)
-        remember_duplicate(row, duplicate_lookup)
+        begin
+          pm_task = create_pm_task_with_audit!(row)
+          created << pm_task
+          remember_duplicate(row, duplicate_lookup)
+        rescue ActiveRecord::RecordNotUnique
+          duplicates << duplicate_payload(row, index)
+          remember_duplicate(row, duplicate_lookup)
+        end
       end
     end
 

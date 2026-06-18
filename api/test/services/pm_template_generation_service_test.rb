@@ -47,6 +47,21 @@ class PmTemplateGenerationServiceTest < ActiveSupport::TestCase
     assert_equal 1, PmTask.count
   end
 
+  test "generation treats manual PMs anywhere in the month as duplicates" do
+    site = location(name: "Manual Duplicate Station")
+    pm_task(task_name: "Electrical Inspection", date: Date.new(2026, 6, 15), location_record: site)
+    template = pm_template(locations: [ site ], items: [ { task_name: "Electrical Inspection", trade_category: "Electrical" } ])
+
+    preview = PmTemplateGenerationService.new(template: template, month: "2026-06").preview
+    result = PmTemplateGenerationService.new(template: template, month: "2026-06").generate!
+
+    assert_equal 1, preview.dig(:summary, :duplicate_count)
+    assert_equal 0, preview.dig(:summary, :new_count)
+    assert_equal 0, result.dig(:summary, :created_count)
+    assert_equal 1, result.dig(:summary, :duplicate_count)
+    assert_equal 1, PmTask.count
+  end
+
   test "database enforces generated PM uniqueness by item location and period" do
     site = location(name: "Race Guard Station")
     template = pm_template(locations: [ site ])

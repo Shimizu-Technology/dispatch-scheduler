@@ -217,7 +217,8 @@ class PmTemplateGenerationService
   end
 
   def legacy_duplicate_keys(location_ids, task_names)
-    PmTask.where(location_id: location_ids, scheduled_date: @due_on)
+    PmTask.for_month(@period_start)
+      .where(location_id: location_ids)
       .where("LOWER(task_name) IN (:task_names)", task_names: task_names)
       .pluck(:location_id, Arel.sql("LOWER(task_name)"))
       .map { |location_id, task_name| [ location_id, task_name.to_s ] }

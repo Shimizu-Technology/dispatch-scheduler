@@ -13,7 +13,7 @@ Stack:
 Current state:
 
 - Sanitized demo data imports from John's real review examples in `docs/examples-from-john/`.
-- Dashboard, work-order list, PA Projects workspace with structured parts/follow-up tracking, configurable service lines, SLA/KPI due-date tracking, monthly KPI/PM/CM/estimate CSV reporting, PM month workflow with manual PM creation and bulk spreadsheet-paste month setup, opportunistic “while you’re there” PM suggestions, AI-assisted work-order intake preview from images/PDF/text/paste, teams/availability, dispatch builder with per-stop technician overrides, manual overrides, and WhatsApp export are implemented.
+- Dashboard, work-order list, PA Projects workspace with structured parts/follow-up tracking, configurable service lines, SLA/KPI due-date tracking, monthly KPI/PM/CM/estimate CSV reporting, PM month workflow with reusable station/task templates, duplicate-safe monthly PM generation, manual PM creation, bulk spreadsheet-paste exceptions, station checklist completion tracking, opportunistic “while you’re there” PM suggestions, AI-assisted work-order intake preview from images/PDF/text/paste, teams/availability, dispatch builder with per-stop technician overrides, manual overrides, and WhatsApp export are implemented.
 - Clerk authentication is implemented with Rails JWT verification, `admin` / `dispatcher` / `viewer` roles, a bootstrap admin email, and in-app user management.
 - CI covers Rails tests/lint/security, frontend lint/build, and Python importer tests.
 

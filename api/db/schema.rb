@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_15_102016) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_18_110000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -119,9 +119,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_15_102016) do
     t.datetime "completed_at"
     t.datetime "created_at", null: false
     t.date "deferred_until"
+    t.date "due_on"
+    t.integer "estimated_minutes"
     t.string "frequency"
     t.integer "location_id", null: false
     t.text "notes"
+    t.date "period_end"
+    t.date "period_start"
+    t.bigint "pm_template_id"
+    t.bigint "pm_template_item_id"
     t.date "scheduled_date"
     t.string "source_file"
     t.string "status", default: "pending", null: false
@@ -130,9 +136,68 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_15_102016) do
     t.datetime "updated_at", null: false
     t.index ["client_id"], name: "index_pm_tasks_on_client_id"
     t.index ["deferred_until"], name: "index_pm_tasks_on_deferred_until"
+    t.index ["due_on"], name: "index_pm_tasks_on_due_on"
     t.index ["location_id"], name: "index_pm_tasks_on_location_id"
+    t.index ["pm_template_id"], name: "index_pm_tasks_on_pm_template_id"
+    t.index ["pm_template_item_id", "location_id", "period_start"], name: "index_pm_tasks_on_template_item_location_period"
+    t.index ["pm_template_item_id"], name: "index_pm_tasks_on_pm_template_item_id"
     t.index ["scheduled_date", "status"], name: "index_pm_tasks_on_scheduled_date_and_status"
     t.index ["status"], name: "index_pm_tasks_on_status"
+  end
+
+  create_table "pm_template_item_locations", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.datetime "created_at", null: false
+    t.bigint "location_id", null: false
+    t.bigint "pm_template_item_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["location_id"], name: "index_pm_template_item_locations_on_location_id"
+    t.index ["pm_template_item_id", "location_id"], name: "index_pm_template_item_locations_unique", unique: true
+    t.index ["pm_template_item_id"], name: "index_pm_template_item_locations_on_pm_template_item_id"
+  end
+
+  create_table "pm_template_items", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.datetime "created_at", null: false
+    t.integer "estimated_minutes", default: 45, null: false
+    t.string "frequency", default: "monthly", null: false
+    t.text "notes"
+    t.bigint "pm_template_id", null: false
+    t.integer "position", default: 0, null: false
+    t.string "task_name", null: false
+    t.string "trade_category", default: "General", null: false
+    t.datetime "updated_at", null: false
+    t.index ["pm_template_id", "frequency"], name: "index_pm_template_items_on_pm_template_id_and_frequency"
+    t.index ["pm_template_id", "position"], name: "index_pm_template_items_on_pm_template_id_and_position"
+    t.index ["pm_template_id", "task_name"], name: "index_pm_template_items_on_pm_template_id_and_task_name", unique: true
+    t.index ["pm_template_id"], name: "index_pm_template_items_on_pm_template_id"
+  end
+
+  create_table "pm_template_locations", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.datetime "created_at", null: false
+    t.bigint "location_id", null: false
+    t.bigint "pm_template_id", null: false
+    t.integer "position", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.index ["location_id"], name: "index_pm_template_locations_on_location_id"
+    t.index ["pm_template_id", "location_id"], name: "index_pm_template_locations_on_pm_template_id_and_location_id", unique: true
+    t.index ["pm_template_id", "position"], name: "index_pm_template_locations_on_pm_template_id_and_position"
+    t.index ["pm_template_id"], name: "index_pm_template_locations_on_pm_template_id"
+  end
+
+  create_table "pm_templates", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.bigint "client_id", null: false
+    t.datetime "created_at", null: false
+    t.string "name", null: false
+    t.text "notes"
+    t.bigint "service_line_id"
+    t.datetime "updated_at", null: false
+    t.index ["active", "name"], name: "index_pm_templates_on_active_and_name"
+    t.index ["client_id", "name"], name: "index_pm_templates_on_client_id_and_name", unique: true
+    t.index ["client_id"], name: "index_pm_templates_on_client_id"
+    t.index ["service_line_id"], name: "index_pm_templates_on_service_line_id"
   end
 
   create_table "service_lines", force: :cascade do |t|
@@ -313,6 +378,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_15_102016) do
   add_foreign_key "locations", "clients"
   add_foreign_key "pm_tasks", "clients"
   add_foreign_key "pm_tasks", "locations"
+  add_foreign_key "pm_tasks", "pm_template_items"
+  add_foreign_key "pm_tasks", "pm_templates"
+  add_foreign_key "pm_template_item_locations", "locations"
+  add_foreign_key "pm_template_item_locations", "pm_template_items"
+  add_foreign_key "pm_template_items", "pm_templates"
+  add_foreign_key "pm_template_locations", "locations"
+  add_foreign_key "pm_template_locations", "pm_templates"
+  add_foreign_key "pm_templates", "clients"
+  add_foreign_key "pm_templates", "service_lines"
   add_foreign_key "team_daily_overrides", "teams"
   add_foreign_key "team_memberships", "teams"
   add_foreign_key "team_memberships", "technicians"

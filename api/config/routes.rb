@@ -27,6 +27,12 @@ Rails.application.routes.draw do
           patch :daily_memberships
         end
       end
+      resources :pm_templates, only: [ :index, :create ] do
+        member do
+          post :preview
+          post :generate
+        end
+      end
       resources :pm_tasks, only: [ :index, :create, :update ] do
         collection do
           post :bulk_create

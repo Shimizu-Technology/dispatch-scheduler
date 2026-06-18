@@ -409,9 +409,12 @@ The current top-level sections should evolve toward this mental model:
    - or become separate nav sections if the page gets too dense
 
 4. **PM Tasks**
+   - reusable monthly PM templates by station and checklist item
+   - duplicate-safe month generation so George does not enter 140 PMs one by one
+   - station checklist completion status
    - due PM commitments by date/location
    - monthly completion status
-   - future “while you are there” PM suggestions based on work-order locations
+   - “while you are there” PM suggestions based on work-order locations plus late-month closeout pressure
 
 5. **PA Projects**
    - work orders marked as PA Projects
@@ -472,6 +475,7 @@ Likely additions/changes:
 - optional service-line preference on crews/technicians later, after the base service-line model is in use
 - `dispatch_item_technicians` snapshots for immutable person-level dispatch history
 - `required_technician_count` on work orders for staffing-aware assignment
+- PM template tables for reusable station/task checklists: `pm_templates`, `pm_template_locations`, `pm_template_items`, optional item-location restrictions, and generated `pm_tasks` period/due metadata
 - SLA/KPI due fields, likely assessment due and repair due timestamps derived from priority and lifecycle state
 - stronger seed/import distinction between default crews and historical daily assignments
 
@@ -489,6 +493,7 @@ Better seed strategy:
 
 ## 9. Product Rules To Preserve
 
+- Monthly PM setup should be generated from templates where possible; George should not manually enter every recurring station/task combination.
 - No AI-created work order enters dispatch without review.
 - Every active crew should have a driver warning if no available driver exists.
 - Daily crew edits should not mutate default crews unless the user explicitly chooses default crew editing.

@@ -4,7 +4,7 @@ module Api
       before_action :require_dispatch_edit!, only: [ :create, :bulk_create, :update ]
 
       def index
-        scope = PmTask.includes(:client, :location).order(:scheduled_date, :id)
+        scope = PmTask.includes(:client, :location, :pm_template).order(:scheduled_date, :id)
         if params[:month].present?
           scope = scope.for_month(month_param)
         elsif params[:date].present?
@@ -121,7 +121,7 @@ module Api
       end
 
       def create_permitted_keys
-        [ :client, :location, :region, :task_name, :trade_category, :frequency, :scheduled_date, :notes, :source_file, :status ]
+        [ :client, :location, :region, :task_name, :trade_category, :frequency, :scheduled_date, :due_on, :estimated_minutes, :notes, :source_file, :status ]
       end
 
       def bulk_rows
@@ -148,6 +148,8 @@ module Api
           trade_category: attrs[:trade_category].presence || "General",
           frequency: attrs[:frequency].presence || "monthly",
           scheduled_date: scheduled_date,
+          due_on: attrs[:due_on].present? ? Date.parse(attrs[:due_on].to_s) : scheduled_date,
+          estimated_minutes: attrs[:estimated_minutes].presence,
           status: status,
           notes: attrs[:notes].presence,
           source_file: attrs[:source_file].presence || "manual_pm_month_setup"
@@ -219,7 +221,11 @@ module Api
           location: pm_task.location.name,
           scheduled_date: pm_task.scheduled_date,
           status: pm_task.status,
-          deferred_until: pm_task.deferred_until
+          deferred_until: pm_task.deferred_until,
+          due_on: pm_task.respond_to?(:due_on) ? pm_task.due_on : nil,
+          period_start: pm_task.respond_to?(:period_start) ? pm_task.period_start : nil,
+          period_end: pm_task.respond_to?(:period_end) ? pm_task.period_end : nil,
+          pm_template: pm_task.respond_to?(:pm_template) ? pm_task.pm_template&.name : nil
         }
       end
     end

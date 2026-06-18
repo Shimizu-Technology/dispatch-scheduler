@@ -234,6 +234,13 @@ export type PmTask = {
   trade_category: string
   frequency?: string
   scheduled_date: string
+  due_on?: string | null
+  period_start?: string | null
+  period_end?: string | null
+  estimated_minutes?: number | null
+  pm_template_id?: number | null
+  pm_template_item_id?: number | null
+  pm_template_name?: string | null
   status: PmTaskStatus
   completed_at: string | null
   deferred_until: string | null
@@ -248,7 +255,77 @@ export type PmTaskInput = {
   trade_category: string
   frequency?: string
   scheduled_date: string
+  due_on?: string
+  estimated_minutes?: number | string | null
   notes?: string
+}
+
+export type PmFrequency = 'monthly' | 'quarterly' | 'biannual' | 'annual' | 'manual'
+
+export type PmTemplateLocation = {
+  id: number
+  name: string
+  region: string
+  position: number
+  active: boolean
+}
+
+export type PmTemplateItem = {
+  id: number
+  task_name: string
+  trade_category: string
+  frequency: PmFrequency
+  estimated_minutes: number
+  position: number
+  active: boolean
+  notes: string | null
+  location_ids: number[]
+}
+
+export type PmTemplate = {
+  id: number
+  name: string
+  client_id: number
+  client: string
+  service_line_id: number | null
+  service_line: string | null
+  active: boolean
+  notes: string | null
+  locations: PmTemplateLocation[]
+  items: PmTemplateItem[]
+}
+
+export type PmTemplateInput = {
+  name: string
+  client: string
+  service_line_id?: number | string | null
+  notes?: string
+  locations: Array<{ name: string; region: string }>
+  items: Array<{ task_name: string; trade_category: string; frequency: PmFrequency; estimated_minutes?: number | string | null; notes?: string }>
+}
+
+export type PmTemplatePreviewRow = {
+  location_id: number
+  location: string
+  region: string
+  item_id: number
+  task_name: string
+  trade_category: string
+  frequency: PmFrequency
+  estimated_minutes: number
+  due_on: string
+  duplicate: boolean
+  status: 'new' | 'duplicate'
+}
+
+export type PmTemplateGenerationPayload = {
+  template: PmTemplate
+  month: string
+  period: { starts_on: string; ends_on: string; due_on: string }
+  summary: { candidate_count: number; new_count?: number; created_count?: number; duplicate_count: number; station_count: number; item_count: number; frequencies?: string[] }
+  rows?: PmTemplatePreviewRow[]
+  created?: PmTask[]
+  duplicates?: Array<{ index: number; client: string; location: string; task_name: string; scheduled_date: string }>
 }
 
 export type PmTaskBulkCreatePayload = {

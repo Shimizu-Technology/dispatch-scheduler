@@ -5,7 +5,7 @@ abort "Missing seed data at #{seed_path}. Run scripts/import_sample_data.py from
 
 data = JSON.parse(File.read(seed_path))
 
-[ FollowUp, DispatchItem, DispatchSchedule, WorkOrder, PmTask, TeamMembership, TechnicianAvailability, TechnicianSkill, Technician, Team, Location, Client, ServiceLine ].each(&:delete_all)
+[ FollowUp, DispatchItem, DispatchSchedule, WorkOrder, PmTask, PmTemplateItemLocation, PmTemplateItem, PmTemplateLocation, PmTemplate, TeamMembership, TechnicianAvailability, TechnicianSkill, Technician, Team, Location, Client, ServiceLine ].each(&:delete_all)
 
 clients = {}
 locations = {}
@@ -30,6 +30,25 @@ end
   next unless client_name && location_name
   key = [ client_name, location_name ]
   locations[key] = Location.create!(client: clients[client_name], name: location_name, region: region)
+end
+
+mobil_template = PmTemplate.create!(client: clients["Mobil"], service_line: service_lines["Mobil / CBRE"], name: "Mobil Monthly PMs", notes: "Default monthly Mobil PM checklist generated from John's sample PM workbook.")
+data["pm_tasks"].select { |task| task["client"] == "Mobil" && task["scheduled_date"].to_s.start_with?("2026-04") && task["task_name"] == "Electrical Inspection" }.each_with_index do |task, index|
+  if (location = locations[[ task["client"], task["location"] ]])
+    mobil_template.pm_template_locations.create!(location: location, position: index)
+  end
+end
+[
+  [ "Electrical Inspection", "Electrical" ],
+  [ "Generator Inspection", "General" ],
+  [ "Smoke Detector Inspection", "Electrical" ],
+  [ "Airconditioning, Refrigeration & Walk in Cooler", "HVAC" ],
+  [ "Water System Inspection", "Plumbing" ],
+  [ "Landscaping Inspection", "Landscaping" ],
+  [ "Gen. Bldg & T. Shutter Ins.", "General" ],
+  [ "Bollards and Pay Gas N Go Touch up paint (Monthly)", "Painting" ]
+].each_with_index do |(task_name, trade), index|
+  mobil_template.pm_template_items.create!(task_name: task_name, trade_category: trade, frequency: "monthly", estimated_minutes: 45, position: index)
 end
 
 data["technicians"].each do |attrs|
@@ -98,4 +117,4 @@ data["pm_tasks"].each do |attrs|
   )
 end
 
-puts "Seeded #{Client.count} clients, #{Location.count} locations, #{ServiceLine.count} service lines, #{Technician.count} technicians, #{Team.count} teams, #{WorkOrder.count} work orders, #{PmTask.count} PM tasks"
+puts "Seeded #{Client.count} clients, #{Location.count} locations, #{ServiceLine.count} service lines, #{Technician.count} technicians, #{Team.count} teams, #{WorkOrder.count} work orders, #{PmTask.count} PM tasks, #{PmTemplate.count} PM templates"

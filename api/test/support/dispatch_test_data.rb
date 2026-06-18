@@ -2,7 +2,7 @@ module DispatchTestData
   DEFAULT_DATE = Date.new(2026, 5, 5)
 
   def reset_dispatch_records
-    [ AuditEvent, FollowUp, DispatchItemTechnician, DispatchItem, DispatchSchedule, WorkOrder, PmTask, TeamMembership, TeamDailyOverride, TechnicianAvailability, TechnicianSkill, Technician, Team, Location, Client, ServiceLine, User ].each do |model|
+    [ AuditEvent, FollowUp, DispatchItemTechnician, DispatchItem, DispatchSchedule, WorkOrder, PmTask, PmTemplateItemLocation, PmTemplateItem, PmTemplateLocation, PmTemplate, TeamMembership, TeamDailyOverride, TechnicianAvailability, TechnicianSkill, Technician, Team, Location, Client, ServiceLine, User ].each do |model|
       model.delete_all
       ActiveRecord::Base.connection.reset_pk_sequence!(model.table_name) if ActiveRecord::Base.connection.respond_to?(:reset_pk_sequence!)
     end
@@ -64,7 +64,22 @@ module DispatchTestData
     )
   end
 
-  def pm_task(task_name: "PM inspection", trade: "General", date: DEFAULT_DATE, location_record: location)
+  def pm_template(name: "Mobil Monthly PMs", locations: [ location ], items: [ { task_name: "Electrical Inspection", trade_category: "Electrical", frequency: "monthly" } ], client_record: client)
+    template = PmTemplate.create!(name: name, client: client_record, service_line: service_line)
+    locations.each_with_index { |loc, index| template.pm_template_locations.create!(location: loc, position: index) }
+    items.each_with_index do |attrs, index|
+      template.pm_template_items.create!(
+        task_name: attrs.fetch(:task_name),
+        trade_category: attrs[:trade_category] || "General",
+        frequency: attrs[:frequency] || "monthly",
+        estimated_minutes: attrs[:estimated_minutes] || 45,
+        position: index
+      )
+    end
+    template
+  end
+
+  def pm_task(task_name: "PM inspection", trade: "General", date: DEFAULT_DATE, location_record: location, estimated_minutes: nil)
     PmTask.create!(
       client: location_record.client,
       location: location_record,
@@ -72,6 +87,8 @@ module DispatchTestData
       trade_category: trade,
       frequency: "monthly",
       scheduled_date: date,
+      due_on: date,
+      estimated_minutes: estimated_minutes,
       status: "pending",
       source_file: "test.xlsx"
     )

@@ -140,7 +140,12 @@ class DispatchSuggestionService
     else
       []
     end
-    (explicit_due + opportunistic)
+    month_pressure = if pm_month_pressure?
+      PmTask.includes(:client, :location).for_month(@date).where(status: %w[pending scheduled]).to_a
+    else
+      []
+    end
+    (explicit_due + opportunistic + month_pressure)
       .uniq(&:id)
       .sort_by { |pm| pm_sort_key(pm) }
   end
@@ -304,6 +309,7 @@ class DispatchSuggestionService
   end
 
   def estimated_minutes_for(item)
+    return item.estimated_minutes if item.is_a?(PmTask) && item.respond_to?(:estimated_minutes) && item.estimated_minutes.present?
     return DEFAULT_PM_MINUTES if item.is_a?(PmTask)
     return DEFAULT_ITEM_MINUTES unless item.respond_to?(:estimated_hours) && item.estimated_hours.present?
 

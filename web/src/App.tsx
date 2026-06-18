@@ -15,7 +15,7 @@ import { WhatsAppExport } from './components/WhatsAppExport'
 import { WorkOrdersPanel } from './components/WorkOrdersPanel'
 import { useAuthContext } from './contexts/useAuthContext'
 import { deleteJson, getBlob, getJson, patchJson, postJson } from './lib/api'
-import type { AuditEvent, Dashboard, DispatchOutcomeStatus, DispatchSchedule, ManagedUser, MonthlyReport, PaginationMeta, PmTask, PmTaskBulkCreatePayload, PmTaskInput, ServiceLine, ServiceLineInput, Team, TeamInput, Technician, TechnicianInput, WhatsAppCrewExport, WhatsAppExportPayload, WorkOrder, WorkOrderInput, WorkOrderListPayload, WorkOrderStatus } from './types'
+import type { AuditEvent, Dashboard, DispatchOutcomeStatus, DispatchSchedule, ManagedUser, MonthlyReport, PaginationMeta, PmTask, PmTaskBulkCreatePayload, PmTaskInput, PmTemplate, PmTemplateGenerationPayload, PmTemplateInput, ServiceLine, ServiceLineInput, Team, TeamInput, Technician, TechnicianInput, WhatsAppCrewExport, WhatsAppExportPayload, WorkOrder, WorkOrderInput, WorkOrderListPayload, WorkOrderStatus } from './types'
 import './index.css'
 
 type ActiveSection = 'overview' | 'dispatch' | 'work-orders' | 'pa-projects' | 'teams' | 'pm-tasks' | 'service-lines' | 'reports' | 'whatsapp' | 'activity' | 'users'
@@ -52,6 +52,7 @@ function DispatchApp() {
   const [teams, setTeams] = useState<Team[]>([])
   const [technicians, setTechnicians] = useState<Technician[]>([])
   const [pmTasks, setPmTasks] = useState<PmTask[]>([])
+  const [pmTemplates, setPmTemplates] = useState<PmTemplate[]>([])
   const [serviceLines, setServiceLines] = useState<ServiceLine[]>([])
   const [managedUsers, setManagedUsers] = useState<ManagedUser[]>([])
   const [monthlyReport, setMonthlyReport] = useState<MonthlyReport | null>(null)
@@ -85,12 +86,13 @@ function DispatchApp() {
   const loadInitialData = useCallback(async (date: string) => {
     setLoading(true)
     setError('')
-    const [dash, orders, teamData, technicianData, pms, lines, schedulePayload] = await Promise.all([
+    const [dash, orders, teamData, technicianData, pms, templates, lines, schedulePayload] = await Promise.all([
       getJson<Dashboard>(`/dashboard?date=${date}`),
       getJson<WorkOrderListPayload>(`/work_orders?${DEFAULT_WORK_ORDER_QUERY}`),
       getJson<Team[]>(`/teams?date=${date}`),
       getJson<Technician[]>(`/technicians?date=${date}&include_inactive=true`),
       getJson<PmTask[]>(`/pm_tasks?month=${date.slice(0, 7)}`),
+      getJson<{ pm_templates: PmTemplate[] }>('/pm_templates'),
       getJson<{ service_lines: ServiceLine[] }>('/service_lines?include_inactive=true'),
       getJson<{ schedule: DispatchSchedule | null }>(`/dispatch_schedules?date=${date}`),
     ])
@@ -100,6 +102,7 @@ function DispatchApp() {
     setTeams(teamData)
     setTechnicians(technicianData)
     setPmTasks(pms)
+    setPmTemplates(templates.pm_templates)
     setServiceLines(lines.service_lines)
     setSchedule(schedulePayload.schedule)
     void refreshAuditEvents()
@@ -371,6 +374,11 @@ function DispatchApp() {
     setPmTasks(pms)
   }
 
+  async function refreshPmTemplates() {
+    const payload = await getJson<{ pm_templates: PmTemplate[] }>('/pm_templates')
+    setPmTemplates(payload.pm_templates)
+  }
+
   async function updatePmTask(pmTaskId: number, changes: Record<string, unknown>) {
     if (!canEditDispatch) {
       setError('Viewer access cannot update PM tasks.')
@@ -418,6 +426,49 @@ function DispatchApp() {
       return payload.summary
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to set up PM month')
+      throw err
+    }
+  }
+
+  async function createPmTemplate(values: PmTemplateInput) {
+    if (!canEditDispatch) {
+      setError('Viewer access cannot create PM templates.')
+      return
+    }
+    setError('')
+    try {
+      const payload = await postJson<{ pm_template: PmTemplate }>('/pm_templates', values)
+      setPmTemplates((current) => [...current.filter((template) => template.id !== payload.pm_template.id), payload.pm_template].sort((a, b) => a.name.localeCompare(b.name)))
+      await afterAuditedChange()
+      return payload.pm_template
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to create PM template')
+      throw err
+    }
+  }
+
+  async function previewPmTemplate(templateId: number, values: { month: string; frequencies: string[]; location_ids?: number[]; item_ids?: number[] }) {
+    setError('')
+    try {
+      return await postJson<PmTemplateGenerationPayload>(`/pm_templates/${templateId}/preview`, values)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to preview PM template')
+      throw err
+    }
+  }
+
+  async function generatePmTemplate(templateId: number, values: { month: string; frequencies: string[]; location_ids?: number[]; item_ids?: number[] }) {
+    if (!canEditDispatch) {
+      setError('Viewer access cannot generate PM tasks.')
+      return
+    }
+    setError('')
+    try {
+      const payload = await postJson<PmTemplateGenerationPayload>(`/pm_templates/${templateId}/generate`, values)
+      await Promise.allSettled([refreshPmContext(), refreshPmTemplates(), afterAuditedChange()])
+      return payload
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to generate PM tasks')
       throw err
     }
   }
@@ -987,7 +1038,7 @@ function DispatchApp() {
 
         {currentSection === 'dispatch' && (user ? <DispatchBuilder schedule={schedule} teams={teams} technicians={technicians} working={working} canEdit={canEditDispatch} onSuggest={suggestSchedule} onUpdate={updateDispatchItem} onOutcome={updateDispatchItemOutcome} onWorkOrderStatus={updateWorkOrderStatus} onFinalize={finalizeSchedule} onReopen={reopenSchedule} /> : <SignInRequiredPanel title="Sign in to build today's dispatch" />)}
 
-        {currentSection === 'pm-tasks' && (user ? <PmTasksPanel key={selectedDate} pmTasks={pmTasks} canEdit={canEditDispatch} savingPmTaskId={pmTaskSavingId} selectedDate={selectedDate} onUpdate={updatePmTask} onCreate={createPmTask} onBulkCreate={bulkCreatePmTasks} /> : <SignInRequiredPanel title="Sign in to review PM tasks" />)}
+        {currentSection === 'pm-tasks' && (user ? <PmTasksPanel key={selectedDate} pmTasks={pmTasks} pmTemplates={pmTemplates} serviceLines={serviceLines} canEdit={canEditDispatch} savingPmTaskId={pmTaskSavingId} selectedDate={selectedDate} onUpdate={updatePmTask} onCreate={createPmTask} onBulkCreate={bulkCreatePmTasks} onCreateTemplate={createPmTemplate} onPreviewTemplate={previewPmTemplate} onGenerateTemplate={generatePmTemplate} /> : <SignInRequiredPanel title="Sign in to review PM tasks" />)}
 
         {currentSection === 'service-lines' && (user ? <ServiceLinesPanel serviceLines={serviceLines} canAdmin={Boolean(user.permissions.can_admin)} saving={serviceLineSaving} onCreate={createServiceLine} onUpdate={updateServiceLine} /> : <SignInRequiredPanel title="Sign in to review service lines" />)}
 

@@ -44,6 +44,7 @@ type PmTasksPanelProps = {
   onUpdate: (pmTaskId: number, changes: Record<string, unknown>) => Promise<void>
   onCreate: (values: PmTaskInput) => Promise<void>
   onBulkCreate: (values: PmTaskInput[]) => Promise<BulkResult | void>
+  onCompleteStation: (pmTaskIds: number[]) => Promise<void>
   onCreateTemplate: (values: PmTemplateInput) => Promise<PmTemplate | void>
   onPreviewTemplate: (templateId: number, values: { month: string; frequencies: string[]; location_ids?: number[]; item_ids?: number[] }) => Promise<PmTemplateGenerationPayload>
   onGenerateTemplate: (templateId: number, values: { month: string; frequencies: string[]; location_ids?: number[]; item_ids?: number[] }) => Promise<PmTemplateGenerationPayload | void>
@@ -161,7 +162,7 @@ function completionPercent(done: number, total: number) {
   return total === 0 ? 0 : Math.round((done / total) * 100)
 }
 
-export function PmTasksPanel({ pmTasks, pmTemplates, serviceLines, canEdit, savingPmTaskId, selectedDate, onUpdate, onCreate, onBulkCreate, onCreateTemplate, onPreviewTemplate, onGenerateTemplate }: PmTasksPanelProps) {
+export function PmTasksPanel({ pmTasks, pmTemplates, serviceLines, canEdit, savingPmTaskId, selectedDate, onUpdate, onCreate, onBulkCreate, onCompleteStation, onCreateTemplate, onPreviewTemplate, onGenerateTemplate }: PmTasksPanelProps) {
   const [statusFilter, setStatusFilter] = useState<'' | PmTaskStatus>('')
   const [regionFilter, setRegionFilter] = useState('')
   const [viewMode, setViewMode] = useState<'station' | 'list'>('station')
@@ -254,9 +255,9 @@ export function PmTasksPanel({ pmTasks, pmTemplates, serviceLines, canEdit, savi
   }
 
   async function completeStation(tasks: PmTask[]) {
-    for (const pm of tasks.filter((task) => task.status !== 'completed')) {
-      await onUpdate(pm.id, { status: 'completed' })
-    }
+    const ids = tasks.filter((task) => task.status !== 'completed').map((task) => task.id)
+    if (ids.length === 0) return
+    await onCompleteStation(ids)
   }
 
   function resetTemplateSelection(template: PmTemplate | null) {

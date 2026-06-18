@@ -109,6 +109,33 @@ class PmTasksControllerTest < ActionDispatch::IntegrationTest
     assert_equal "pm_task.updated", AuditEvent.last.action
   end
 
+  test "dispatcher completes a station checklist atomically" do
+    first = pm_task(task_name: "Station Electrical", date: DEFAULT_DATE)
+    second = pm_task(task_name: "Station Plumbing", date: DEFAULT_DATE)
+
+    with_auth_env do
+      post "/api/v1/pm_tasks/bulk_complete", params: { pm_task_ids: [ first.id, second.id ] }, headers: auth_headers
+    end
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_equal [ "completed", "completed" ], payload.fetch("pm_tasks").map { |pm| pm.fetch("status") }
+    assert_equal [ "completed", "completed" ], [ first.reload.status, second.reload.status ]
+    assert_equal 2, AuditEvent.where(action: "pm_task.updated").count
+    assert_equal "station_completion", AuditEvent.last.metadata_hash.fetch("source")
+  end
+
+  test "station checklist completion rejects missing PM tasks without partial updates" do
+    first = pm_task(task_name: "Station Electrical", date: DEFAULT_DATE)
+
+    with_auth_env do
+      post "/api/v1/pm_tasks/bulk_complete", params: { pm_task_ids: [ first.id, 99_999 ] }, headers: auth_headers
+    end
+
+    assert_response :not_found
+    assert_equal "pending", first.reload.status
+  end
+
   test "deferred PM update requires deferred until date" do
     pm = pm_task(task_name: "Missing defer date PM", date: DEFAULT_DATE)
 

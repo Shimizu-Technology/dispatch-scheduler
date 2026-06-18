@@ -430,6 +430,24 @@ function DispatchApp() {
     }
   }
 
+  async function completePmStation(pmTaskIds: number[]) {
+    if (!canEditDispatch) {
+      setError('Viewer access cannot complete PM stations.')
+      return
+    }
+    setPmTaskSavingId(0)
+    setError('')
+    try {
+      const payload = await postJson<{ pm_tasks: PmTask[] }>('/pm_tasks/bulk_complete', { pm_task_ids: pmTaskIds })
+      setPmTasks((current) => current.map((pm) => payload.pm_tasks.find((updated) => updated.id === pm.id) || pm))
+      await Promise.allSettled([refreshPmContext(), afterAuditedChange()])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to complete station PMs')
+    } finally {
+      setPmTaskSavingId(null)
+    }
+  }
+
   async function createPmTemplate(values: PmTemplateInput) {
     if (!canEditDispatch) {
       setError('Viewer access cannot create PM templates.')
@@ -1038,7 +1056,7 @@ function DispatchApp() {
 
         {currentSection === 'dispatch' && (user ? <DispatchBuilder schedule={schedule} teams={teams} technicians={technicians} working={working} canEdit={canEditDispatch} onSuggest={suggestSchedule} onUpdate={updateDispatchItem} onOutcome={updateDispatchItemOutcome} onWorkOrderStatus={updateWorkOrderStatus} onFinalize={finalizeSchedule} onReopen={reopenSchedule} /> : <SignInRequiredPanel title="Sign in to build today's dispatch" />)}
 
-        {currentSection === 'pm-tasks' && (user ? <PmTasksPanel key={selectedDate} pmTasks={pmTasks} pmTemplates={pmTemplates} serviceLines={serviceLines} canEdit={canEditDispatch} savingPmTaskId={pmTaskSavingId} selectedDate={selectedDate} onUpdate={updatePmTask} onCreate={createPmTask} onBulkCreate={bulkCreatePmTasks} onCreateTemplate={createPmTemplate} onPreviewTemplate={previewPmTemplate} onGenerateTemplate={generatePmTemplate} /> : <SignInRequiredPanel title="Sign in to review PM tasks" />)}
+        {currentSection === 'pm-tasks' && (user ? <PmTasksPanel key={selectedDate} pmTasks={pmTasks} pmTemplates={pmTemplates} serviceLines={serviceLines} canEdit={canEditDispatch} savingPmTaskId={pmTaskSavingId} selectedDate={selectedDate} onUpdate={updatePmTask} onCreate={createPmTask} onBulkCreate={bulkCreatePmTasks} onCompleteStation={completePmStation} onCreateTemplate={createPmTemplate} onPreviewTemplate={previewPmTemplate} onGenerateTemplate={generatePmTemplate} /> : <SignInRequiredPanel title="Sign in to review PM tasks" />)}
 
         {currentSection === 'service-lines' && (user ? <ServiceLinesPanel serviceLines={serviceLines} canAdmin={Boolean(user.permissions.can_admin)} saving={serviceLineSaving} onCreate={createServiceLine} onUpdate={updateServiceLine} /> : <SignInRequiredPanel title="Sign in to review service lines" />)}
 

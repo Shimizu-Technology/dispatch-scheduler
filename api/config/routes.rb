@@ -36,6 +36,7 @@ Rails.application.routes.draw do
       resources :pm_tasks, only: [ :index, :create, :update ] do
         collection do
           post :bulk_create
+          post :bulk_complete
         end
       end
       resources :dispatch_items, only: [ :update ] do

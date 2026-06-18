@@ -1,7 +1,7 @@
 module Api
   module V1
     class PmTasksController < ApplicationController
-      before_action :require_dispatch_edit!, only: [ :create, :bulk_create, :update ]
+      before_action :require_dispatch_edit!, only: [ :create, :bulk_create, :bulk_complete, :update ]
 
       def index
         scope = PmTask.includes(:client, :location, :pm_template).order(:scheduled_date, :id)
@@ -86,6 +86,33 @@ module Api
         render json: { errors: [ e.message ] }, status: :unprocessable_entity
       end
 
+      def bulk_complete
+        ids = bulk_pm_task_ids
+        raise ArgumentError, "Choose at least one PM task to complete" if ids.blank?
+        raise ArgumentError, "Station completion is limited to 100 PM tasks at a time" if ids.length > 100
+
+        pm_tasks = PmTask.includes(:client, :location, :pm_template).where(id: ids).index_by(&:id)
+        missing_ids = ids - pm_tasks.keys
+        raise ActiveRecord::RecordNotFound, "Could not find PM tasks: #{missing_ids.join(', ')}" if missing_ids.any?
+
+        completed_at = Time.current
+        ApplicationRecord.transaction do
+          ids.each do |id|
+            pm_task = pm_tasks.fetch(id)
+            pm_task.update!(status: "completed", completed_at: pm_task.completed_at || completed_at, deferred_until: nil)
+            AuditEvent.record!(action: "pm_task.updated", record: pm_task, user: current_user, metadata: pm_task_audit_metadata(pm_task).merge(source: "station_completion"))
+          end
+        end
+
+        render json: { pm_tasks: ids.map { |id| Serializers.pm_task(pm_tasks.fetch(id).reload) } }
+      rescue ActiveRecord::RecordNotFound => e
+        render json: { errors: [ e.message ] }, status: :not_found
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
+      rescue ArgumentError => e
+        render json: { errors: [ e.message ] }, status: :unprocessable_entity
+      end
+
       def update
         pm_task = PmTask.find(params[:id])
         attrs = pm_task_params
@@ -127,6 +154,10 @@ module Api
       def bulk_rows
         rows = params[:pm_tasks] || params[:rows]
         rows.respond_to?(:to_unsafe_h) ? rows.to_unsafe_h.values : rows
+      end
+
+      def bulk_pm_task_ids
+        Array(params[:pm_task_ids] || params[:ids]).reject(&:blank?).map(&:to_i).uniq
       end
 
       def build_pm_task(attrs)

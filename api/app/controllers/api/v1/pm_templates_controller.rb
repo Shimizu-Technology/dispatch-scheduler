@@ -4,8 +4,7 @@ module Api
       before_action :require_dispatch_edit!, only: [ :create, :preview, :generate ]
 
       def index
-        templates = PmTemplate.includes(:client, :service_line, pm_template_locations: :location, pm_template_items: { pm_template_item_locations: :location })
-          .order(:name)
+        templates = template_scope.order(:name)
         templates = templates.active unless params[:include_inactive].to_s == "true"
         render json: { pm_templates: templates.map { |template| Serializers.pm_template(template) } }
       end
@@ -16,7 +15,7 @@ module Api
           template = create_template!
           AuditEvent.record!(action: "pm_template.created", record: template, user: current_user, metadata: pm_template_audit_metadata(template))
         end
-        render json: { pm_template: Serializers.pm_template(template.reload) }, status: :created
+        render json: { pm_template: Serializers.pm_template(template_scope.find(template.id)) }, status: :created
       rescue ActiveRecord::RecordInvalid => e
         render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
       rescue ActiveRecord::RecordNotFound => e
@@ -109,7 +108,7 @@ module Api
       end
 
       def generation_service
-        template = PmTemplate.includes(:client, :service_line, pm_template_locations: :location, pm_template_items: { pm_template_item_locations: :location }).find(params[:id])
+        template = template_scope.find(params[:id])
         PmTemplateGenerationService.new(
           template: template,
           month: params[:month],
@@ -119,6 +118,10 @@ module Api
           due_on: params[:due_on],
           user: current_user
         )
+      end
+
+      def template_scope
+        PmTemplate.includes(:client, :service_line, pm_template_locations: :location, pm_template_items: { pm_template_item_locations: :location })
       end
 
       def pm_template_audit_metadata(template)

@@ -1,3 +1,5 @@
+require "set"
+
 class PmTemplateGenerationService
   DEFAULT_FREQUENCIES = [ "monthly" ].freeze
 
@@ -17,12 +19,13 @@ class PmTemplateGenerationService
 
   def preview
     rows = candidate_rows
+    duplicate_lookup = duplicate_lookup_for(rows)
     {
       template: Serializers.pm_template(@template),
       month: month_key,
       period: { starts_on: @period_start.iso8601, ends_on: @period_end.iso8601, due_on: @due_on.iso8601 },
-      summary: summary_for(rows),
-      rows: rows.map { |row| preview_row(row) }
+      summary: summary_for(rows, duplicate_lookup),
+      rows: rows.map { |row| preview_row(row, duplicate_lookup) }
     }
   end
 
@@ -30,17 +33,21 @@ class PmTemplateGenerationService
     created = []
     duplicates = []
     rows = candidate_rows
+    duplicate_lookup = duplicate_lookup_for(rows)
 
-    ApplicationRecord.transaction do
-      rows.each_with_index do |row, index|
-        if duplicate_pm_task?(row)
-          duplicates << duplicate_payload(row, index)
-          next
-        end
+    rows.each_with_index do |row, index|
+      if duplicate_pm_task?(row, duplicate_lookup)
+        duplicates << duplicate_payload(row, index)
+        next
+      end
 
-        pm_task = PmTask.create!(pm_task_attributes(row))
+      begin
+        pm_task = create_pm_task_with_audit!(row)
         created << pm_task
-        AuditEvent.record!(action: "pm_task.created", record: pm_task, user: @user, metadata: audit_metadata(pm_task, row).merge(source: "pm_template_generation")) if @user
+        remember_duplicate(row, duplicate_lookup)
+      rescue ActiveRecord::RecordNotUnique
+        duplicates << duplicate_payload(row, index)
+        remember_duplicate(row, duplicate_lookup)
       end
     end
 
@@ -100,10 +107,10 @@ class PmTemplateGenerationService
     end.sort_by { |row| [ row.fetch(:location).name.to_s, row.fetch(:item).position, row.fetch(:item).task_name.to_s ] }
   end
 
-  def preview_row(row)
+  def preview_row(row, duplicate_lookup)
     item = row.fetch(:item)
     location = row.fetch(:location)
-    duplicate = duplicate_pm_task?(row)
+    duplicate = duplicate_pm_task?(row, duplicate_lookup)
     {
       location_id: location.id,
       location: location.name,
@@ -119,8 +126,8 @@ class PmTemplateGenerationService
     }
   end
 
-  def summary_for(rows)
-    duplicates = rows.count { |row| duplicate_pm_task?(row) }
+  def summary_for(rows, duplicate_lookup)
+    duplicates = rows.count { |row| duplicate_pm_task?(row, duplicate_lookup) }
     {
       candidate_count: rows.length,
       new_count: rows.length - duplicates,
@@ -129,6 +136,24 @@ class PmTemplateGenerationService
       item_count: rows.map { |row| row.fetch(:item).id }.uniq.length,
       frequencies: @frequency_filters
     }
+  end
+
+  def create_pm_task_with_audit!(row)
+    pm_task = nil
+
+    ApplicationRecord.transaction(requires_new: true) do
+      pm_task = PmTask.create!(pm_task_attributes(row))
+      if @user
+        AuditEvent.record!(
+          action: "pm_task.created",
+          record: pm_task,
+          user: @user,
+          metadata: audit_metadata(pm_task, row).merge(source: "pm_template_generation")
+        )
+      end
+    end
+
+    pm_task
   end
 
   def pm_task_attributes(row)
@@ -153,15 +178,57 @@ class PmTemplateGenerationService
     }
   end
 
-  def duplicate_pm_task?(row)
-    item = row.fetch(:item)
-    location = row.fetch(:location)
-    template_duplicate = PmTask.where(pm_template_item: item, location: location, period_start: @period_start).exists?
-    return true if template_duplicate
+  def duplicate_lookup_for(rows)
+    return empty_duplicate_lookup if rows.empty?
 
-    PmTask.where(location: location, scheduled_date: @due_on)
-      .where("LOWER(task_name) = ?", item.task_name.to_s.downcase)
-      .exists?
+    item_ids = rows.map { |row| row.fetch(:item).id }.uniq
+    location_ids = rows.map { |row| row.fetch(:location).id }.uniq
+    task_names = rows.map { |row| task_name_key(row.fetch(:item).task_name) }.uniq
+
+    {
+      template: template_duplicate_keys(item_ids, location_ids),
+      legacy: legacy_duplicate_keys(location_ids, task_names)
+    }
+  end
+
+  def empty_duplicate_lookup
+    { template: Set.new, legacy: Set.new }
+  end
+
+  def template_duplicate_keys(item_ids, location_ids)
+    PmTask.where(pm_template_item_id: item_ids, location_id: location_ids, period_start: @period_start)
+      .pluck(:pm_template_item_id, :location_id)
+      .map { |item_id, location_id| [ item_id, location_id ] }
+      .to_set
+  end
+
+  def legacy_duplicate_keys(location_ids, task_names)
+    PmTask.where(location_id: location_ids, scheduled_date: @due_on)
+      .where("LOWER(task_name) IN (:task_names)", task_names: task_names)
+      .pluck(:location_id, Arel.sql("LOWER(task_name)"))
+      .map { |location_id, task_name| [ location_id, task_name.to_s ] }
+      .to_set
+  end
+
+  def duplicate_pm_task?(row, duplicate_lookup)
+    duplicate_lookup.fetch(:template).include?(template_duplicate_key(row)) || duplicate_lookup.fetch(:legacy).include?(legacy_duplicate_key(row))
+  end
+
+  def remember_duplicate(row, duplicate_lookup)
+    duplicate_lookup.fetch(:template).add(template_duplicate_key(row))
+    duplicate_lookup.fetch(:legacy).add(legacy_duplicate_key(row))
+  end
+
+  def template_duplicate_key(row)
+    [ row.fetch(:item).id, row.fetch(:location).id ]
+  end
+
+  def legacy_duplicate_key(row)
+    [ row.fetch(:location).id, task_name_key(row.fetch(:item).task_name) ]
+  end
+
+  def task_name_key(task_name)
+    task_name.to_s.downcase
   end
 
   def duplicate_payload(row, index)

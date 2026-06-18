@@ -32,23 +32,25 @@ end
   locations[key] = Location.create!(client: clients[client_name], name: location_name, region: region)
 end
 
-mobil_template = PmTemplate.create!(client: clients["Mobil"], service_line: service_lines["Mobil / CBRE"], name: "Mobil Monthly PMs", notes: "Default monthly Mobil PM checklist generated from John's sample PM workbook.")
-data["pm_tasks"].select { |task| task["client"] == "Mobil" && task["scheduled_date"].to_s.start_with?("2026-04") && task["task_name"] == "Electrical Inspection" }.each_with_index do |task, index|
-  if (location = locations[[ task["client"], task["location"] ]])
-    mobil_template.pm_template_locations.create!(location: location, position: index)
+if (mobil_client = clients["Mobil"])
+  mobil_template = PmTemplate.create!(client: mobil_client, service_line: service_lines["Mobil / CBRE"], name: "Mobil Monthly PMs", notes: "Default monthly Mobil PM checklist generated from John's sample PM workbook.")
+  data["pm_tasks"].select { |task| task["client"] == "Mobil" && task["scheduled_date"].to_s.start_with?("2026-04") && task["task_name"] == "Electrical Inspection" }.each_with_index do |task, index|
+    if (location = locations[[ task["client"], task["location"] ]])
+      mobil_template.pm_template_locations.create!(location: location, position: index)
+    end
   end
-end
-[
-  [ "Electrical Inspection", "Electrical" ],
-  [ "Generator Inspection", "General" ],
-  [ "Smoke Detector Inspection", "Electrical" ],
-  [ "Airconditioning, Refrigeration & Walk in Cooler", "HVAC" ],
-  [ "Water System Inspection", "Plumbing" ],
-  [ "Landscaping Inspection", "Landscaping" ],
-  [ "Gen. Bldg & T. Shutter Ins.", "General" ],
-  [ "Bollards and Pay Gas N Go Touch up paint (Monthly)", "Painting" ]
-].each_with_index do |(task_name, trade), index|
-  mobil_template.pm_template_items.create!(task_name: task_name, trade_category: trade, frequency: "monthly", estimated_minutes: 45, position: index)
+  [
+    [ "Electrical Inspection", "Electrical" ],
+    [ "Generator Inspection", "General" ],
+    [ "Smoke Detector Inspection", "Electrical" ],
+    [ "Airconditioning, Refrigeration & Walk in Cooler", "HVAC" ],
+    [ "Water System Inspection", "Plumbing" ],
+    [ "Landscaping Inspection", "Landscaping" ],
+    [ "Gen. Bldg & T. Shutter Ins.", "General" ],
+    [ "Bollards and Pay Gas N Go Touch up paint (Monthly)", "Painting" ]
+  ].each_with_index do |(task_name, trade), index|
+    mobil_template.pm_template_items.create!(task_name: task_name, trade_category: trade, frequency: "monthly", estimated_minutes: 45, position: index)
+  end
 end
 
 data["technicians"].each do |attrs|

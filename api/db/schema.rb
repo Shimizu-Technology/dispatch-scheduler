@@ -139,7 +139,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_18_110000) do
     t.index ["due_on"], name: "index_pm_tasks_on_due_on"
     t.index ["location_id"], name: "index_pm_tasks_on_location_id"
     t.index ["pm_template_id"], name: "index_pm_tasks_on_pm_template_id"
-    t.index ["pm_template_item_id", "location_id", "period_start"], name: "index_pm_tasks_on_template_item_location_period"
+    t.index ["pm_template_item_id", "location_id", "period_start"], name: "index_pm_tasks_on_template_item_location_period", unique: true, where: "((pm_template_item_id IS NOT NULL) AND (period_start IS NOT NULL))"
     t.index ["pm_template_item_id"], name: "index_pm_tasks_on_pm_template_item_id"
     t.index ["scheduled_date", "status"], name: "index_pm_tasks_on_scheduled_date_and_status"
     t.index ["status"], name: "index_pm_tasks_on_status"

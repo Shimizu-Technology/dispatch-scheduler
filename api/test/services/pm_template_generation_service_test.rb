@@ -47,6 +47,33 @@ class PmTemplateGenerationServiceTest < ActiveSupport::TestCase
     assert_equal 1, PmTask.count
   end
 
+  test "database enforces generated PM uniqueness by item location and period" do
+    site = location(name: "Race Guard Station")
+    template = pm_template(locations: [ site ])
+    PmTemplateGenerationService.new(template: template, month: "2026-06").generate!
+    existing = PmTask.first
+
+    assert_raises(ActiveRecord::RecordNotUnique) do
+      ApplicationRecord.transaction(requires_new: true) do
+        PmTask.create!(
+          client: existing.client,
+          location: existing.location,
+          pm_template: existing.pm_template,
+          pm_template_item: existing.pm_template_item,
+          task_name: existing.task_name,
+          trade_category: existing.trade_category,
+          frequency: existing.frequency,
+          scheduled_date: existing.scheduled_date,
+          due_on: existing.due_on,
+          period_start: existing.period_start,
+          period_end: existing.period_end,
+          estimated_minutes: existing.estimated_minutes,
+          status: "pending"
+        )
+      end
+    end
+  end
+
   test "item location restrictions limit generated rows" do
     north = location(name: "Restricted North", region: "North")
     south = location(name: "Restricted South", region: "South")

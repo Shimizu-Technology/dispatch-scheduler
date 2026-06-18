@@ -93,18 +93,32 @@ class PmTemplateGenerationService
   end
 
   def candidate_rows
-    selected_locations = @template.active_locations
-    selected_locations = selected_locations.select { |location| @location_ids.include?(location.id) } if @location_ids
+    selected_locations = selected_template_locations
     selected_locations_by_id = selected_locations.index_by(&:id)
 
-    items = @template.active_items.includes(:pm_template_item_locations)
-    items = items.where(id: @item_ids) if @item_ids
-    items = items.where(frequency: @frequency_filters)
-
-    items.flat_map do |item|
-      item_locations = item.applicable_locations.select { |location| selected_locations_by_id.key?(location.id) }
-      item_locations.map { |location| { item: item, location: location } }
+    selected_template_items.flat_map do |item|
+      item_locations_for(item, selected_locations, selected_locations_by_id)
+        .map { |location| { item: item, location: location } }
     end.sort_by { |row| [ row.fetch(:location).name.to_s, row.fetch(:item).position, row.fetch(:item).task_name.to_s ] }
+  end
+
+  def selected_template_locations
+    locations = @template.pm_template_locations.active.includes(:location).order(:position, :id).map(&:location)
+    return locations unless @location_ids
+
+    locations.select { |location| @location_ids.include?(location.id) }
+  end
+
+  def selected_template_items
+    items = @template.pm_template_items.active.includes(pm_template_item_locations: :location).order(:position, :id)
+    items = items.where(id: @item_ids) if @item_ids
+    items.where(frequency: @frequency_filters).to_a
+  end
+
+  def item_locations_for(item, selected_locations, selected_locations_by_id)
+    restricted_locations = item.pm_template_item_locations.select(&:active?).filter_map(&:location)
+    applicable_locations = restricted_locations.presence || selected_locations
+    applicable_locations.select { |location| selected_locations_by_id.key?(location.id) }
   end
 
   def preview_row(row, duplicate_lookup)

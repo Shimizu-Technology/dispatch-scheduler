@@ -14,14 +14,25 @@ class PmTemplateItem < ApplicationRecord
   scope :active, -> { where(active: true) }
 
   def restricted_locations?
-    pm_template_item_locations.active.exists?
+    active_location_assignments.any?
   end
 
   def applicable_locations
-    if restricted_locations?
-      pm_template_item_locations.active.includes(:location).map(&:location)
+    assignments = active_location_assignments
+    if assignments.any?
+      assignments.map(&:location)
     else
       pm_template.active_locations
+    end
+  end
+
+  private
+
+  def active_location_assignments
+    if association(:pm_template_item_locations).loaded?
+      pm_template_item_locations.select(&:active?)
+    else
+      pm_template_item_locations.active.includes(:location)
     end
   end
 end

@@ -34,7 +34,9 @@ end
 
 if (mobil_client = clients["Mobil"])
   mobil_template = PmTemplate.create!(client: mobil_client, service_line: service_lines["Mobil / CBRE"], name: "Mobil Monthly PMs", notes: "Default monthly Mobil PM checklist generated from John's sample PM workbook.")
-  data["pm_tasks"].select { |task| task["client"] == "Mobil" && task["scheduled_date"].to_s.start_with?("2026-04") && task["task_name"] == "Electrical Inspection" }.each_with_index do |task, index|
+  data["pm_tasks"].select { |task| task["client"] == "Mobil" && task["scheduled_date"].to_s.start_with?("2026-04") && task["task_name"] == "Electrical Inspection" }
+    .uniq { |task| [ task["client"], task["location"] ] }
+    .each_with_index do |task, index|
     if (location = locations[[ task["client"], task["location"] ]])
       mobil_template.pm_template_locations.create!(location: location, position: index)
     end

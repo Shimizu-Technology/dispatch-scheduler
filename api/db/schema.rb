@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_18_110000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_18_153000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -132,6 +132,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_18_110000) do
     t.string "source_file"
     t.string "status", default: "pending", null: false
     t.string "task_name"
+    t.datetime "time_in_at"
+    t.datetime "time_out_at"
     t.string "trade_category"
     t.datetime "updated_at", null: false
     t.index "COALESCE(period_end, scheduled_date)", name: "index_pm_tasks_on_effective_period_end"

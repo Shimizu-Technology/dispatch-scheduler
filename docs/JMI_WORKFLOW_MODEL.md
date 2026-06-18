@@ -1,6 +1,6 @@
 # JMI Dispatch Workflow Model
 
-Last updated: 2026-05-26
+Last updated: 2026-06-18
 
 This document captures what we currently understand about John Ilao's dispatch workflow and how the Dispatch Scheduler app should model it. It exists to keep product decisions grounded in John's real process instead of drifting into generic CMMS/work-order software.
 
@@ -10,6 +10,7 @@ Primary sources:
 - `docs/examples-from-john/`
 - `Brain-Dump/work/shimizu-tech/JMI-John-Ilao/1) Meeting with John - May 7, 2026.md`
 - `Brain-Dump/work/shimizu-tech/JMI-John-Ilao/2) Meeting with John about the Dispatch App.md`
+- `Brain-Dump/work/shimizu-tech/JMI-John-Ilao/3) Meeting with John after the meeting with Mike and John.md`
 - John's May 11 operation-details email and attachments/screenshots
 - `docs/JOHN_MEETING_2026_05_26.md`
 
@@ -412,6 +413,7 @@ The current top-level sections should evolve toward this mental model:
    - reusable monthly PM templates by station and checklist item
    - duplicate-safe month generation so George does not enter 140 PMs one by one
    - station checklist completion status
+   - PM/JCF time in and time out capture for later duration analysis by PM type, trade, station, month, or quarter
    - due PM commitments by date/location
    - monthly completion status
    - “while you are there” PM suggestions based on work-order locations plus late-month closeout pressure
@@ -476,6 +478,7 @@ Likely additions/changes:
 - `dispatch_item_technicians` snapshots for immutable person-level dispatch history
 - `required_technician_count` on work orders for staffing-aware assignment
 - PM template tables for reusable station/task checklists: `pm_templates`, `pm_template_locations`, `pm_template_items`, optional item-location restrictions, and generated `pm_tasks` period/due metadata
+- PM task JCF timing fields: `time_in_at` and `time_out_at` on generated/manual PM instances, separate from `completed_at`
 - SLA/KPI due fields, likely assessment due and repair due timestamps derived from priority and lifecycle state
 - stronger seed/import distinction between default crews and historical daily assignments
 

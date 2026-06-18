@@ -276,6 +276,9 @@ module Serializers
       pm_template_name: pm_task.respond_to?(:pm_template) ? pm_task.pm_template&.name : nil,
       status: pm_task.status,
       completed_at: pm_task.completed_at&.iso8601,
+      time_in_at: pm_task.respond_to?(:time_in_at) ? pm_task.time_in_at&.iso8601 : nil,
+      time_out_at: pm_task.respond_to?(:time_out_at) ? pm_task.time_out_at&.iso8601 : nil,
+      actual_duration_minutes: pm_task.respond_to?(:actual_duration_minutes) ? pm_task.actual_duration_minutes : nil,
       deferred_until: pm_task.deferred_until,
       notes: pm_task.notes,
       source_file: pm_task.source_file

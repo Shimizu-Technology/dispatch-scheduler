@@ -44,7 +44,7 @@ type PmTasksPanelProps = {
   onUpdate: (pmTaskId: number, changes: Record<string, unknown>) => Promise<void>
   onCreate: (values: PmTaskInput) => Promise<void>
   onBulkCreate: (values: PmTaskInput[]) => Promise<BulkResult | void>
-  onCompleteStation: (pmTaskIds: number[]) => Promise<void>
+  onCompleteStation: (pmTaskIds: number[], changes?: Record<string, unknown>) => Promise<void>
   onCreateTemplate: (values: PmTemplateInput) => Promise<PmTemplate | void>
   onPreviewTemplate: (templateId: number, values: { month: string; frequencies: string[]; location_ids?: number[]; item_ids?: number[] }) => Promise<PmTemplateGenerationPayload>
   onGenerateTemplate: (templateId: number, values: { month: string; frequencies: string[]; location_ids?: number[]; item_ids?: number[] }) => Promise<PmTemplateGenerationPayload | void>
@@ -57,6 +57,36 @@ function statusLabel(status: PmTaskStatus) {
 function shortDate(value?: string | null) {
   if (!value) return 'Not set'
   return value.slice(0, 10)
+}
+
+function datetimeLocalValue(value?: string | null) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value.slice(0, 16)
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
+  return local.toISOString().slice(0, 16)
+}
+
+function datetimeLocalToIso(value?: string | null) {
+  if (!value) return undefined
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? value : date.toISOString()
+}
+
+function shortDateTime(value?: string | null) {
+  if (!value) return 'Not set'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value.slice(0, 16).replace('T', ' ')
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'short', timeStyle: 'short' }).format(date)
+}
+
+function durationLabel(minutes?: number | null) {
+  if (!minutes) return 'Duration not set'
+  const hours = Math.floor(minutes / 60)
+  const remainder = minutes % 60
+  if (hours === 0) return `${remainder} min`
+  if (remainder === 0) return `${hours} hr${hours === 1 ? '' : 's'}`
+  return `${hours} hr ${remainder} min`
 }
 
 function monthString(dateString: string) {
@@ -162,6 +192,39 @@ function completionPercent(done: number, total: number) {
   return total === 0 ? 0 : Math.round((done / total) * 100)
 }
 
+type StationTiming = { time_in_at: string; time_out_at: string }
+
+function stationKey(location: string, region: string) {
+  return `${location}::${region}`
+}
+
+function timingPayload(values: StationTiming) {
+  const payload: Record<string, string> = {}
+  const timeIn = datetimeLocalToIso(values.time_in_at)
+  const timeOut = datetimeLocalToIso(values.time_out_at)
+  if (timeIn) payload.time_in_at = timeIn
+  if (timeOut) payload.time_out_at = timeOut
+  return payload
+}
+
+function PmTimeEditor({ pm, canEdit, saving, onUpdate }: { pm: PmTask; canEdit: boolean; saving: boolean; onUpdate: (pmTaskId: number, changes: Record<string, unknown>) => Promise<void> }) {
+  const [timeIn, setTimeIn] = useState(() => datetimeLocalValue(pm.time_in_at))
+  const [timeOut, setTimeOut] = useState(() => datetimeLocalValue(pm.time_out_at))
+  const changed = timeIn !== datetimeLocalValue(pm.time_in_at) || timeOut !== datetimeLocalValue(pm.time_out_at)
+
+  return <div className="mt-3 rounded-xl border border-blue-100 bg-white px-3 py-2">
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <p className="text-xs font-extrabold uppercase tracking-[0.12em] text-[#244393]">JCF time</p>
+      <p className="text-xs font-bold text-[#64748b]">{shortDateTime(pm.time_in_at)} → {shortDateTime(pm.time_out_at)} · {durationLabel(pm.actual_duration_minutes)}</p>
+    </div>
+    {canEdit && <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+      <label className="text-[0.66rem] font-extrabold uppercase tracking-[0.1em] text-[#64748b]">Time in<input type="datetime-local" value={timeIn} onChange={(event) => setTimeIn(event.target.value)} className="field-control mt-1 w-full rounded-lg px-2 py-1.5 text-xs font-semibold normal-case tracking-normal text-[#172033]" /></label>
+      <label className="text-[0.66rem] font-extrabold uppercase tracking-[0.1em] text-[#64748b]">Time out<input type="datetime-local" value={timeOut} onChange={(event) => setTimeOut(event.target.value)} className="field-control mt-1 w-full rounded-lg px-2 py-1.5 text-xs font-semibold normal-case tracking-normal text-[#172033]" /></label>
+      <div className="flex items-end"><button type="button" disabled={saving || !changed} onClick={() => void onUpdate(pm.id, { time_in_at: datetimeLocalToIso(timeIn) || '', time_out_at: datetimeLocalToIso(timeOut) || '' })} className="w-full rounded-lg border border-[#244393]/15 bg-[#e8eefc] px-3 py-1.5 text-xs font-extrabold text-[#244393] transition hover:bg-[#dfe8ff] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto">Save time</button></div>
+    </div>}
+  </div>
+}
+
 export function PmTasksPanel({ pmTasks, pmTemplates, serviceLines, canEdit, savingPmTaskId, selectedDate, onUpdate, onCreate, onBulkCreate, onCompleteStation, onCreateTemplate, onPreviewTemplate, onGenerateTemplate }: PmTasksPanelProps) {
   const [statusFilter, setStatusFilter] = useState<'' | PmTaskStatus>('')
   const [regionFilter, setRegionFilter] = useState('')
@@ -187,6 +250,7 @@ export function PmTasksPanel({ pmTasks, pmTemplates, serviceLines, canEdit, savi
   const [selectedItemIds, setSelectedItemIds] = useState<number[]>([])
   const [templatePreview, setTemplatePreview] = useState<PmTemplateGenerationPayload | null>(null)
   const [generationResult, setGenerationResult] = useState<PmTemplateGenerationPayload | null>(null)
+  const [stationTimings, setStationTimings] = useState<Record<string, StationTiming>>({})
 
   const selectedTemplate = useMemo(() => pmTemplates.find((template) => template.id === selectedTemplateId) || pmTemplates[0] || null, [pmTemplates, selectedTemplateId])
   const regions = useMemo(() => Array.from(new Set(pmTasks.map((pm) => pm.region).filter(Boolean))).sort(), [pmTasks])
@@ -254,10 +318,18 @@ export function PmTasksPanel({ pmTasks, pmTemplates, serviceLines, canEdit, savi
     return onUpdate(pm.id, { status: 'deferred', deferred_until: local })
   }
 
-  async function completeStation(tasks: PmTask[]) {
+  function stationTimingFor(key: string) {
+    return stationTimings[key] || { time_in_at: '', time_out_at: '' }
+  }
+
+  function updateStationTiming(key: string, field: keyof StationTiming, value: string) {
+    setStationTimings((current) => ({ ...current, [key]: { ...stationTimingFor(key), [field]: value } }))
+  }
+
+  async function completeStation(key: string, tasks: PmTask[]) {
     const ids = tasks.filter((task) => task.status !== 'completed').map((task) => task.id)
     if (ids.length === 0) return
-    await onCompleteStation(ids)
+    await onCompleteStation(ids, timingPayload(stationTimings[key] || { time_in_at: '', time_out_at: '' }))
   }
 
   function resetTemplateSelection(template: PmTemplate | null) {
@@ -502,15 +574,24 @@ export function PmTasksPanel({ pmTasks, pmTemplates, serviceLines, canEdit, savi
       {stationGroups.map((group) => {
         const done = group.tasks.filter((pm) => pm.status === 'completed').length
         const percent = completionPercent(done, group.tasks.length)
-        return <article key={`${group.location}-${group.region}`} className="rounded-2xl border border-blue-100 bg-gradient-to-br from-[#f8faff] to-white p-3 shadow-[0_10px_26px_rgba(36,67,147,0.08)] sm:p-4">
+        const key = stationKey(group.location, group.region)
+        const timing = stationTimingFor(key)
+        return <article key={key} className="rounded-2xl border border-blue-100 bg-gradient-to-br from-[#f8faff] to-white p-3 shadow-[0_10px_26px_rgba(36,67,147,0.08)] sm:p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div><p className="text-xs font-extrabold uppercase tracking-[0.12em] text-[#244393]">{group.region}</p><h3 className="font-display mt-1 text-lg font-extrabold tracking-tight text-[#172033]">{group.location}</h3><p className="mt-1 text-sm font-semibold text-[#64748b]">{progressLabel(done, group.tasks.length)}</p></div>
-            {canEdit && <button disabled={savingPmTaskId !== null || done === group.tasks.length} onClick={() => void completeStation(group.tasks)} className="inline-flex items-center gap-2 rounded-xl bg-[#16835f] px-3 py-2 text-xs font-extrabold text-white transition hover:-translate-y-0.5 hover:bg-[#106a4c] disabled:cursor-not-allowed disabled:opacity-50"><CheckCircle2 size={14} /> Mark station done</button>}
+            {canEdit && <button disabled={savingPmTaskId !== null || done === group.tasks.length} onClick={() => void completeStation(key, group.tasks)} className="inline-flex items-center gap-2 rounded-xl bg-[#16835f] px-3 py-2 text-xs font-extrabold text-white transition hover:-translate-y-0.5 hover:bg-[#106a4c] disabled:cursor-not-allowed disabled:opacity-50"><CheckCircle2 size={14} /> Mark station done</button>}
           </div>
           <div className="mt-3 h-2 overflow-hidden rounded-full bg-blue-100"><div className="h-full rounded-full bg-[#244393]" style={{ width: `${percent}%` }} /></div>
+          <div className="mt-3 rounded-2xl border border-[#244393]/10 bg-white/85 p-3">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2"><p className="text-xs font-extrabold uppercase tracking-[0.12em] text-[#244393]">Station JCF time</p><p className="text-xs font-bold text-[#64748b]">Applies to all incomplete PMs when marking this station done.</p></div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <label className="text-[0.66rem] font-extrabold uppercase tracking-[0.1em] text-[#64748b]">Time in<input type="datetime-local" disabled={!canEdit || savingPmTaskId !== null || done === group.tasks.length} value={timing.time_in_at} onChange={(event) => updateStationTiming(key, 'time_in_at', event.target.value)} className="field-control mt-1 w-full rounded-lg px-2 py-1.5 text-xs font-semibold normal-case tracking-normal text-[#172033] disabled:bg-slate-50" /></label>
+              <label className="text-[0.66rem] font-extrabold uppercase tracking-[0.1em] text-[#64748b]">Time out<input type="datetime-local" disabled={!canEdit || savingPmTaskId !== null || done === group.tasks.length} value={timing.time_out_at} onChange={(event) => updateStationTiming(key, 'time_out_at', event.target.value)} className="field-control mt-1 w-full rounded-lg px-2 py-1.5 text-xs font-semibold normal-case tracking-normal text-[#172033] disabled:bg-slate-50" /></label>
+            </div>
+          </div>
           <div className="mt-3 space-y-2">
             {group.tasks.sort((a, b) => a.task_name.localeCompare(b.task_name)).map((pm) => <div key={pm.id} className="rounded-xl border border-white bg-white/90 px-3 py-2 shadow-sm">
-              <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="font-display text-sm font-extrabold text-[#172033]">{pm.task_name}</p><p className="mt-0.5 text-xs font-semibold text-[#7b8798]">Due {shortDate(pm.due_on || pm.scheduled_date)} · {pm.trade_category}{pm.estimated_minutes ? ` · ${pm.estimated_minutes} min` : ''}</p></div><Badge kind={pm.status}>{statusLabel(pm.status)}</Badge></div>
+              <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="font-display text-sm font-extrabold text-[#172033]">{pm.task_name}</p><p className="mt-0.5 text-xs font-semibold text-[#7b8798]">Due {shortDate(pm.due_on || pm.scheduled_date)} · {pm.trade_category}{pm.estimated_minutes ? ` · ${pm.estimated_minutes} min` : ''}</p>{(pm.time_in_at || pm.time_out_at) && <p className="mt-1 text-xs font-bold text-[#244393]">JCF {shortDateTime(pm.time_in_at)} → {shortDateTime(pm.time_out_at)} · {durationLabel(pm.actual_duration_minutes)}</p>}</div><Badge kind={pm.status}>{statusLabel(pm.status)}</Badge></div>
               {canEdit && <div className="mt-2 flex flex-wrap gap-2"><button disabled={savingPmTaskId !== null || pm.status === 'completed'} onClick={() => void onUpdate(pm.id, { status: 'completed' })} className="rounded-lg bg-[#16835f] px-2.5 py-1.5 text-xs font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-50">Complete</button><button disabled={savingPmTaskId !== null || pm.status === 'scheduled'} onClick={() => void onUpdate(pm.id, { status: 'scheduled' })} className="rounded-lg border border-[#244393]/15 bg-[#e8eefc] px-2.5 py-1.5 text-xs font-extrabold text-[#244393] disabled:cursor-not-allowed disabled:opacity-50">Scheduled</button><button disabled={savingPmTaskId !== null || pm.status === 'pending'} onClick={() => void onUpdate(pm.id, { status: 'pending' })} className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-extrabold text-[#526071] disabled:cursor-not-allowed disabled:opacity-50">Reset</button></div>}
             </div>)}
           </div>
@@ -525,6 +606,7 @@ export function PmTasksPanel({ pmTasks, pmTemplates, serviceLines, canEdit, savi
           <p className="mt-1 text-sm leading-6 text-[#526071]">{pm.task_name}</p>
           <div className="mt-3 grid gap-1 text-xs font-semibold text-[#7b8798] sm:grid-cols-2"><span>Region: {pm.region}</span><span>Trade: {pm.trade_category}</span><span>Completed: {shortDate(pm.completed_at)}</span><span>Deferred until: {shortDate(pm.deferred_until)}</span></div>
           {pm.notes && <p className="mt-3 rounded-xl border border-blue-100 bg-white px-3 py-2 text-xs font-semibold leading-5 text-[#526071]">{pm.notes}</p>}
+          <PmTimeEditor pm={pm} canEdit={canEdit} saving={savingPmTaskId !== null} onUpdate={onUpdate} />
           {canEdit && <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap"><button disabled={savingPmTaskId !== null || pm.status === 'scheduled'} onClick={() => void onUpdate(pm.id, { status: 'scheduled' })} className="rounded-xl border border-[#244393]/15 bg-white px-3 py-2 text-xs font-extrabold text-[#244393] transition hover:-translate-y-0.5 hover:bg-[#e8eefc] disabled:cursor-not-allowed disabled:opacity-50">Scheduled</button><button disabled={savingPmTaskId !== null || pm.status === 'completed'} onClick={() => void onUpdate(pm.id, { status: 'completed' })} className="rounded-xl bg-[#16835f] px-3 py-2 text-xs font-extrabold text-white transition hover:-translate-y-0.5 hover:bg-[#106a4c] disabled:cursor-not-allowed disabled:opacity-50">Complete</button><button disabled={savingPmTaskId !== null || pm.status === 'deferred'} onClick={() => void deferUntilNextMonth(pm)} className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-extrabold text-amber-900 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50">Defer</button><button disabled={savingPmTaskId !== null || pm.status === 'pending'} onClick={() => void onUpdate(pm.id, { status: 'pending' })} className="rounded-xl border border-[rgba(23,32,51,0.12)] bg-white px-3 py-2 text-xs font-extrabold text-[#334155] transition hover:-translate-y-0.5 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">Reset</button></div>}
         </article>
       ))}

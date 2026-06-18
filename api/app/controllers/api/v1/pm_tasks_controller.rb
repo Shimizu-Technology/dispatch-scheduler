@@ -96,10 +96,11 @@ module Api
         raise ActiveRecord::RecordNotFound, "Could not find PM tasks: #{missing_ids.join(', ')}" if missing_ids.any?
 
         completed_at = Time.current
+        timing_attrs = pm_task_time_attributes(nil, bulk_complete_params)
         ApplicationRecord.transaction do
           ids.each do |id|
             pm_task = pm_tasks.fetch(id)
-            pm_task.update!(status: "completed", completed_at: pm_task.completed_at || completed_at, deferred_until: nil)
+            pm_task.update!({ status: "completed", completed_at: pm_task.completed_at || completed_at, deferred_until: nil }.merge(timing_attrs))
             AuditEvent.record!(action: "pm_task.updated", record: pm_task, user: current_user, metadata: pm_task_audit_metadata(pm_task).merge(source: "station_completion"))
           end
         end
@@ -140,7 +141,11 @@ module Api
       end
 
       def pm_task_params
-        params.permit(:status, :completed_at, :deferred_until, :notes)
+        params.permit(:status, :completed_at, :deferred_until, :notes, :time_in_at, :time_out_at)
+      end
+
+      def bulk_complete_params
+        params.permit(:time_in_at, :time_out_at)
       end
 
       def create_pm_task_params
@@ -148,7 +153,11 @@ module Api
       end
 
       def create_permitted_keys
-        [ :client, :location, :region, :task_name, :trade_category, :frequency, :scheduled_date, :due_on, :estimated_minutes, :notes, :source_file, :status ]
+        [
+          :client, :location, :region, :task_name, :trade_category, :frequency,
+          :scheduled_date, :due_on, :estimated_minutes, :notes, :source_file,
+          :status, :time_in_at, :time_out_at
+        ]
       end
 
       def bulk_rows
@@ -182,6 +191,8 @@ module Api
           due_on: attrs[:due_on].present? ? Date.parse(attrs[:due_on].to_s) : scheduled_date,
           estimated_minutes: attrs[:estimated_minutes].presence,
           status: status,
+          time_in_at: parse_optional_time(attrs[:time_in_at], "time in"),
+          time_out_at: parse_optional_time(attrs[:time_out_at], "time out"),
           notes: attrs[:notes].presence,
           source_file: attrs[:source_file].presence || "manual_pm_month_setup"
         )
@@ -192,6 +203,17 @@ module Api
 
         Date.parse(value.to_s)
       rescue Date::Error
+        raise ArgumentError, "Invalid #{label}"
+      end
+
+      def parse_optional_time(value, label)
+        return nil if value.blank?
+
+        parsed_time = Time.zone.parse(value.to_s)
+        return parsed_time if parsed_time.present?
+
+        raise ArgumentError, "Invalid #{label}"
+      rescue ArgumentError
         raise ArgumentError, "Invalid #{label}"
       end
 
@@ -241,9 +263,18 @@ module Api
           completed_at: completed_at,
           deferred_until: deferred_until,
           notes: attrs.key?(:notes) ? attrs[:notes] : pm_task.notes
-        }
+        }.merge(pm_task_time_attributes(pm_task, attrs))
       rescue Date::Error
         raise ActionController::BadRequest, "Invalid deferred until"
+      end
+
+      def pm_task_time_attributes(pm_task, attrs)
+        changes = {}
+        changes[:time_in_at] = parse_optional_time(attrs[:time_in_at], "time in") if attrs.key?(:time_in_at)
+        changes[:time_out_at] = parse_optional_time(attrs[:time_out_at], "time out") if attrs.key?(:time_out_at)
+        changes[:time_in_at] = pm_task.time_in_at if pm_task&.respond_to?(:time_in_at) && !changes.key?(:time_in_at)
+        changes[:time_out_at] = pm_task.time_out_at if pm_task&.respond_to?(:time_out_at) && !changes.key?(:time_out_at)
+        changes
       end
 
       def pm_task_audit_metadata(pm_task)
@@ -256,7 +287,10 @@ module Api
           due_on: pm_task.respond_to?(:due_on) ? pm_task.due_on : nil,
           period_start: pm_task.respond_to?(:period_start) ? pm_task.period_start : nil,
           period_end: pm_task.respond_to?(:period_end) ? pm_task.period_end : nil,
-          pm_template: pm_task.respond_to?(:pm_template) ? pm_task.pm_template&.name : nil
+          pm_template: pm_task.respond_to?(:pm_template) ? pm_task.pm_template&.name : nil,
+          time_in_at: pm_task.respond_to?(:time_in_at) ? pm_task.time_in_at&.iso8601 : nil,
+          time_out_at: pm_task.respond_to?(:time_out_at) ? pm_task.time_out_at&.iso8601 : nil,
+          actual_duration_minutes: pm_task.respond_to?(:actual_duration_minutes) ? pm_task.actual_duration_minutes : nil
         }
       end
     end

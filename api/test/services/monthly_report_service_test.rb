@@ -48,7 +48,7 @@ class MonthlyReportServiceTest < ActiveSupport::TestCase
       trade_category: "General",
       reported_at: Time.zone.local(2026, 6, 6, 9, 0)
     )
-    pm_task(task_name: "Monthly PM", date: Date.new(2026, 6, 2), location_record: loc).update!(status: "completed", completed_at: Time.zone.local(2026, 6, 2, 12, 0))
+    pm_task(task_name: "Monthly PM", trade: "Electrical", date: Date.new(2026, 6, 2), location_record: loc).update!(status: "completed", completed_at: Time.zone.local(2026, 6, 2, 12, 0), time_in_at: Time.zone.local(2026, 6, 2, 8, 0), time_out_at: Time.zone.local(2026, 6, 2, 9, 45))
     pm_task(task_name: "Deferred PM", date: Date.new(2026, 6, 3), location_record: loc).update!(status: "deferred", deferred_until: Date.new(2026, 7, 1))
 
     travel_to Time.zone.local(2026, 6, 15, 8, 0) do
@@ -63,6 +63,9 @@ class MonthlyReportServiceTest < ActiveSupport::TestCase
       assert_equal 2, payload.dig(:pm_tasks, :total)
       assert_equal 1, payload.dig(:pm_tasks, :completed)
       assert_equal 1, payload.dig(:pm_tasks, :deferred)
+      assert_equal 1, payload.dig(:pm_tasks, :timed)
+      assert_equal 105, payload.dig(:pm_tasks, :actual_minutes)
+      assert_equal({ "Electrical" => 105 }, payload.dig(:pm_tasks, :by_trade_actual_minutes))
       assert_equal 1, payload.dig(:follow_ups, :due_today)
       assert_equal 1, payload.dig(:follow_ups, :parts_eta_this_month)
     end

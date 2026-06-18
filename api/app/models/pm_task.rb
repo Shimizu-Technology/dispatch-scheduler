@@ -9,6 +9,7 @@ class PmTask < ApplicationRecord
   validates :task_name, :scheduled_date, :trade_category, presence: true
   validates :status, inclusion: { in: STATUSES }
   validates :deferred_until, presence: true, if: :deferred?
+  validate :time_out_after_time_in
 
   scope :for_month, ->(date) { where("COALESCE(period_start, scheduled_date) <= ? AND COALESCE(period_end, scheduled_date) >= ?", date.end_of_month, date.beginning_of_month) }
   scope :incomplete, -> { where.not(status: "completed") }
@@ -26,5 +27,19 @@ class PmTask < ApplicationRecord
 
   def deferred?
     status == "deferred"
+  end
+
+  def actual_duration_minutes
+    return nil unless time_in_at.present? && time_out_at.present?
+
+    ((time_out_at - time_in_at) / 60).round
+  end
+
+  private
+
+  def time_out_after_time_in
+    return if time_in_at.blank? || time_out_at.blank? || time_out_at >= time_in_at
+
+    errors.add(:time_out_at, "can't be before time in")
   end
 end

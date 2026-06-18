@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import type { ClipboardEvent, FormEvent } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import type { ClipboardEvent, FormEvent, ReactNode } from 'react'
 import { Archive, ArchiveRestore, ClipboardPaste, Edit3, FileUp, Plus, Search, Sparkles, X } from 'lucide-react'
 import { Badge, Card, PanelHeader } from './ui'
 import { postForm, postJson } from '../lib/api'
@@ -264,7 +264,8 @@ function WorkOrderForm({ initialValues, serviceLines, saving, onCancel, onSubmit
     })
   }
 
-  return <form onSubmit={(event) => void handleSubmit(event)} className="border-b border-[rgba(23,32,51,0.1)] bg-[#f8faff] p-4">
+  return <form onSubmit={(event) => void handleSubmit(event)} className="flex min-h-0 flex-1 flex-col bg-[#f8faff]">
+    <div className="min-h-0 flex-1 overflow-y-auto p-4 pb-6">
     <div className="grid gap-3 lg:grid-cols-4">
       <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
         Client
@@ -425,15 +426,50 @@ function WorkOrderForm({ initialValues, serviceLines, saving, onCancel, onSubmit
       <textarea value={values.notes || ''} onChange={(event) => updateField('notes', event.target.value)} placeholder="Gate code, requester, parts note, manager instructions, etc." className="field-control mt-1 min-h-16 w-full rounded-xl px-3 py-2 text-sm text-[#334155]" />
     </label>
 
-    <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+    </div>
+    <div className="sticky bottom-0 z-10 flex flex-col gap-2 border-t border-[rgba(23,32,51,0.1)] bg-white/95 p-4 shadow-[0_-14px_30px_rgba(23,32,51,0.08)] backdrop-blur sm:flex-row sm:flex-wrap sm:justify-end">
+      <button disabled={saving} type="button" onClick={onCancel} className="w-full rounded-2xl border border-[rgba(23,32,51,0.12)] bg-white px-4 py-2.5 font-display text-sm font-extrabold text-[#334155] transition hover:-translate-y-0.5 hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60 sm:w-auto">
+        Cancel
+      </button>
       <button disabled={saving} type="submit" className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#244393] px-4 py-2.5 font-display text-sm font-extrabold text-white shadow-[0_12px_26px_rgba(36,67,147,0.18)] transition hover:-translate-y-0.5 hover:bg-[#172b63] disabled:cursor-wait disabled:opacity-60 sm:w-auto">
         {saving ? 'Saving...' : 'Save Work Order'}
       </button>
-      <button disabled={saving} type="button" onClick={onCancel} className="w-full rounded-2xl border border-[rgba(23,32,51,0.12)] bg-white px-4 py-2.5 font-display text-sm font-extrabold text-[#334155] transition hover:-translate-y-0.5 hover:bg-slate-50 sm:w-auto">
-        Cancel
-      </button>
     </div>
   </form>
+}
+
+function WorkOrderEditorDrawer({ open, title, subtitle, saving, onClose, children }: { open: boolean; title: string; subtitle: string; saving: boolean; onClose: () => void; children: ReactNode }) {
+  useEffect(() => {
+    if (!open) return
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !saving) onClose()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [open, onClose, saving])
+
+  if (!open) return null
+
+  return <div className="fixed inset-0 z-50 flex justify-end">
+    <button type="button" aria-label="Close work order editor" disabled={saving} onClick={onClose} className="absolute inset-0 bg-[#07111f]/48 backdrop-blur-sm transition disabled:cursor-wait" />
+    <aside role="dialog" aria-modal="true" aria-labelledby="work-order-editor-title" className="relative flex h-full w-full max-w-5xl flex-col overflow-hidden border-l border-white/20 bg-[#f8faff] shadow-[-28px_0_60px_rgba(7,17,31,0.26)] sm:w-[92vw] xl:w-[78vw]">
+      <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[rgba(23,32,51,0.1)] bg-white px-4 py-4 sm:px-5">
+        <div>
+          <p className="font-display text-xs font-extrabold uppercase tracking-[0.16em] text-[#244393]">Work order editor</p>
+          <h2 id="work-order-editor-title" className="font-display mt-1 text-xl font-black tracking-tight text-[#172033]">{title}</h2>
+          <p className="mt-1 text-sm font-semibold leading-5 text-[#64748b]">{subtitle}</p>
+        </div>
+        <button type="button" disabled={saving} onClick={onClose} className="rounded-2xl border border-[rgba(23,32,51,0.12)] bg-white p-2 text-[#526071] transition hover:-translate-y-0.5 hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60"><X size={18} /></button>
+      </div>
+      {children}
+    </aside>
+  </div>
 }
 
 export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, saving, workOrderToEdit, onEditConsumed, onFetch, onCreate, onUpdate, onArchive }: { workOrders: WorkOrder[]; meta: PaginationMeta | null; serviceLines: ServiceLine[]; canEdit: boolean; saving: boolean; workOrderToEdit?: WorkOrder | null; onEditConsumed?: () => void; onFetch: (query: string) => Promise<void>; onCreate: (values: WorkOrderInput) => Promise<void>; onUpdate: (id: number, values: WorkOrderInput) => Promise<void>; onArchive: (workOrderId: number, archived: boolean) => Promise<void> }) {
@@ -511,6 +547,12 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, savin
   }
 
   const formInitialValues = activeEditing ? formFromWorkOrder(activeEditing) : reviewDraft ? formFromImportDraft(reviewDraft) : emptyForm()
+  const editorTitle = activeEditing ? `Edit ${activeEditing.location}` : reviewDraft ? 'Review scanned intake' : 'New work order'
+  const editorSubtitle = activeEditing
+    ? `WO #${activeEditing.external_id || 'N/A'} · ${statusLabel(activeEditing.status)} · ${activeEditing.normalized_priority}`
+    : reviewDraft
+      ? 'Confirm the AI/OCR fields before this becomes a live dispatch record.'
+      : 'Create an intake record without accidentally forcing it into dispatch.'
 
   async function submitForm(values: WorkOrderInput) {
     if (activeEditing) {
@@ -537,6 +579,13 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, savin
     setEditing(workOrder)
     setReviewDraft(null)
     setShowForm(true)
+  }
+
+  function closeEditor() {
+    setShowForm(false)
+    setEditing(null)
+    setReviewDraft(null)
+    onEditConsumed?.()
   }
 
   async function previewUpload(file: File | null) {
@@ -641,7 +690,9 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, savin
       </div>
     </div>}
 
-    {isFormOpen && <WorkOrderForm key={activeEditing?.id || reviewDraft?.draftId || 'new'} initialValues={formInitialValues} serviceLines={serviceLines} saving={saving} onCancel={() => { setShowForm(false); setEditing(null); setReviewDraft(null); onEditConsumed?.() }} onSubmit={submitForm} />}
+    <WorkOrderEditorDrawer open={isFormOpen} title={editorTitle} subtitle={editorSubtitle} saving={saving} onClose={closeEditor}>
+      <WorkOrderForm key={activeEditing?.id || reviewDraft?.draftId || 'new'} initialValues={formInitialValues} serviceLines={serviceLines} saving={saving} onCancel={closeEditor} onSubmit={submitForm} />
+    </WorkOrderEditorDrawer>
 
     <div className="border-b border-[rgba(23,32,51,0.1)] bg-white p-3 sm:p-4">
       <div className="grid gap-2 sm:gap-3 lg:grid-cols-[1fr_150px_160px_150px_160px_180px]">

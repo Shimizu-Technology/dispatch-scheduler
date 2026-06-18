@@ -33,7 +33,15 @@ function Metric({ label, value, detail, tone = 'blue' }: MetricProps) {
   </article>
 }
 
-function Breakdown({ title, values }: { title: string; values: Record<string, number> }) {
+function formatMinutes(minutes = 0) {
+  const hours = Math.floor(minutes / 60)
+  const remainder = minutes % 60
+  if (hours === 0) return `${remainder} min`
+  if (remainder === 0) return `${hours} hr${hours === 1 ? '' : 's'}`
+  return `${hours} hr ${remainder} min`
+}
+
+function Breakdown({ title, values, formatValue = (value: number) => value.toString() }: { title: string; values: Record<string, number>; formatValue?: (value: number) => string }) {
   const entries = Object.entries(values).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
   return <div className="rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white p-4">
     <h3 className="font-display text-sm font-extrabold text-[#172033]">{title}</h3>
@@ -41,7 +49,7 @@ function Breakdown({ title, values }: { title: string; values: Record<string, nu
       {entries.length === 0 && <p className="text-sm font-semibold text-[#64748b]">No records for this month.</p>}
       {entries.map(([label, count]) => <div key={label} className="flex items-center justify-between gap-3 rounded-xl bg-[#f8faff] px-3 py-2 text-sm">
         <span className="font-semibold capitalize text-[#526071]">{label.replaceAll('_', ' ')}</span>
-        <span className="tabular font-display font-extrabold text-[#244393]">{count}</span>
+        <span className="tabular font-display font-extrabold text-[#244393]">{formatValue(count)}</span>
       </div>)}
     </div>
   </div>
@@ -63,7 +71,7 @@ export function ReportsPanel({ report, loading, onDownloadCsv }: ReportsPanelPro
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Metric label="Work orders" value={report.work_orders.total} detail={`${report.work_orders.open} open · ${report.work_orders.completed_or_closed} closed`} />
         <Metric label="KPI overdue" value={report.work_orders.kpi_overdue} detail={`${report.work_orders.kpi_due_soon} due soon · ${report.work_orders.kpi_missing} missing`} tone={report.work_orders.kpi_overdue > 0 ? 'red' : 'green'} />
-        <Metric label="PM month" value={`${report.pm_tasks.completed}/${report.pm_tasks.total}`} detail={`${report.pm_tasks.incomplete} incomplete · ${report.pm_tasks.deferred} deferred`} tone={report.pm_tasks.incomplete > 0 ? 'amber' : 'green'} />
+        <Metric label="PM month" value={`${report.pm_tasks.completed}/${report.pm_tasks.total}`} detail={`${report.pm_tasks.incomplete} incomplete · ${report.pm_tasks.deferred} deferred · ${report.pm_tasks.timed || 0} timed`} tone={report.pm_tasks.incomplete > 0 ? 'amber' : 'green'} />
         <Metric label="Follow-ups due" value={report.follow_ups.due_this_month} detail={`${report.follow_ups.due_today} due today · ${report.follow_ups.parts_eta_this_month} parts ETA`} tone={report.follow_ups.due_today > 0 ? 'amber' : 'slate'} />
       </div>
 
@@ -72,12 +80,14 @@ export function ReportsPanel({ report, loading, onDownloadCsv }: ReportsPanelPro
         <Metric label="Corrective Maint." value={report.work_orders.corrective_maintenance} detail="CM-flagged work orders" />
         <Metric label="Estimates" value={report.work_orders.estimate_required} detail="Estimate-required work orders" tone={report.work_orders.estimate_required > 0 ? 'amber' : 'slate'} />
         <Metric label="Waiting parts" value={report.work_orders.waiting_for_parts} detail={`${report.work_orders.waiting_for_approval} waiting approval`} tone={report.work_orders.waiting_for_parts > 0 ? 'amber' : 'slate'} />
+        <Metric label="PM actual time" value={formatMinutes(report.pm_tasks.actual_minutes || 0)} detail="Captured from PM time in/out fields" tone={(report.pm_tasks.actual_minutes || 0) > 0 ? 'green' : 'slate'} />
       </div>
 
-      <div className="grid gap-3 lg:grid-cols-3">
+      <div className="grid gap-3 lg:grid-cols-4">
         <Breakdown title="Work orders by status" values={report.work_orders.by_status} />
         <Breakdown title="Work orders by priority" values={report.work_orders.by_priority} />
         <Breakdown title="Work orders by service line" values={report.work_orders.by_service_line} />
+        <Breakdown title="PM time by trade" values={report.pm_tasks.by_trade_actual_minutes || {}} formatValue={formatMinutes} />
       </div>
 
       <div className="grid gap-3 lg:grid-cols-2">

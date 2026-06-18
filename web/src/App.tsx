@@ -430,7 +430,7 @@ function DispatchApp() {
     }
   }
 
-  async function completePmStation(pmTaskIds: number[]) {
+  async function completePmStation(pmTaskIds: number[], changes: Record<string, unknown> = {}) {
     if (!canEditDispatch) {
       setError('Viewer access cannot complete PM stations.')
       return
@@ -438,7 +438,7 @@ function DispatchApp() {
     setPmTaskSavingId(0)
     setError('')
     try {
-      const payload = await postJson<{ pm_tasks: PmTask[] }>('/pm_tasks/bulk_complete', { pm_task_ids: pmTaskIds })
+      const payload = await postJson<{ pm_tasks: PmTask[] }>('/pm_tasks/bulk_complete', { pm_task_ids: pmTaskIds, ...changes })
       setPmTasks((current) => current.map((pm) => payload.pm_tasks.find((updated) => updated.id === pm.id) || pm))
       await Promise.allSettled([refreshPmContext(), afterAuditedChange()])
     } catch (err) {

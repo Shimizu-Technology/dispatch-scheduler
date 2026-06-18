@@ -112,13 +112,17 @@ class MonthlyReportService
   end
 
   def pm_summary
+    timed_tasks = pm_tasks.select { |pm_task| pm_task.actual_duration_minutes.present? }
     {
       total: pm_tasks.count,
       completed: pm_tasks.where(status: "completed").count,
       incomplete: pm_tasks.where.not(status: "completed").count,
       deferred: pm_tasks.where(status: "deferred").count,
+      timed: timed_tasks.count,
+      actual_minutes: timed_tasks.sum(&:actual_duration_minutes),
       by_status: pm_tasks.group(:status).count,
-      by_region: pm_tasks.joins(:location).group("locations.region").count
+      by_region: pm_tasks.joins(:location).group("locations.region").count,
+      by_trade_actual_minutes: timed_tasks.group_by(&:trade_category).transform_values { |tasks| tasks.sum(&:actual_duration_minutes) }
     }
   end
 

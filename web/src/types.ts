@@ -132,8 +132,11 @@ export type MonthlyReport = {
     completed: number
     incomplete: number
     deferred: number
+    timed?: number
+    actual_minutes?: number
     by_status: Record<string, number>
     by_region: Record<string, number>
+    by_trade_actual_minutes?: Record<string, number>
   }
   follow_ups: {
     due_today: number
@@ -243,6 +246,9 @@ export type PmTask = {
   pm_template_name?: string | null
   status: PmTaskStatus
   completed_at: string | null
+  time_in_at?: string | null
+  time_out_at?: string | null
+  actual_duration_minutes?: number | null
   deferred_until: string | null
   notes: string | null
 }
@@ -257,6 +263,8 @@ export type PmTaskInput = {
   scheduled_date: string
   due_on?: string
   estimated_minutes?: number | string | null
+  time_in_at?: string
+  time_out_at?: string
   notes?: string
 }
 

@@ -84,6 +84,28 @@ class PmTemplatesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "North", payload.fetch("locations").first.fetch("region")
   end
 
+  test "template creation deduplicates repeated stations before inserting assignments" do
+    with_auth_env do
+      post "/api/v1/pm_templates", params: {
+        name: "Mobil Monthly PMs",
+        client: "Mobil",
+        locations: [
+          { name: "Yigo North", region: "North" },
+          { name: " yigo north ", region: "Typo Region" },
+          { name: "Airport", region: "Central" }
+        ],
+        items: [
+          { task_name: "Electrical Inspection", trade_category: "Electrical", frequency: "monthly", estimated_minutes: 45 }
+        ]
+      }, headers: auth_headers
+    end
+
+    assert_response :created
+    payload = JSON.parse(response.body).fetch("pm_template")
+    assert_equal [ "Airport", "Yigo North" ], payload.fetch("locations").map { |station| station.fetch("name") }.sort
+    assert_equal 2, PmTemplateLocation.count
+  end
+
   test "viewer cannot create or generate templates" do
     template = pm_template
 

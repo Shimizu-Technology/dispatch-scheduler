@@ -146,6 +146,7 @@ function normalizeDate(value: string, fallback: string) {
 }
 
 function parseStations(text: string): PmTemplateInput['locations'] {
+  const seen = new Set<string>()
   return text.split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean)
@@ -153,7 +154,12 @@ function parseStations(text: string): PmTemplateInput['locations'] {
       const [name, region] = splitColumns(line)
       return { name: name || '', region: region || 'Unknown' }
     })
-    .filter((station) => station.name)
+    .filter((station) => {
+      const key = station.name.toLowerCase().trim()
+      if (!key || seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
 }
 
 function parseTemplateItems(text: string): PmTemplateInput['items'] {

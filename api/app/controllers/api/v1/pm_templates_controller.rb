@@ -18,6 +18,8 @@ module Api
         render json: { pm_template: Serializers.pm_template(template_scope.find(template.id)) }, status: :created
       rescue ActiveRecord::RecordInvalid => e
         render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
+      rescue ActiveRecord::RecordNotUnique
+        render json: { errors: [ "PM template has duplicate station or checklist rows" ] }, status: :unprocessable_entity
       rescue ActiveRecord::RecordNotFound => e
         render json: { errors: [ e.message ] }, status: :not_found
       rescue ArgumentError => e
@@ -53,6 +55,8 @@ module Api
         raise ArgumentError, "PM template setup is limited to 250 stations" if locations.length > 250
         raise ArgumentError, "PM template setup is limited to 100 PM items" if items.length > 100
 
+        locations = deduplicated_location_params(locations)
+
         client = Client.find_or_create_by!(name: attrs[:client].to_s.strip.presence || "Mobil")
         service_line = attrs[:service_line_id].present? ? ServiceLine.find(attrs[:service_line_id]) : nil
         template = PmTemplate.create!(
@@ -84,6 +88,19 @@ module Api
         end
 
         template
+      end
+
+      def deduplicated_location_params(locations)
+        seen = {}
+        locations.filter_map do |attrs|
+          location_attrs = attrs.respond_to?(:permit) ? attrs.permit(:name, :region) : attrs
+          name = location_attrs[:name].to_s.strip.presence || raise(ArgumentError, "Station name can't be blank")
+          key = name.downcase
+          next if seen[key]
+
+          seen[key] = true
+          location_attrs
+        end
       end
 
       def build_location!(client, attrs)

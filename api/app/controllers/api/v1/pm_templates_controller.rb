@@ -90,8 +90,9 @@ module Api
         location_attrs = attrs.respond_to?(:permit) ? attrs.permit(:name, :region) : attrs
         name = location_attrs[:name].to_s.strip.presence || raise(ArgumentError, "Station name can't be blank")
         location = Location.find_or_initialize_by_normalized_name(client: client, name: name)
+        region = location_attrs[:region].to_s.strip.presence || "Unknown"
         location.name = name
-        location.region = location_attrs[:region].to_s.strip.presence || location.region.presence || "Unknown"
+        location.region = region if location.new_record? || location.region.blank?
         location.save!
         location
       end

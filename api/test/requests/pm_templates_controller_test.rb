@@ -62,6 +62,28 @@ class PmTemplatesControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1, payload.dig("summary", "duplicate_count")
   end
 
+  test "template creation preserves existing station region metadata" do
+    existing_location = location(name: "Yigo North", region: "North")
+
+    with_auth_env do
+      post "/api/v1/pm_templates", params: {
+        name: "Mobil Monthly PMs",
+        client: "Mobil",
+        locations: [
+          { name: "Yigo North", region: "Typo Region" }
+        ],
+        items: [
+          { task_name: "Electrical Inspection", trade_category: "Electrical", frequency: "monthly", estimated_minutes: 45 }
+        ]
+      }, headers: auth_headers
+    end
+
+    assert_response :created
+    assert_equal "North", existing_location.reload.region
+    payload = JSON.parse(response.body).fetch("pm_template")
+    assert_equal "North", payload.fetch("locations").first.fetch("region")
+  end
+
   test "viewer cannot create or generate templates" do
     template = pm_template
 

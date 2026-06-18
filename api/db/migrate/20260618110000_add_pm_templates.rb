@@ -51,6 +51,8 @@ class AddPmTemplates < ActiveRecord::Migration[8.1]
     add_column :pm_tasks, :due_on, :date
     add_column :pm_tasks, :estimated_minutes, :integer
     add_index :pm_tasks, [ :pm_template_item_id, :location_id, :period_start ], unique: true, where: "pm_template_item_id IS NOT NULL AND period_start IS NOT NULL", name: "index_pm_tasks_on_template_item_location_period"
+    add_index :pm_tasks, "COALESCE(period_start, scheduled_date)", name: "index_pm_tasks_on_effective_period_start"
+    add_index :pm_tasks, "COALESCE(period_end, scheduled_date)", name: "index_pm_tasks_on_effective_period_end"
     add_index :pm_tasks, :due_on
   end
 end

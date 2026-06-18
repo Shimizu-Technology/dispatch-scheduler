@@ -134,6 +134,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_18_110000) do
     t.string "task_name"
     t.string "trade_category"
     t.datetime "updated_at", null: false
+    t.index "COALESCE(period_end, scheduled_date)", name: "index_pm_tasks_on_effective_period_end"
+    t.index "COALESCE(period_start, scheduled_date)", name: "index_pm_tasks_on_effective_period_start"
     t.index ["client_id"], name: "index_pm_tasks_on_client_id"
     t.index ["deferred_until"], name: "index_pm_tasks_on_deferred_until"
     t.index ["due_on"], name: "index_pm_tasks_on_due_on"

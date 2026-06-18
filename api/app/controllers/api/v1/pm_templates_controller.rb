@@ -4,7 +4,7 @@ module Api
       before_action :require_dispatch_edit!, only: [ :create, :preview, :generate ]
 
       def index
-        templates = PmTemplate.includes(:client, :service_line, pm_template_locations: :location, pm_template_items: :pm_template_item_locations)
+        templates = PmTemplate.includes(:client, :service_line, pm_template_locations: :location, pm_template_items: { pm_template_item_locations: :location })
           .order(:name)
         templates = templates.active unless params[:include_inactive].to_s == "true"
         render json: { pm_templates: templates.map { |template| Serializers.pm_template(template) } }
@@ -109,7 +109,7 @@ module Api
       end
 
       def generation_service
-        template = PmTemplate.includes(:client, :service_line, pm_template_locations: :location, pm_template_items: [ :pm_template_item_locations ]).find(params[:id])
+        template = PmTemplate.includes(:client, :service_line, pm_template_locations: :location, pm_template_items: { pm_template_item_locations: :location }).find(params[:id])
         PmTemplateGenerationService.new(
           template: template,
           month: params[:month],

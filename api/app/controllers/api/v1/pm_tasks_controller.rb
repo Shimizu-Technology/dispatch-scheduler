@@ -104,7 +104,7 @@ module Api
           end
         end
 
-        render json: { pm_tasks: ids.map { |id| Serializers.pm_task(pm_tasks.fetch(id).reload) } }
+        render json: { pm_tasks: ids.map { |id| Serializers.pm_task(pm_tasks.fetch(id)) } }
       rescue ActiveRecord::RecordNotFound => e
         render json: { errors: [ e.message ] }, status: :not_found
       rescue ActiveRecord::RecordInvalid => e

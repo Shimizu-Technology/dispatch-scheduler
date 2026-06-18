@@ -306,7 +306,7 @@ module Serializers
           position: item.position,
           active: item.active,
           notes: item.notes,
-          location_ids: item.restricted_locations? ? item.pm_template_item_locations.select(&:active).map(&:location_id) : []
+          location_ids: item.restricted_locations? ? item.pm_template_item_locations.select(&:active?).map(&:location_id) : []
         }
       end
     }

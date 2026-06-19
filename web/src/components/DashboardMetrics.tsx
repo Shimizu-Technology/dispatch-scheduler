@@ -114,6 +114,7 @@ export function DashboardMetrics({ dashboard, workOrders, teams, technicians, pm
   const correctiveMaintenance = dashboard?.counts.corrective_maintenance ?? workOrders.filter((workOrder) => workOrder.corrective_maintenance).length
   const estimateRequired = dashboard?.counts.estimate_required ?? workOrders.filter((workOrder) => workOrder.estimate_required).length
   const waitingForParts = dashboard?.counts.waiting_for_parts ?? workOrders.filter((workOrder) => workOrder.status === 'waiting_for_parts').length
+  const waitingForApproval = dashboard?.counts.waiting_for_approval ?? workOrders.filter((workOrder) => workOrder.status === 'waiting_for_approval').length
   const dashboardDate = dashboard?.date
   const partsEtaCutoff = dashboardDate ? datePlusDays(dashboardDate, 7) : null
   const followUpDueToday = dashboard?.counts.follow_up_due_today ?? workOrders.filter((workOrder) => workOrder.follow_up_due_on && dashboardDate && workOrder.follow_up_due_on <= dashboardDate).length
@@ -169,6 +170,7 @@ export function DashboardMetrics({ dashboard, workOrders, teams, technicians, pm
           <Metric icon={<Clock3 size={18} />} label="Due soon" value={slaDueSoon} detail="Within the next 24 hours" tone={slaDueSoon > 0 ? 'amber' : 'steel'} onClick={() => onGoToSection('work-orders')} />
           <Metric icon={<ShieldCheck size={18} />} label="KPI missing" value={slaMissing} detail="Needs reported time cleanup" tone={slaMissing > 0 ? 'amber' : 'green'} onClick={() => onGoToSection('work-orders')} />
           <Metric icon={<Clock3 size={18} />} label="Waiting parts" value={waitingForParts} detail="Held out of dispatch" tone={waitingForParts > 0 ? 'amber' : 'steel'} onClick={() => onGoToSection('work-orders')} />
+          <Metric icon={<ShieldCheck size={18} />} label="Waiting approval" value={waitingForApproval} detail="Blocked until approval" tone={waitingForApproval > 0 ? 'amber' : 'steel'} onClick={() => onGoToSection('work-orders')} />
         </div>
       </Card>
 

@@ -435,8 +435,8 @@ export function PmTasksPanel({ pmTasks, pmTemplates, serviceLines, canEdit, savi
   return <Card className="overflow-hidden">
     <PanelHeader
       eyebrow="Preventive maintenance"
-      title={`PM Month Setup · ${monthString(selectedDate)}`}
-      description="Generate recurring station PMs from reusable templates, track completion by station, and keep same-location PMs available for while-you're-there dispatch suggestions."
+      title={`PM Month Tracker · ${monthString(selectedDate)}`}
+      description="Track station completion, JCF time, exceptions, and remaining monthly obligations. Template generation stays available for month setup without making PMs forced dispatch items."
       action={templateAction}
     />
 

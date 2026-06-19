@@ -7,6 +7,8 @@ module Api
         scope = WorkOrder.includes(:client, :location, :team, :service_line, dispatch_items: [ :team, :dispatch_schedule ])
         scope = archive_scope(scope)
         scope = scope.left_joins(:client, :location) if joined_filter_params?
+        scope = scope.open if truthy_param?(:open)
+        scope = scope.where(status: WorkOrder::CLOSED_STATUSES) if truthy_param?(:closed)
         scope = scope.where(status: params[:status]) if params[:status].present?
         scope = scope.where(normalized_priority: params[:priority]) if params[:priority].present?
         scope = scope.where(trade_category: params[:trade_category]) if params[:trade_category].present?
@@ -16,6 +18,7 @@ module Api
         scope = scope.where(corrective_maintenance: true) if truthy_param?(:corrective_maintenance)
         scope = scope.where(estimate_required: true) if truthy_param?(:estimate_required)
         scope = scope.where("follow_up_due_on <= ?", Date.current) if truthy_param?(:follow_up_due)
+        scope = apply_sla_status(scope, params[:sla_status]) if params[:sla_status].present?
         scope = scope.where(scheduled_date: scheduled_date_param) if params[:scheduled_date].present?
         scope = scope.where("LOWER(clients.name) LIKE ?", "%#{ActiveRecord::Base.sanitize_sql_like(params[:client].to_s.downcase)}%") if params[:client].present?
         scope = scope.where(locations: { region: params[:region] }) if params[:region].present?
@@ -42,6 +45,13 @@ module Api
             sub_counts: work_order_sub_counts(scope)
           }
         }
+      end
+
+      def show
+        wo = WorkOrder.includes(:client, :location, :team, :service_line, dispatch_items: [ :team, :dispatch_schedule ]).find(params[:id])
+        render json: Serializers.work_order(wo)
+      rescue ActiveRecord::RecordNotFound => e
+        render json: { errors: [ e.message ] }, status: :not_found
       end
 
       def create
@@ -152,6 +162,21 @@ module Api
           "LOWER(work_orders.external_id) LIKE :q OR LOWER(work_orders.title) LIKE :q OR LOWER(work_orders.description) LIKE :q OR LOWER(work_orders.notes) LIKE :q OR LOWER(clients.name) LIKE :q OR LOWER(locations.name) LIKE :q",
           q: pattern
         )
+      end
+
+      def apply_sla_status(scope, status)
+        case status.to_s
+        when "overdue"
+          scope.open.where(WorkOrder.sanitize_sql_array([ "#{WorkOrder.sla_due_sql} < ?", Time.current ]))
+        when "due_soon"
+          scope.open.where(WorkOrder.sanitize_sql_array([ "#{WorkOrder.sla_due_sql} >= ? AND #{WorkOrder.sla_due_sql} <= ?", Time.current, Time.current + 24.hours ]))
+        when "missing"
+          scope.open.where(reported_at: nil, assessment_due_at: nil, response_due_at: nil, repair_due_at: nil)
+        when "on_track"
+          scope.open.where.not(reported_at: nil).where(WorkOrder.sanitize_sql_array([ "#{WorkOrder.sla_due_sql} > ?", Time.current + 24.hours ]))
+        else
+          raise ActionController::BadRequest, "Invalid SLA status"
+        end
       end
 
       def apply_sort(scope)

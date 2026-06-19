@@ -178,6 +178,20 @@ class WorkOrdersControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Keep old line until admin reclassifies", payload.fetch("notes")
   end
 
+  test "shows a work order for route-based detail pages" do
+    wo = work_order(title: "Detail drawer candidate", status: "waiting_for_parts")
+
+    with_auth_env do
+      get "/api/v1/work_orders/#{wo.id}", headers: auth_headers
+    end
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_equal wo.id, payload.fetch("id")
+    assert_equal "Detail drawer candidate", payload.fetch("title")
+    assert_equal "waiting_for_parts", payload.fetch("status")
+  end
+
   test "filters by operational tracking fields" do
     mobil = service_line("Mobil / CBRE")
     schools = service_line("Public Schools / Sodexo")
@@ -192,6 +206,54 @@ class WorkOrdersControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     payload = JSON.parse(response.body)
     assert_equal [ match.id ], payload.map { |item| item.fetch("id") }
+  end
+
+  test "filters work orders by SLA status for quick queue pages" do
+    overdue = work_order(title: "Overdue repair", priority: "P2", date: nil, reported_at: 2.days.ago)
+    due_soon = work_order(title: "Due soon repair", priority: "P3", date: nil, reported_at: Time.current)
+    due_soon.update_columns(assessment_due_at: Time.current + 2.hours, response_due_at: Time.current + 2.hours, repair_due_at: Time.current + 3.hours)
+    missing = work_order(title: "Missing SLA data", priority: "P3", date: nil)
+
+    with_auth_env do
+      get "/api/v1/work_orders", params: { sla_status: "overdue" }, headers: auth_headers
+    end
+
+    assert_response :success
+    assert_equal [ overdue.id ], JSON.parse(response.body).map { |item| item.fetch("id") }
+
+    with_auth_env do
+      get "/api/v1/work_orders", params: { sla_status: "due_soon" }, headers: auth_headers
+    end
+
+    assert_response :success
+    assert_equal [ due_soon.id ], JSON.parse(response.body).map { |item| item.fetch("id") }
+
+    with_auth_env do
+      get "/api/v1/work_orders", params: { sla_status: "missing" }, headers: auth_headers
+    end
+
+    assert_response :success
+    assert_equal [ missing.id ], JSON.parse(response.body).map { |item| item.fetch("id") }
+  end
+
+  test "filters open and closed queue pages" do
+    open_order = work_order(title: "Open repair", status: "approved")
+    completed_order = work_order(title: "Completed repair", status: "completed")
+    cancelled_order = work_order(title: "Cancelled repair", status: "cancelled")
+
+    with_auth_env do
+      get "/api/v1/work_orders", params: { open: true }, headers: auth_headers
+    end
+
+    assert_response :success
+    assert_equal [ open_order.id ], JSON.parse(response.body).map { |item| item.fetch("id") }
+
+    with_auth_env do
+      get "/api/v1/work_orders", params: { closed: true }, headers: auth_headers
+    end
+
+    assert_response :success
+    assert_equal [ completed_order.id, cancelled_order.id ].sort, JSON.parse(response.body).map { |item| item.fetch("id") }.sort
   end
 
   test "paginated work order index returns metadata" do

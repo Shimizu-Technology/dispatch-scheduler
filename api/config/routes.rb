@@ -14,7 +14,7 @@ Rails.application.routes.draw do
       resources :audit_events, only: [ :index ]
       resources :service_lines, only: [ :index, :create, :update ]
       post "work_order_imports/preview", to: "work_order_imports#preview"
-      resources :work_orders, only: [ :index, :create, :update ] do
+      resources :work_orders, only: [ :index, :show, :create, :update ] do
         member do
           patch :archive
           patch :unarchive

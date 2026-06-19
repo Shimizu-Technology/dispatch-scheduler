@@ -18,11 +18,35 @@ import { deleteJson, getBlob, getJson, patchJson, postJson } from './lib/api'
 import type { AuditEvent, Dashboard, DispatchOutcomeStatus, DispatchSchedule, ManagedUser, MonthlyReport, PaginationMeta, PmTask, PmTaskBulkCreatePayload, PmTaskInput, PmTemplate, PmTemplateGenerationPayload, PmTemplateInput, ServiceLine, ServiceLineInput, Team, TeamInput, Technician, TechnicianInput, WhatsAppCrewExport, WhatsAppExportPayload, WorkOrder, WorkOrderInput, WorkOrderListPayload, WorkOrderStatus } from './types'
 import './index.css'
 
-type ActiveSection = 'overview' | 'dispatch' | 'work-orders' | 'pa-projects' | 'teams' | 'pm-tasks' | 'service-lines' | 'reports' | 'whatsapp' | 'activity' | 'users'
+type ActiveSection = 'overview' | 'work-orders' | 'pm-tasks' | 'pa-projects' | 'dispatch' | 'teams' | 'reports' | 'whatsapp' | 'activity' | 'service-lines' | 'users'
+type AppRoute = { section: ActiveSection; path: string; search: string; date?: string; month?: string; workOrderId?: number }
 
-const SECTION_IDS: ActiveSection[] = ['overview', 'dispatch', 'work-orders', 'pa-projects', 'teams', 'pm-tasks', 'service-lines', 'reports', 'whatsapp', 'activity', 'users']
+type SectionLink = {
+  id: ActiveSection
+  label: string
+  mobileLabel?: string
+  description: string
+  icon: ReactNode
+  count?: number
+  group: 'operate' | 'manage' | 'admin'
+}
+
+const SECTION_IDS: ActiveSection[] = ['overview', 'work-orders', 'pm-tasks', 'pa-projects', 'dispatch', 'teams', 'reports', 'whatsapp', 'activity', 'service-lines', 'users']
 const SELECTED_DATE_STORAGE_KEY = 'dispatch-scheduler:selected-date'
 const DEFAULT_WORK_ORDER_QUERY = 'archived=active&page=1&per_page=50&sort=scheduled_date&direction=asc'
+const ROUTE_PATHS: Record<ActiveSection, string> = {
+  overview: '/dashboard',
+  'work-orders': '/work-orders',
+  'pm-tasks': '/pm',
+  'pa-projects': '/pa-projects',
+  dispatch: '/dispatch/today',
+  teams: '/crews',
+  reports: '/reports',
+  whatsapp: '/whatsapp',
+  activity: '/activity',
+  'service-lines': '/admin/service-lines',
+  users: '/admin/users',
+}
 
 function localDateString(date = new Date()) {
   const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
@@ -33,14 +57,50 @@ function initialSelectedDate() {
   return window.localStorage.getItem(SELECTED_DATE_STORAGE_KEY) || localDateString()
 }
 
-function sectionFromHash(): ActiveSection {
-  const value = window.location.hash.replace('#', '')
-  return SECTION_IDS.includes(value as ActiveSection) ? value as ActiveSection : 'overview'
+function routeFromLegacyHash(hash: string): ActiveSection | null {
+  const value = hash.replace('#', '')
+  return SECTION_IDS.includes(value as ActiveSection) ? value as ActiveSection : null
+}
+
+function routeForLocation(location: Location = window.location): AppRoute {
+  const legacySection = routeFromLegacyHash(location.hash)
+  if (legacySection) return { section: legacySection, path: ROUTE_PATHS[legacySection], search: '' }
+
+  const path = location.pathname.replace(/\/$/, '') || '/'
+  const search = location.search
+  const dispatchDateMatch = path.match(/^\/dispatch\/(\d{4}-\d{2}-\d{2})$/)
+  if (dispatchDateMatch) return { section: 'dispatch', path, search, date: dispatchDateMatch[1] }
+  if (path === '/dispatch' || path === '/dispatch/today') return { section: 'dispatch', path, search }
+
+  const pmMonthMatch = path.match(/^\/pm\/month\/(\d{4}-\d{2})$/)
+  if (pmMonthMatch) return { section: 'pm-tasks', path, search, month: pmMonthMatch[1] }
+  if (path === '/pm' || path === '/pm/templates') return { section: 'pm-tasks', path, search }
+
+  const reportMonthMatch = path.match(/^\/reports\/monthly\/(\d{4}-\d{2})$/)
+  if (reportMonthMatch) return { section: 'reports', path, search, month: reportMonthMatch[1] }
+  if (path === '/reports') return { section: 'reports', path, search }
+
+  if (path === '/' || path === '/dashboard') return { section: 'overview', path, search }
+  const workOrderMatch = path.match(/^\/work-orders\/(\d+)$/)
+  if (workOrderMatch) return { section: 'work-orders', path, search, workOrderId: Number(workOrderMatch[1]) }
+  if (path === '/work-orders') return { section: 'work-orders', path, search }
+  if (path === '/pa-projects' || path.startsWith('/pa-projects/')) return { section: 'pa-projects', path, search }
+  if (path === '/crews' || path === '/teams') return { section: 'teams', path, search }
+  if (path === '/whatsapp' || path === '/dispatch/whatsapp') return { section: 'whatsapp', path, search }
+  if (path === '/activity') return { section: 'activity', path, search }
+  if (path === '/admin/service-lines' || path === '/service-lines') return { section: 'service-lines', path, search }
+  if (path === '/admin/users' || path === '/users') return { section: 'users', path, search }
+
+  return { section: 'overview', path: '/dashboard', search: '' }
+}
+
+function dateFromMonth(month: string, fallbackDay: string) {
+  return `${month}-${fallbackDay.slice(8, 10) || '01'}`
 }
 
 function DispatchApp() {
   const { isSignedIn, isLoading: authLoading, isVerifyingApi, user, authError, canEditDispatch, refreshUser } = useAuthContext()
-  const [activeSection, setActiveSection] = useState<ActiveSection>(sectionFromHash)
+  const [currentRoute, setCurrentRoute] = useState<AppRoute>(() => routeForLocation())
   const [selectedDate, setSelectedDate] = useState(initialSelectedDate)
   const todayDate = localDateString()
   const [dashboard, setDashboard] = useState<Dashboard | null>(null)
@@ -131,14 +191,14 @@ function DispatchApp() {
   }, [authLoading, loadInitialData, selectedDate, user?.id])
 
   useEffect(() => {
-    if (!user?.id || activeSection !== 'pa-projects') return
+    if (!user?.id || currentRoute.section !== 'pa-projects') return
 
     void fetchPaProjects(1)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSection, user?.id])
+  }, [currentRoute.section, user?.id])
 
   useEffect(() => {
-    if (!user?.id || activeSection !== 'reports') return
+    if (!user?.id || currentRoute.section !== 'reports') return
 
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setReportLoading(true)
@@ -146,7 +206,7 @@ function DispatchApp() {
       .then(setMonthlyReport)
       .catch((err) => setError(err instanceof Error ? err.message : 'Unable to load report'))
       .finally(() => setReportLoading(false))
-  }, [activeSection, selectedDate, user?.id])
+  }, [currentRoute.section, selectedDate, user?.id])
 
   useEffect(() => {
     if (!user?.permissions.can_admin) return
@@ -159,29 +219,83 @@ function DispatchApp() {
   }, [user?.permissions.can_admin])
 
   useEffect(() => {
-    const handleHashChange = () => setActiveSection(sectionFromHash())
-    window.addEventListener('hashchange', handleHashChange)
-    window.addEventListener('popstate', handleHashChange)
+    if (!user?.id || currentRoute.section !== 'work-orders' || !currentRoute.workOrderId) return
+
+    void getJson<WorkOrder>(`/work_orders/${currentRoute.workOrderId}`)
+      .then(setWorkOrderToEdit)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Unable to load work order'))
+  }, [currentRoute.section, currentRoute.workOrderId, user?.id])
+
+  useEffect(() => {
+    if (currentRoute.section === 'work-orders' && !currentRoute.workOrderId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setWorkOrderToEdit(null)
+    }
+  }, [currentRoute.section, currentRoute.workOrderId])
+
+  useEffect(() => {
+    const handleRouteChange = () => setCurrentRoute(routeForLocation())
+    window.addEventListener('popstate', handleRouteChange)
+    window.addEventListener('hashchange', handleRouteChange)
     return () => {
-      window.removeEventListener('hashchange', handleHashChange)
-      window.removeEventListener('popstate', handleHashChange)
+      window.removeEventListener('popstate', handleRouteChange)
+      window.removeEventListener('hashchange', handleRouteChange)
     }
   }, [])
 
+  useEffect(() => {
+    if (window.location.hash && routeFromLegacyHash(window.location.hash)) {
+      navigateTo(ROUTE_PATHS[routeFromLegacyHash(window.location.hash) || 'overview'], { replace: true })
+    }
+  }, [])
+
+  useEffect(() => {
+    const routeDate = currentRoute.date || (currentRoute.month ? dateFromMonth(currentRoute.month, selectedDate) : null)
+    if (routeDate && routeDate !== selectedDate) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setSelectedDate(routeDate)
+    }
+  }, [currentRoute.date, currentRoute.month, selectedDate])
+
+  function navigateTo(url: string, options: { replace?: boolean } = {}) {
+    if (options.replace) window.history.replaceState(null, '', url)
+    else window.history.pushState(null, '', url)
+    setCurrentRoute(routeForLocation())
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  function pathForSection(section: ActiveSection) {
+    if (section === 'dispatch') return selectedDate === todayDate ? '/dispatch/today' : `/dispatch/${selectedDate}`
+    if (section === 'pm-tasks') return `/pm/month/${selectedDate.slice(0, 7)}`
+    if (section === 'reports') return `/reports/monthly/${selectedDate.slice(0, 7)}`
+    return ROUTE_PATHS[section]
+  }
+
   function goToSection(section: ActiveSection) {
     if (section !== 'work-orders') setWorkOrderToEdit(null)
-    setActiveSection(section)
-    window.history.pushState(null, '', `#${section}`)
+    navigateTo(pathForSection(section))
+  }
+
+  function handleSelectedDateChange(date: string) {
+    setSelectedDate(date)
+    if (currentRoute.section === 'dispatch') navigateTo(date === todayDate ? '/dispatch/today' : `/dispatch/${date}`, { replace: true })
+    if (currentRoute.section === 'pm-tasks') navigateTo(`/pm/month/${date.slice(0, 7)}`, { replace: true })
+    if (currentRoute.section === 'reports') navigateTo(`/reports/monthly/${date.slice(0, 7)}`, { replace: true })
+  }
+
+  function updateWorkOrderRouteQuery(query: string) {
+    navigateTo(`/work-orders?${query}`)
   }
 
   function openWorkOrderFromPaProject(workOrder: WorkOrder) {
     setWorkOrderToEdit(workOrder)
-    goToSection('work-orders')
+    navigateTo(`/work-orders/${workOrder.id}`)
   }
 
-  const clearWorkOrderToEdit = useCallback(() => {
+  function clearWorkOrderToEdit() {
     setWorkOrderToEdit(null)
-  }, [])
+    if (currentRoute.workOrderId) navigateTo(`/work-orders${currentRoute.search || ''}`, { replace: true })
+  }
 
   async function afterAuditedChange() {
     try {
@@ -885,19 +999,19 @@ function DispatchApp() {
     }
   }
 
-  const currentSection = activeSection === 'users' && !user?.permissions.can_admin ? 'overview' : activeSection
-  const sections: Array<{ id: ActiveSection; label: string; mobileLabel?: string; description: string; icon: ReactNode; count?: number }> = [
-    { id: 'overview', label: 'Dashboard', mobileLabel: 'Home', description: 'Start here', icon: <LayoutDashboard size={18} /> },
-    { id: 'dispatch', label: 'Dispatch Draft', mobileLabel: 'Draft', description: 'Build and edit the plan', icon: <ClipboardList size={18} />, count: schedule?.items.length },
-    { id: 'work-orders', label: 'Work Queue', mobileLabel: 'Work', description: 'Review open work', icon: <Wrench size={18} />, count: dashboard?.counts.open_work_orders ?? workOrderMeta?.total_count ?? workOrders.filter((workOrder) => !workOrder.archived).length },
-    { id: 'pa-projects', label: 'PA Projects', mobileLabel: 'PA', description: 'Parts and long-lead follow-up', icon: <FolderKanban size={18} />, count: dashboard?.counts.pa_projects ?? paProjectMeta?.total_count ?? workOrders.filter((workOrder) => !workOrder.archived && workOrder.pa_project).length },
-    { id: 'teams', label: 'Crews', description: 'Drivers and call-outs', icon: <Users size={18} />, count: teams.length },
-    { id: 'pm-tasks', label: 'PMs', description: 'Preventive work', icon: <CalendarDays size={18} />, count: pmTasks.length },
-    { id: 'service-lines', label: 'Service Lines', mobileLabel: 'Lines', description: 'Contracts and divisions', icon: <Settings2 size={18} />, count: serviceLines.filter((line) => line.active).length },
-    { id: 'reports', label: 'Reports', mobileLabel: 'Rpt', description: 'Monthly KPI exports', icon: <BarChart3 size={18} /> },
-    { id: 'whatsapp', label: 'WhatsApp', mobileLabel: 'WA', description: 'Copy send-ready text', icon: <MessageSquareText size={18} /> },
-    { id: 'activity', label: 'Activity', description: 'Audit history', icon: <Activity size={18} /> },
-    ...(user?.permissions.can_admin ? [{ id: 'users' as const, label: 'Users', description: 'Roles and access', icon: <UserCog size={18} />, count: managedUsers.length }] : []),
+  const currentSection = currentRoute.section === 'users' && !user?.permissions.can_admin ? 'overview' : currentRoute.section
+  const sections: SectionLink[] = [
+    { id: 'overview', label: 'Dashboard', mobileLabel: 'Home', description: 'Operations health', icon: <LayoutDashboard size={18} />, group: 'operate' },
+    { id: 'work-orders', label: 'Work Orders', mobileLabel: 'WOs', description: 'Open, closed, blocked, and KPI work', icon: <Wrench size={18} />, count: dashboard?.counts.open_work_orders ?? workOrderMeta?.total_count ?? workOrders.filter((workOrder) => !workOrder.archived).length, group: 'operate' },
+    { id: 'pm-tasks', label: 'PMs', description: 'Monthly station obligations', icon: <CalendarDays size={18} />, count: pmTasks.length, group: 'operate' },
+    { id: 'pa-projects', label: 'PA Projects', mobileLabel: 'PA', description: 'Parts, estimates, and follow-up', icon: <FolderKanban size={18} />, count: dashboard?.counts.pa_projects ?? paProjectMeta?.total_count ?? workOrders.filter((workOrder) => !workOrder.archived && workOrder.pa_project).length, group: 'operate' },
+    { id: 'dispatch', label: "Today’s Dispatch", mobileLabel: 'Dispatch', description: 'Build, finalize, and send crews', icon: <ClipboardList size={18} />, count: schedule?.items.length, group: 'manage' },
+    { id: 'teams', label: 'Crews', description: 'Drivers and call-outs', icon: <Users size={18} />, count: teams.length, group: 'manage' },
+    { id: 'reports', label: 'Reports', mobileLabel: 'Rpt', description: 'Monthly KPI exports', icon: <BarChart3 size={18} />, group: 'manage' },
+    { id: 'whatsapp', label: 'WhatsApp', mobileLabel: 'WA', description: 'Copy send-ready text', icon: <MessageSquareText size={18} />, group: 'manage' },
+    { id: 'activity', label: 'Activity', description: 'Audit history', icon: <Activity size={18} />, group: 'manage' },
+    { id: 'service-lines', label: 'Service Lines', mobileLabel: 'Lines', description: 'Contracts and divisions', icon: <Settings2 size={18} />, count: serviceLines.filter((line) => line.active).length, group: 'admin' },
+    ...(user?.permissions.can_admin ? [{ id: 'users' as const, label: 'Users', description: 'Roles and access', icon: <UserCog size={18} />, count: managedUsers.length, group: 'admin' as const }] : []),
   ]
 
   const activeSectionMeta = sections.find((section) => section.id === currentSection) || sections[0]
@@ -909,14 +1023,65 @@ function DispatchApp() {
     return <main className="grid min-h-screen place-items-center px-6 text-[#526071]">
       <div className="rounded-2xl border border-[rgba(23,32,51,0.12)] bg-white/90 p-8 text-center shadow-[0_24px_70px_rgba(23,32,51,0.12)]">
         <RefreshCw className="mx-auto mb-3 animate-spin text-[#244393]" />
-        <p className="font-display font-bold">Loading JMI Dispatch...</p>
+        <p className="font-display font-bold">Loading JMI Management System...</p>
       </div>
     </main>
   }
 
   return (
     <main className="min-h-screen overflow-hidden">
-      <div className="mx-auto flex max-w-[96rem] flex-col gap-3 px-3 py-3 sm:gap-4 sm:px-6 lg:px-8 lg:py-6">
+      <div className="mx-auto grid max-w-[100rem] gap-4 px-3 py-3 sm:px-6 lg:grid-cols-[17.5rem_minmax(0,1fr)] lg:px-8 lg:py-6">
+        <aside className="soft-reveal hidden h-[calc(100vh-3rem)] flex-col overflow-hidden rounded-[1.35rem] border border-[#1d336c]/15 bg-[#172b63] text-white shadow-[0_22px_60px_rgba(23,32,51,0.14)] lg:sticky lg:top-6 lg:flex">
+          <div className="relative border-b border-white/10 p-4">
+            <div className="absolute inset-y-0 left-0 w-1 bg-[#d84332]" />
+            <div className="flex items-center gap-3 pl-2">
+              <span className="relative inline-flex h-11 w-14 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-[0_12px_28px_rgba(0,0,0,0.16)]">
+                <span className="absolute left-3 h-8 w-1.5 -skew-x-[28deg] bg-[#244393]" />
+                <span className="absolute left-6 h-8 w-1.5 -skew-x-[28deg] bg-[#d84332]" />
+                <span className="absolute left-9 h-8 w-1.5 -skew-x-[28deg] bg-[#244393]" />
+              </span>
+              <span>
+                <span className="font-display block text-base font-black tracking-tight">JMI Guam</span>
+                <span className="block text-[0.66rem] font-extrabold uppercase tracking-[0.22em] text-blue-100/75">Management System</span>
+              </span>
+            </div>
+          </div>
+          <nav aria-label="JMI management pages" className="no-scrollbar flex-1 space-y-5 overflow-y-auto p-3">
+            {(['operate', 'manage', 'admin'] as const).map((group) => {
+              const groupSections = sections.filter((section) => section.group === group)
+              if (groupSections.length === 0) return null
+              const groupLabel = group === 'operate' ? 'Track' : group === 'manage' ? 'Dispatch' : 'Admin'
+              return <div key={group}>
+                <p className="px-2 pb-2 font-display text-[0.62rem] font-extrabold uppercase tracking-[0.22em] text-blue-100/62">{groupLabel}</p>
+                <div className="space-y-1.5">
+                  {groupSections.map((section) => {
+                    const isActive = currentSection === section.id
+                    return <a
+                      key={section.id}
+                      href={pathForSection(section.id)}
+                      onClick={(event) => { event.preventDefault(); goToSection(section.id) }}
+                      className={`group flex items-center gap-3 rounded-2xl border px-3 py-2.5 transition ${isActive ? 'border-white/18 bg-white text-[#172b63] shadow-[0_14px_30px_rgba(0,0,0,0.16)]' : 'border-transparent text-blue-50/88 hover:border-white/12 hover:bg-white/10 hover:text-white'}`}
+                    >
+                      <span className={`inline-flex shrink-0 rounded-xl p-2 ${isActive ? 'bg-[#e8eefc] text-[#244393]' : 'bg-white/10 text-blue-100'}`}>{section.icon}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="font-display block truncate text-sm font-extrabold">{section.label}</span>
+                        <span className={`block truncate text-xs font-semibold ${isActive ? 'text-[#526071]' : 'text-blue-100/58'}`}>{section.description}</span>
+                      </span>
+                      {typeof section.count === 'number' && <span className={`tabular inline-flex min-w-7 justify-center rounded-full px-2 py-0.5 text-xs font-extrabold ${isActive ? 'bg-[#172b63] text-white' : 'bg-white/12 text-white'}`}>{section.count}</span>}
+                    </a>
+                  })}
+                </div>
+              </div>
+            })}
+          </nav>
+          <div className="border-t border-white/10 p-3">
+            <div className="rounded-2xl border border-white/10 bg-white/8 p-3 text-xs font-semibold leading-5 text-blue-50/74">
+              One page per JMI workflow: intake, PM tracking, PA follow-up, dispatch, reporting, and access control.
+            </div>
+          </div>
+        </aside>
+
+        <div className="flex min-w-0 flex-col gap-3 sm:gap-4">
         <header className="soft-reveal overflow-hidden rounded-[1.1rem] border border-[#1d336c]/15 bg-white/95 shadow-[0_18px_48px_rgba(23,32,51,0.10)] backdrop-blur sm:rounded-[1.35rem]">
           <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_auto]">
             <div className="relative border-b border-[rgba(23,32,51,0.1)] bg-[#172b63] px-3 py-4 text-white sm:px-4 lg:border-b-0 lg:border-r lg:border-white/10 lg:px-5">
@@ -937,11 +1102,12 @@ function DispatchApp() {
                   {schedule && <span className={`inline-flex items-center rounded-full border px-3 py-1.5 font-display text-[0.66rem] font-extrabold uppercase tracking-[0.14em] ${schedule.status === 'sent' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : schedule.status === 'finalized' ? 'border-blue-200 bg-blue-50 text-blue-900' : 'border-white/15 bg-white/10 text-blue-50'}`}>{schedule.status}</span>}
                 </div>
                 <div>
-                  <p className="font-display text-[0.68rem] font-extrabold uppercase tracking-[0.28em] text-blue-100/80">Facilities dispatch board</p>
+                  <p className="font-display text-[0.68rem] font-extrabold uppercase tracking-[0.28em] text-blue-100/80">Operations management board</p>
                   <div className="mt-1 flex flex-wrap items-end gap-x-3 gap-y-1">
                     <h1 className="font-display text-2xl font-black tracking-[-0.035em] sm:text-4xl">{activeSectionMeta?.label || 'Daily Dispatch'}</h1>
                     <p className="pb-1 text-xs font-semibold leading-5 text-blue-50/72 sm:text-sm">{activeSectionMeta?.description || 'Daily dispatch command center'}</p>
                   </div>
+                  <p className="mt-2 font-display text-[0.66rem] font-extrabold uppercase tracking-[0.18em] text-blue-100/60">JMI / {activeSectionMeta?.label || 'Dashboard'}{currentRoute.month ? ` / ${currentRoute.month}` : currentRoute.date ? ` / ${currentRoute.date}` : ''}</p>
                 </div>
               </div>
             </div>
@@ -971,14 +1137,14 @@ function DispatchApp() {
                   <input
                     type="date"
                     value={selectedDate}
-                    onChange={(event) => setSelectedDate(event.target.value)}
+                    onChange={(event) => handleSelectedDateChange(event.target.value)}
                     className="tabular mt-1 w-full rounded-xl border border-[rgba(23,32,51,0.12)] bg-white px-3 py-2 font-display text-sm font-extrabold text-[#172033] outline-none transition focus:border-[#244393] focus:ring-4 focus:ring-[#244393]/12"
                   />
                 </label>
                 <button
                   type="button"
                   disabled={selectedDate === todayDate}
-                  onClick={() => setSelectedDate(todayDate)}
+                  onClick={() => handleSelectedDateChange(todayDate)}
                   className="min-h-11 rounded-2xl border border-[rgba(36,67,147,0.18)] bg-white px-4 py-2 font-display text-xs font-extrabold uppercase tracking-[0.14em] text-[#244393] transition hover:-translate-y-0.5 hover:bg-[#e8eefc] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Today
@@ -1006,13 +1172,13 @@ function DispatchApp() {
           </div>
         </header>
 
-        <nav aria-label="JMI dispatch sections" className="no-scrollbar soft-reveal-delay sticky top-0 z-10 -mx-3 flex gap-1 overflow-x-auto border-y border-[rgba(23,32,51,0.12)] bg-white/96 px-3 py-2 shadow-[0_10px_26px_rgba(23,32,51,0.08)] backdrop-blur sm:top-3 sm:mx-0 sm:rounded-[1.1rem] sm:border sm:p-1.5 sm:shadow-[0_12px_30px_rgba(23,32,51,0.08)]">
+        <nav aria-label="JMI management pages" className="no-scrollbar soft-reveal-delay sticky top-0 z-10 -mx-3 flex gap-1 overflow-x-auto border-y border-[rgba(23,32,51,0.12)] bg-white/96 px-3 py-2 shadow-[0_10px_26px_rgba(23,32,51,0.08)] backdrop-blur sm:top-3 sm:mx-0 sm:rounded-[1.1rem] sm:border sm:p-1.5 sm:shadow-[0_12px_30px_rgba(23,32,51,0.08)] lg:hidden">
           {sections.map((section) => {
             const isActive = currentSection === section.id
-            return <button
+            return <a
               key={section.id}
-              type="button"
-              onClick={() => goToSection(section.id)}
+              href={pathForSection(section.id)}
+              onClick={(event) => { event.preventDefault(); goToSection(section.id) }}
               title={section.description}
               className={`group flex h-10 min-w-fit shrink-0 items-center justify-center gap-1.5 rounded-xl border px-2 text-center transition sm:h-11 sm:gap-2 sm:px-4 ${isActive ? 'border-[#244393] bg-[#172b63] text-white shadow-[0_10px_24px_rgba(36,67,147,0.2)]' : 'border-transparent text-[#172033] hover:border-[rgba(36,67,147,0.18)] hover:bg-[#f4f7fb]'}`}
             >
@@ -1020,7 +1186,7 @@ function DispatchApp() {
               <span className="font-display whitespace-nowrap text-xs font-extrabold sm:hidden">{section.mobileLabel || section.label}</span>
               <span className="font-display hidden whitespace-nowrap text-sm font-extrabold sm:inline">{section.label}</span>
               {typeof section.count === 'number' && <span className={`tabular inline-flex min-w-6 shrink-0 justify-center rounded-full px-1.5 py-0.5 text-[0.68rem] font-extrabold sm:min-w-7 sm:px-2 sm:text-xs ${isActive ? 'bg-white/12 text-white' : 'bg-[#eef2ff] text-[#244393]'}`}>{section.count}</span>}
-            </button>
+            </a>
           })}
         </nav>
 
@@ -1048,7 +1214,7 @@ function DispatchApp() {
 
         {currentSection === 'overview' && <DashboardMetrics dashboard={dashboard} workOrders={workOrders.filter((workOrder) => !workOrder.archived)} teams={teams} technicians={technicians} pmTasks={pmTasks} schedule={schedule} auditEvents={auditEvents} canEdit={canEditDispatch} working={working} onGoToSection={goToSection} onSuggest={suggestSchedule} />}
 
-        {currentSection === 'work-orders' && (user ? <WorkOrdersPanel workOrders={workOrders} meta={workOrderMeta} serviceLines={serviceLines} canEdit={canEditDispatch} saving={workOrderSaving} workOrderToEdit={workOrderToEdit} onEditConsumed={clearWorkOrderToEdit} onFetch={fetchWorkOrders} onCreate={createWorkOrder} onUpdate={updateWorkOrder} onArchive={archiveWorkOrder} /> : <SignInRequiredPanel title="Sign in to review work orders" />)}
+        {currentSection === 'work-orders' && (user ? <WorkOrdersPanel workOrders={workOrders} meta={workOrderMeta} serviceLines={serviceLines} canEdit={canEditDispatch} saving={workOrderSaving} routeSearch={currentRoute.search} workOrderToEdit={workOrderToEdit} onEditConsumed={clearWorkOrderToEdit} onRouteQueryChange={updateWorkOrderRouteQuery} onFetch={fetchWorkOrders} onCreate={createWorkOrder} onUpdate={updateWorkOrder} onArchive={archiveWorkOrder} /> : <SignInRequiredPanel title="Sign in to review work orders" />)}
 
         {currentSection === 'pa-projects' && (user ? <PaProjectsPanel workOrders={paProjectWorkOrders} meta={paProjectMeta} canEdit={canEditDispatch} onPage={fetchPaProjects} onEdit={openWorkOrderFromPaProject} /> : <SignInRequiredPanel title="Sign in to review PA Projects" />)}
 
@@ -1067,6 +1233,7 @@ function DispatchApp() {
         {currentSection === 'activity' && (user ? <ActivityPanel events={auditEvents} /> : <SignInRequiredPanel title="Sign in to review activity" />)}
 
         {currentSection === 'users' && user?.permissions.can_admin && <UserManagementPanel users={managedUsers} currentUserId={user.id} savingUserId={savingUserId} onCreate={createManagedUser} onUpdate={updateManagedUser} onResendInvitation={resendManagedUserInvitation} onDelete={deleteManagedUser} />}
+        </div>
       </div>
     </main>
   )

@@ -10,8 +10,27 @@ const statuses: WorkOrderStatus[] = ['new', 'needs_assessment', 'approved', 'sch
 const trades = ['General', 'Plumbing', 'HVAC', 'Electrical', 'Carpentry', 'Painting', 'Landscaping', 'Masonry']
 const regions = ['North', 'Central', 'South', 'Islandwide', 'Unknown']
 const sources = ['whatsapp', 'phone', 'email', 'mywork', 'sodexo', 'manual', 'upload']
+const DEFAULT_WORK_ORDER_QUERY = 'archived=active&page=1&per_page=50&sort=scheduled_date&direction=asc'
 
 type ImportDraft = OcrWorkOrderDraft & { draftId: string }
+type SlaStatusFilter = '' | 'overdue' | 'due_soon' | 'missing' | 'on_track'
+type WorkOrderFilterState = {
+  query: string
+  status: string
+  priority: string
+  region: string
+  archive: 'active' | 'archived' | 'all'
+  serviceLine: string
+  paProject: boolean
+  correctiveMaintenance: boolean
+  estimateRequired: boolean
+  followUpDue: boolean
+  openOnly: boolean
+  closed: boolean
+  slaStatus: SlaStatusFilter
+  sort: string
+  direction: 'asc' | 'desc'
+}
 
 function draftId(draft: OcrWorkOrderDraft, index: number) {
   if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID()
@@ -25,6 +44,40 @@ function statusLabel(status: string) {
 function shortDate(value?: string | null) {
   if (!value) return 'Not set'
   return value.slice(0, 10)
+}
+
+function workOrderFiltersFromQuery(queryString?: string): WorkOrderFilterState {
+  const params = new URLSearchParams((queryString || '').replace(/^\?/, ''))
+  const archived = params.get('archived')
+  const direction = params.get('direction') === 'desc' ? 'desc' : 'asc'
+  const slaStatus = params.get('sla_status') || ''
+  return {
+    query: params.get('q') || '',
+    status: params.get('status') || '',
+    priority: params.get('priority') || '',
+    region: params.get('region') || '',
+    archive: archived === 'only' || archived === 'archived' ? 'archived' : archived === 'all' ? 'all' : 'active',
+    serviceLine: params.get('service_line_id') || '',
+    paProject: params.get('pa_project') === 'true',
+    correctiveMaintenance: params.get('corrective_maintenance') === 'true',
+    estimateRequired: params.get('estimate_required') === 'true',
+    followUpDue: params.get('follow_up_due') === 'true',
+    openOnly: params.get('open') === 'true',
+    closed: params.get('closed') === 'true',
+    slaStatus: ['overdue', 'due_soon', 'missing', 'on_track'].includes(slaStatus) ? slaStatus as SlaStatusFilter : '',
+    sort: params.get('sort') || 'scheduled_date',
+    direction,
+  }
+}
+
+function normalizedWorkOrderQuery(queryString?: string) {
+  const params = new URLSearchParams((queryString || '').replace(/^\?/, ''))
+  if (!params.get('archived')) params.set('archived', 'active')
+  if (!params.get('page')) params.set('page', '1')
+  if (!params.get('per_page')) params.set('per_page', '50')
+  if (!params.get('sort')) params.set('sort', 'scheduled_date')
+  if (!params.get('direction')) params.set('direction', 'asc')
+  return params.toString()
 }
 
 function datetimeLocalNow() {
@@ -472,7 +525,8 @@ function WorkOrderEditorDrawer({ open, title, subtitle, saving, onClose, childre
   </div>
 }
 
-export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, saving, workOrderToEdit, onEditConsumed, onFetch, onCreate, onUpdate, onArchive }: { workOrders: WorkOrder[]; meta: PaginationMeta | null; serviceLines: ServiceLine[]; canEdit: boolean; saving: boolean; workOrderToEdit?: WorkOrder | null; onEditConsumed?: () => void; onFetch: (query: string) => Promise<void>; onCreate: (values: WorkOrderInput) => Promise<void>; onUpdate: (id: number, values: WorkOrderInput) => Promise<void>; onArchive: (workOrderId: number, archived: boolean) => Promise<void> }) {
+export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, saving, routeSearch = '', workOrderToEdit, onEditConsumed, onRouteQueryChange, onFetch, onCreate, onUpdate, onArchive }: { workOrders: WorkOrder[]; meta: PaginationMeta | null; serviceLines: ServiceLine[]; canEdit: boolean; saving: boolean; routeSearch?: string; workOrderToEdit?: WorkOrder | null; onEditConsumed?: () => void; onRouteQueryChange?: (query: string) => void; onFetch: (query: string) => Promise<void>; onCreate: (values: WorkOrderInput) => Promise<void>; onUpdate: (id: number, values: WorkOrderInput) => Promise<void>; onArchive: (workOrderId: number, archived: boolean) => Promise<void> }) {
+  const initialFilters = workOrderFiltersFromQuery(routeSearch)
   const [showForm, setShowForm] = useState(false)
   const [showPasteIntake, setShowPasteIntake] = useState(false)
   const [editing, setEditing] = useState<WorkOrder | null>(null)
@@ -481,23 +535,51 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, savin
   const [importDrafts, setImportDrafts] = useState<ImportDraft[]>([])
   const [importError, setImportError] = useState('')
   const [pasteText, setPasteText] = useState('')
-  const [query, setQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
-  const [priorityFilter, setPriorityFilter] = useState('')
-  const [regionFilter, setRegionFilter] = useState('')
-  const [archiveFilter, setArchiveFilter] = useState<'active' | 'archived' | 'all'>('active')
-  const [serviceLineFilter, setServiceLineFilter] = useState('')
-  const [paProjectFilter, setPaProjectFilter] = useState(false)
-  const [correctiveMaintenanceFilter, setCorrectiveMaintenanceFilter] = useState(false)
-  const [estimateRequiredFilter, setEstimateRequiredFilter] = useState(false)
-  const [sort, setSort] = useState('scheduled_date')
-  const [direction, setDirection] = useState<'asc' | 'desc'>('asc')
-  const [appliedQuery, setAppliedQuery] = useState('archived=active&page=1&per_page=50&sort=scheduled_date&direction=asc')
+  const [query, setQuery] = useState(initialFilters.query)
+  const [statusFilter, setStatusFilter] = useState(initialFilters.status)
+  const [priorityFilter, setPriorityFilter] = useState(initialFilters.priority)
+  const [regionFilter, setRegionFilter] = useState(initialFilters.region)
+  const [archiveFilter, setArchiveFilter] = useState<'active' | 'archived' | 'all'>(initialFilters.archive)
+  const [serviceLineFilter, setServiceLineFilter] = useState(initialFilters.serviceLine)
+  const [paProjectFilter, setPaProjectFilter] = useState(initialFilters.paProject)
+  const [correctiveMaintenanceFilter, setCorrectiveMaintenanceFilter] = useState(initialFilters.correctiveMaintenance)
+  const [estimateRequiredFilter, setEstimateRequiredFilter] = useState(initialFilters.estimateRequired)
+  const [followUpDueFilter, setFollowUpDueFilter] = useState(initialFilters.followUpDue)
+  const [openOnlyFilter, setOpenOnlyFilter] = useState(initialFilters.openOnly)
+  const [closedFilter, setClosedFilter] = useState(initialFilters.closed)
+  const [slaStatusFilter, setSlaStatusFilter] = useState<SlaStatusFilter>(initialFilters.slaStatus)
+  const [sort, setSort] = useState(initialFilters.sort)
+  const [direction, setDirection] = useState<'asc' | 'desc'>(initialFilters.direction)
+  const [appliedQuery, setAppliedQuery] = useState(normalizedWorkOrderQuery(routeSearch || DEFAULT_WORK_ORDER_QUERY))
 
   const filteredWorkOrders = workOrders
-  const hasActiveFilters = Boolean(query || archiveFilter !== 'active' || statusFilter || priorityFilter || regionFilter || serviceLineFilter || paProjectFilter || correctiveMaintenanceFilter || estimateRequiredFilter)
+  const hasActiveFilters = Boolean(query || archiveFilter !== 'active' || statusFilter || priorityFilter || regionFilter || serviceLineFilter || paProjectFilter || correctiveMaintenanceFilter || estimateRequiredFilter || followUpDueFilter || openOnlyFilter || closedFilter || slaStatusFilter)
   const activeEditing = editing ?? workOrderToEdit ?? null
   const isFormOpen = showForm || Boolean(workOrderToEdit) || Boolean(reviewDraft)
+
+  useEffect(() => {
+    const normalized = normalizedWorkOrderQuery(routeSearch || DEFAULT_WORK_ORDER_QUERY)
+    const next = workOrderFiltersFromQuery(normalized)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setQuery(next.query)
+    setStatusFilter(next.status)
+    setPriorityFilter(next.priority)
+    setRegionFilter(next.region)
+    setArchiveFilter(next.archive)
+    setServiceLineFilter(next.serviceLine)
+    setPaProjectFilter(next.paProject)
+    setCorrectiveMaintenanceFilter(next.correctiveMaintenance)
+    setEstimateRequiredFilter(next.estimateRequired)
+    setFollowUpDueFilter(next.followUpDue)
+    setOpenOnlyFilter(next.openOnly)
+    setClosedFilter(next.closed)
+    setSlaStatusFilter(next.slaStatus)
+    setSort(next.sort)
+    setDirection(next.direction)
+    setAppliedQuery(normalized)
+    void onFetch(normalized)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeSearch])
 
   function queryFor(page = 1) {
     const params = new URLSearchParams()
@@ -514,6 +596,10 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, savin
     if (paProjectFilter) params.set('pa_project', 'true')
     if (correctiveMaintenanceFilter) params.set('corrective_maintenance', 'true')
     if (estimateRequiredFilter) params.set('estimate_required', 'true')
+    if (followUpDueFilter) params.set('follow_up_due', 'true')
+    if (openOnlyFilter) params.set('open', 'true')
+    if (closedFilter) params.set('closed', 'true')
+    if (slaStatusFilter) params.set('sla_status', slaStatusFilter)
     return params.toString()
   }
 
@@ -523,10 +609,19 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, savin
     return params.toString()
   }
 
+  function goToQuery(nextQuery: string) {
+    const normalized = normalizedWorkOrderQuery(nextQuery)
+    setAppliedQuery(normalized)
+    if (onRouteQueryChange) onRouteQueryChange(normalized)
+    else void onFetch(normalized)
+  }
+
   function applyFilters() {
-    const nextQuery = queryFor(1)
-    setAppliedQuery(nextQuery)
-    void onFetch(nextQuery)
+    goToQuery(queryFor(1))
+  }
+
+  function applyQuickFilter(nextQuery: string) {
+    goToQuery(nextQuery)
   }
 
   function clearFilters() {
@@ -539,11 +634,13 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, savin
     setPaProjectFilter(false)
     setCorrectiveMaintenanceFilter(false)
     setEstimateRequiredFilter(false)
+    setFollowUpDueFilter(false)
+    setOpenOnlyFilter(false)
+    setClosedFilter(false)
+    setSlaStatusFilter('')
     setSort('scheduled_date')
     setDirection('asc')
-    const nextQuery = 'archived=active&page=1&per_page=50&sort=scheduled_date&direction=asc'
-    setAppliedQuery(nextQuery)
-    void onFetch(nextQuery)
+    goToQuery(DEFAULT_WORK_ORDER_QUERY)
   }
 
   const formInitialValues = activeEditing ? formFromWorkOrder(activeEditing) : reviewDraft ? formFromImportDraft(reviewDraft) : emptyForm()
@@ -629,11 +726,27 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, savin
     }
   }
 
+  const quickFilters = [
+    { label: 'Active Queue', query: DEFAULT_WORK_ORDER_QUERY },
+    { label: 'Open', query: `${DEFAULT_WORK_ORDER_QUERY}&open=true` },
+    { label: 'Needs Assessment', query: `${DEFAULT_WORK_ORDER_QUERY}&status=needs_assessment` },
+    { label: 'Ready to Schedule', query: `${DEFAULT_WORK_ORDER_QUERY}&status=approved` },
+    { label: 'Waiting Parts', query: `${DEFAULT_WORK_ORDER_QUERY}&status=waiting_for_parts` },
+    { label: 'Waiting Approval', query: `${DEFAULT_WORK_ORDER_QUERY}&status=waiting_for_approval` },
+    { label: 'KPI Overdue', query: 'archived=active&page=1&per_page=50&sort=sla_due_at&direction=asc&sla_status=overdue' },
+    { label: 'KPI Due Soon', query: 'archived=active&page=1&per_page=50&sort=sla_due_at&direction=asc&sla_status=due_soon' },
+    { label: 'Follow-up Due', query: `${DEFAULT_WORK_ORDER_QUERY}&follow_up_due=true` },
+    { label: 'PA Projects', query: `${DEFAULT_WORK_ORDER_QUERY}&pa_project=true` },
+    { label: 'Estimates', query: `${DEFAULT_WORK_ORDER_QUERY}&estimate_required=true` },
+    { label: 'Closed', query: 'archived=all&page=1&per_page=50&sort=created_at&direction=desc&closed=true' },
+  ]
+  const normalizedAppliedQuery = normalizedWorkOrderQuery(appliedQuery)
+
   return <Card className="overflow-hidden">
     <PanelHeader
-      eyebrow="Work queue"
-      title="Open Work Orders"
-      description="Review dispatch-ready work, blocked follow-ups, PA Projects, KPI pressure, and incoming requests from WhatsApp, email, phone, or work-order systems."
+      eyebrow="Work orders"
+      title="Work Order Management"
+      description="Review open and closed jobs, dispatch-ready work, blocked follow-ups, PA Projects, KPI pressure, and incoming requests from WhatsApp, email, phone, or work-order systems."
       action={canEdit ? <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
         <button type="button" onClick={() => setShowPasteIntake((current) => !current)} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-[#244393]/15 bg-white px-4 py-2.5 font-display text-sm font-extrabold text-[#244393] transition hover:-translate-y-0.5 hover:bg-[#e8eefc] sm:w-auto"><ClipboardPaste size={16} /> Paste Intake</button>
         <label className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-[#244393]/15 bg-[#e8eefc] px-4 py-2.5 font-display text-sm font-extrabold text-[#244393] transition hover:-translate-y-0.5 hover:bg-[#dfe8ff] sm:w-auto">
@@ -694,8 +807,21 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, savin
       <WorkOrderForm key={activeEditing?.id || reviewDraft?.draftId || 'new'} initialValues={formInitialValues} serviceLines={serviceLines} saving={saving} onCancel={closeEditor} onSubmit={submitForm} />
     </WorkOrderEditorDrawer>
 
+    <div className="border-b border-[rgba(23,32,51,0.1)] bg-[#f8faff] p-3 sm:p-4">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <p className="font-display text-xs font-extrabold uppercase tracking-[0.16em] text-[#244393]">Queue views</p>
+        <span className="text-xs font-bold text-[#64748b]">These are saved in the URL for bookmarks and back-button navigation.</span>
+      </div>
+      <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1">
+        {quickFilters.map((filter) => {
+          const isActive = normalizedAppliedQuery === normalizedWorkOrderQuery(filter.query)
+          return <button key={filter.label} type="button" onClick={() => applyQuickFilter(filter.query)} className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-extrabold uppercase tracking-[0.1em] transition ${isActive ? 'border-[#172b63] bg-[#172b63] text-white shadow-[0_10px_24px_rgba(23,43,99,0.16)]' : 'border-[rgba(36,67,147,0.16)] bg-white text-[#244393] hover:bg-[#e8eefc]'}`}>{filter.label}</button>
+        })}
+      </div>
+    </div>
+
     <div className="border-b border-[rgba(23,32,51,0.1)] bg-white p-3 sm:p-4">
-      <div className="grid gap-2 sm:gap-3 lg:grid-cols-[1fr_150px_160px_150px_160px_180px]">
+      <div className="grid gap-2 sm:gap-3 lg:grid-cols-[1fr_150px_160px_150px_150px_180px_150px]">
         <label className="relative block">
           <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#7b8798]" size={16} />
           <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search WO #, location, description, notes..." className="field-control w-full rounded-xl py-2 pl-9 pr-3 text-sm font-semibold text-[#172033]" />
@@ -721,6 +847,13 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, savin
           <option value="">All service lines</option>
           {serviceLines.map((line) => <option key={line.id} value={line.id}>{line.name}</option>)}
         </select>
+        <select value={slaStatusFilter} onChange={(event) => setSlaStatusFilter(event.target.value as SlaStatusFilter)} className="field-control rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]">
+          <option value="">All KPI</option>
+          <option value="overdue">KPI overdue</option>
+          <option value="due_soon">KPI due soon</option>
+          <option value="missing">KPI missing</option>
+          <option value="on_track">KPI on track</option>
+        </select>
       </div>
       <div className="mt-3 grid gap-3 md:grid-cols-[180px_150px_auto]">
         <select value={sort} onChange={(event) => setSort(event.target.value)} className="field-control rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]">
@@ -744,6 +877,9 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, savin
         <button type="button" onClick={() => setPaProjectFilter((current) => !current)} className={`rounded-full px-3 py-1.5 text-xs font-extrabold uppercase tracking-[0.1em] ${paProjectFilter ? 'bg-[#244393] text-white' : 'border border-[rgba(36,67,147,0.16)] bg-white text-[#244393]'}`}>PA Projects</button>
         <button type="button" onClick={() => setCorrectiveMaintenanceFilter((current) => !current)} className={`rounded-full px-3 py-1.5 text-xs font-extrabold uppercase tracking-[0.1em] ${correctiveMaintenanceFilter ? 'bg-[#244393] text-white' : 'border border-[rgba(36,67,147,0.16)] bg-white text-[#244393]'}`}>CM</button>
         <button type="button" onClick={() => setEstimateRequiredFilter((current) => !current)} className={`rounded-full px-3 py-1.5 text-xs font-extrabold uppercase tracking-[0.1em] ${estimateRequiredFilter ? 'bg-[#244393] text-white' : 'border border-[rgba(36,67,147,0.16)] bg-white text-[#244393]'}`}>Estimates</button>
+        <button type="button" onClick={() => setFollowUpDueFilter((current) => !current)} className={`rounded-full px-3 py-1.5 text-xs font-extrabold uppercase tracking-[0.1em] ${followUpDueFilter ? 'bg-[#244393] text-white' : 'border border-[rgba(36,67,147,0.16)] bg-white text-[#244393]'}`}>Follow-up Due</button>
+        <button type="button" onClick={() => { setOpenOnlyFilter((current) => !current); setClosedFilter(false) }} className={`rounded-full px-3 py-1.5 text-xs font-extrabold uppercase tracking-[0.1em] ${openOnlyFilter ? 'bg-[#244393] text-white' : 'border border-[rgba(36,67,147,0.16)] bg-white text-[#244393]'}`}>Open Only</button>
+        <button type="button" onClick={() => { setClosedFilter((current) => !current); setOpenOnlyFilter(false) }} className={`rounded-full px-3 py-1.5 text-xs font-extrabold uppercase tracking-[0.1em] ${closedFilter ? 'bg-[#244393] text-white' : 'border border-[rgba(36,67,147,0.16)] bg-white text-[#244393]'}`}>Closed</button>
       </div>
     </div>
 
@@ -758,8 +894,8 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, savin
       {workOrders.length > 0 && <div className="flex flex-col items-start justify-between gap-3 px-2 pb-2 text-xs font-bold uppercase tracking-[0.14em] text-[#7b8798] sm:flex-row sm:items-center sm:px-3">
         <span>{meta ? `${workOrders.length} shown · ${meta.total_count} total · page ${meta.page} of ${Math.max(meta.total_pages, 1)}` : `${workOrders.length} shown`}</span>
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
-          <button type="button" disabled={!meta || meta.page <= 1} onClick={() => void onFetch(queryForAppliedPage((meta?.page || 1) - 1))} className="rounded-full border border-[rgba(23,32,51,0.12)] bg-white px-3 py-1.5 text-[#334155] disabled:cursor-not-allowed disabled:opacity-50">Previous</button>
-          <button type="button" disabled={!meta || meta.page >= meta.total_pages} onClick={() => void onFetch(queryForAppliedPage((meta?.page || 1) + 1))} className="rounded-full border border-[rgba(23,32,51,0.12)] bg-white px-3 py-1.5 text-[#334155] disabled:cursor-not-allowed disabled:opacity-50">Next</button>
+          <button type="button" disabled={!meta || meta.page <= 1} onClick={() => goToQuery(queryForAppliedPage((meta?.page || 1) - 1))} className="rounded-full border border-[rgba(23,32,51,0.12)] bg-white px-3 py-1.5 text-[#334155] disabled:cursor-not-allowed disabled:opacity-50">Previous</button>
+          <button type="button" disabled={!meta || meta.page >= meta.total_pages} onClick={() => goToQuery(queryForAppliedPage((meta?.page || 1) + 1))} className="rounded-full border border-[rgba(23,32,51,0.12)] bg-white px-3 py-1.5 text-[#334155] disabled:cursor-not-allowed disabled:opacity-50">Next</button>
           {hasActiveFilters && <button className="inline-flex items-center gap-1 text-[#244393]" onClick={clearFilters}><X size={13} /> Clear filters</button>}
         </div>
       </div>}

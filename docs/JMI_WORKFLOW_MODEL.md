@@ -24,6 +24,17 @@ The core product is the morning dispatch decision:
 
 The app succeeds if John, another admin, or a family member can open it and produce a competent daily dispatch plan without everything depending on John's memory.
 
+As of the pilot hardening work, the frontend should present as a route-based management system, not a single tabbed prototype. Dispatch remains the execution workflow, but the main navigation is tracking-first:
+
+- `/dashboard` — operations health and next decision.
+- `/work-orders` and `/work-orders/:id` — open/closed work, blocked work, KPI pressure, intake drafts, and deep-linked work-order review/edit drawers.
+- `/pm/month/:month` — monthly PM station tracking, JCF time, and template generation.
+- `/pa-projects` — parts, estimates, approval, owner, ETA, and follow-up board.
+- `/dispatch/today` or `/dispatch/:date` — daily crew plan, finalization, outcomes.
+- `/crews`, `/reports/monthly/:month`, `/whatsapp`, `/activity`, and `/admin/*` for supporting operations.
+
+This keeps the app intuitive for John, George, and John’s dad: each page answers one management question while preserving browser back/forward, bookmarks, and URL-based work-order filters.
+
 ## 2. What John Actually Does
 
 John is currently the human operating system for JMI dispatch.

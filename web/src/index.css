@@ -28,9 +28,8 @@ body {
   min-width: 320px;
   min-height: 100vh;
   background:
-    linear-gradient(135deg, rgba(36, 67, 147, 0.055) 0%, transparent 24rem),
-    linear-gradient(315deg, rgba(216, 67, 50, 0.035) 0%, transparent 20rem),
-    linear-gradient(180deg, #fbfcff 0%, #f5f7fb 44%, #eef3f8 100%);
+    linear-gradient(135deg, rgba(36, 67, 147, 0.035) 0%, transparent 22rem),
+    linear-gradient(180deg, #fbfcff 0%, #f7f9fc 48%, #f1f5f9 100%);
 }
 
 body::before {

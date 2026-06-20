@@ -1030,8 +1030,8 @@ function DispatchApp() {
 
   return (
     <main className="min-h-screen overflow-hidden">
-      <div className="mx-auto grid max-w-[100rem] gap-4 px-3 py-3 sm:px-6 lg:grid-cols-[17.5rem_minmax(0,1fr)] lg:px-8 lg:py-6">
-        <aside className="soft-reveal hidden h-[calc(100vh-3rem)] flex-col overflow-hidden rounded-[1.35rem] border border-[#1d336c]/15 bg-[#172b63] text-white shadow-[0_22px_60px_rgba(23,32,51,0.14)] lg:sticky lg:top-6 lg:flex">
+      <div className="mx-auto grid max-w-[94rem] gap-3 px-3 py-3 sm:px-5 lg:grid-cols-[15.5rem_minmax(0,1fr)] lg:px-6 lg:py-5">
+        <aside className="soft-reveal hidden h-[calc(100vh-2.5rem)] flex-col overflow-hidden rounded-[1.2rem] border border-[#1d336c]/15 bg-[#172b63] text-white shadow-[0_16px_42px_rgba(23,32,51,0.12)] lg:sticky lg:top-5 lg:flex">
           <div className="relative border-b border-white/10 p-4">
             <div className="absolute inset-y-0 left-0 w-1 bg-[#d84332]" />
             <div className="flex items-center gap-3 pl-2">
@@ -1081,12 +1081,12 @@ function DispatchApp() {
           </div>
         </aside>
 
-        <div className="flex min-w-0 flex-col gap-3 sm:gap-4">
-        <header className="soft-reveal overflow-hidden rounded-[1.1rem] border border-[#1d336c]/15 bg-white/95 shadow-[0_18px_48px_rgba(23,32,51,0.10)] backdrop-blur sm:rounded-[1.35rem]">
-          <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_auto]">
-            <div className="relative border-b border-[rgba(23,32,51,0.1)] bg-[#172b63] px-3 py-4 text-white sm:px-4 lg:border-b-0 lg:border-r lg:border-white/10 lg:px-5">
+        <div className="flex min-w-0 flex-col gap-3">
+        <header className="soft-reveal overflow-hidden rounded-[1.05rem] border border-[#1d336c]/12 bg-white/96 shadow-[0_12px_34px_rgba(23,32,51,0.08)] backdrop-blur sm:rounded-[1.2rem]">
+          <div className="grid gap-0 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,28rem)]">
+            <div className="relative border-b border-[rgba(23,32,51,0.1)] bg-[#172b63] px-3 py-3 text-white sm:px-4 xl:border-b-0 xl:border-r xl:border-white/10 xl:px-5">
               <div className="absolute inset-y-0 left-0 w-1 bg-[#d84332]" />
-              <div className="flex flex-col justify-between gap-4 pl-2 sm:min-h-28">
+              <div className="flex flex-col justify-between gap-2 pl-2">
                 <div className="flex flex-wrap items-center gap-3">
                   <div className="inline-flex items-center gap-3 rounded-2xl border border-white/15 bg-white/10 px-3 py-2 shadow-[0_12px_28px_rgba(0,0,0,0.12)] backdrop-blur">
                     <span className="relative inline-flex h-9 w-12 items-center justify-center overflow-hidden rounded-xl bg-white">
@@ -1104,7 +1104,7 @@ function DispatchApp() {
                 <div>
                   <p className="font-display text-[0.68rem] font-extrabold uppercase tracking-[0.28em] text-blue-100/80">Operations management board</p>
                   <div className="mt-1 flex flex-wrap items-end gap-x-3 gap-y-1">
-                    <h1 className="font-display text-2xl font-black tracking-[-0.035em] sm:text-4xl">{activeSectionMeta?.label || 'Daily Dispatch'}</h1>
+                    <h1 className="font-display text-xl font-black tracking-[-0.03em] sm:text-2xl md:text-3xl">{activeSectionMeta?.label || 'Daily Dispatch'}</h1>
                     <p className="pb-1 text-xs font-semibold leading-5 text-blue-50/72 sm:text-sm">{activeSectionMeta?.description || 'Daily dispatch command center'}</p>
                   </div>
                   <p className="mt-2 font-display text-[0.66rem] font-extrabold uppercase tracking-[0.18em] text-blue-100/60">JMI / {activeSectionMeta?.label || 'Dashboard'}{currentRoute.month ? ` / ${currentRoute.month}` : currentRoute.date ? ` / ${currentRoute.date}` : ''}</p>
@@ -1112,7 +1112,7 @@ function DispatchApp() {
               </div>
             </div>
 
-            <div className="grid gap-2 bg-white px-3 py-3 sm:grid-cols-2 sm:gap-3 sm:px-4 sm:py-4 lg:min-w-[34rem] lg:grid-cols-1 lg:px-5">
+            <div className="grid gap-2 bg-white px-3 py-3 sm:grid-cols-2 sm:gap-3 sm:px-4 xl:grid-cols-1 xl:px-4">
               {!user && isSignedIn ? <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
                 <div className="flex items-start gap-3">
                   <span className="rounded-xl bg-amber-100 p-2 text-amber-800">{isVerifyingApi ? <RefreshCw className="animate-spin" size={18} /> : <LockKeyhole size={18} />}</span>
@@ -1131,7 +1131,7 @@ function DispatchApp() {
                 </div>
               </div> : null}
 
-              {user && <div className="grid gap-2 sm:col-span-2 lg:col-span-1 lg:grid-cols-[1fr_auto]">
+              {user && <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 sm:col-span-2 xl:col-span-1">
                 <label className="rounded-2xl border border-[rgba(23,32,51,0.1)] bg-[#f8faff] px-3 py-2">
                   <span className="font-display block text-[0.64rem] font-extrabold uppercase tracking-[0.16em] text-[#64748b]">Schedule date</span>
                   <input
@@ -1152,7 +1152,7 @@ function DispatchApp() {
               </div>}
 
               <div className="flex flex-col gap-2 sm:col-span-2 sm:flex-row sm:flex-wrap sm:items-center lg:col-span-1">
-                {canEditDispatch && <button disabled={working || Boolean(schedule && schedule.status !== 'draft')} onClick={suggestSchedule} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#d84332] px-4 py-3 font-display text-sm font-extrabold text-white shadow-[0_14px_30px_rgba(216,67,50,0.24)] transition hover:-translate-y-0.5 hover:bg-[#bf3228] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:flex-none">
+                {canEditDispatch && currentSection !== 'overview' && <button disabled={working || Boolean(schedule && schedule.status !== 'draft')} onClick={suggestSchedule} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#d84332] px-4 py-2.5 font-display text-sm font-extrabold text-white shadow-[0_10px_22px_rgba(216,67,50,0.18)] transition hover:-translate-y-0.5 hover:bg-[#bf3228] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:flex-none">
                   <ClipboardList size={17} /> {scheduleActionLabel}
                 </button>}
                 {user && <div className="inline-flex w-full items-center gap-3 rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white px-3 py-2 text-sm text-[#526071] shadow-sm sm:w-auto sm:flex-none">

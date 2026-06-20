@@ -133,6 +133,7 @@ export type MonthlyReport = {
     incomplete: number
     deferred: number
     timed?: number
+    timed_visits?: number
     actual_minutes?: number
     by_status: Record<string, number>
     by_region: Record<string, number>

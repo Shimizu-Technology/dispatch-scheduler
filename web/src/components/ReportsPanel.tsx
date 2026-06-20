@@ -71,7 +71,7 @@ export function ReportsPanel({ report, loading, onDownloadCsv }: ReportsPanelPro
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Metric label="Work orders" value={report.work_orders.total} detail={`${report.work_orders.open} open · ${report.work_orders.completed_or_closed} closed`} />
         <Metric label="KPI overdue" value={report.work_orders.kpi_overdue} detail={`${report.work_orders.kpi_due_soon} due soon · ${report.work_orders.kpi_missing} missing`} tone={report.work_orders.kpi_overdue > 0 ? 'red' : 'green'} />
-        <Metric label="PM month" value={`${report.pm_tasks.completed}/${report.pm_tasks.total}`} detail={`${report.pm_tasks.incomplete} incomplete · ${report.pm_tasks.deferred} deferred · ${report.pm_tasks.timed || 0} timed`} tone={report.pm_tasks.incomplete > 0 ? 'amber' : 'green'} />
+        <Metric label="PM month" value={`${report.pm_tasks.completed}/${report.pm_tasks.total}`} detail={`${report.pm_tasks.incomplete} incomplete · ${report.pm_tasks.deferred} deferred · ${report.pm_tasks.timed_visits ?? report.pm_tasks.timed ?? 0} timed visits`} tone={report.pm_tasks.incomplete > 0 ? 'amber' : 'green'} />
         <Metric label="Follow-ups due" value={report.follow_ups.due_this_month} detail={`${report.follow_ups.due_today} due today · ${report.follow_ups.parts_eta_this_month} parts ETA`} tone={report.follow_ups.due_today > 0 ? 'amber' : 'slate'} />
       </div>
 
@@ -80,7 +80,7 @@ export function ReportsPanel({ report, loading, onDownloadCsv }: ReportsPanelPro
         <Metric label="Corrective Maint." value={report.work_orders.corrective_maintenance} detail="CM-flagged work orders" />
         <Metric label="Estimates" value={report.work_orders.estimate_required} detail="Estimate-required work orders" tone={report.work_orders.estimate_required > 0 ? 'amber' : 'slate'} />
         <Metric label="Waiting parts" value={report.work_orders.waiting_for_parts} detail={`${report.work_orders.waiting_for_approval} waiting approval`} tone={report.work_orders.waiting_for_parts > 0 ? 'amber' : 'slate'} />
-        <Metric label="PM actual time" value={formatMinutes(report.pm_tasks.actual_minutes || 0)} detail="Captured from PM time in/out fields" tone={(report.pm_tasks.actual_minutes || 0) > 0 ? 'green' : 'slate'} />
+        <Metric label="PM actual time" value={formatMinutes(report.pm_tasks.actual_minutes || 0)} detail="Station visit time, de-duplicated from PM time in/out fields" tone={(report.pm_tasks.actual_minutes || 0) > 0 ? 'green' : 'slate'} />
       </div>
 
       <div className="grid gap-3 lg:grid-cols-4">

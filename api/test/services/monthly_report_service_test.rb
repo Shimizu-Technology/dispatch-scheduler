@@ -71,6 +71,23 @@ class MonthlyReportServiceTest < ActiveSupport::TestCase
     end
   end
 
+  test "PM report counts a station bulk completion time window once" do
+    mobil = client("Mobil")
+    loc = location(name: "Dededo", region: "North", client_record: mobil)
+    time_in = Time.zone.local(2026, 6, 8, 8, 0)
+    time_out = Time.zone.local(2026, 6, 8, 9, 0)
+
+    pm_task(task_name: "Electrical PM", trade: "Electrical", date: Date.new(2026, 6, 8), location_record: loc, estimated_minutes: 30).update!(status: "completed", completed_at: time_out, time_in_at: time_in, time_out_at: time_out)
+    pm_task(task_name: "Plumbing PM", trade: "Plumbing", date: Date.new(2026, 6, 8), location_record: loc, estimated_minutes: 90).update!(status: "completed", completed_at: time_out, time_in_at: time_in, time_out_at: time_out)
+
+    payload = MonthlyReportService.new(month: "2026-06").payload
+
+    assert_equal 2, payload.dig(:pm_tasks, :timed)
+    assert_equal 1, payload.dig(:pm_tasks, :timed_visits)
+    assert_equal 60, payload.dig(:pm_tasks, :actual_minutes)
+    assert_equal({ "Electrical" => 15, "Plumbing" => 45 }, payload.dig(:pm_tasks, :by_trade_actual_minutes))
+  end
+
   test "CSV includes follow up and parts detail" do
     wo = work_order(title: "CSV parts", status: "waiting_for_parts", date: nil, reported_at: Time.zone.local(2026, 6, 10, 8, 0))
     wo.update!(parts_status: "Ordered", parts_ordered: true, parts_eta: Date.new(2026, 6, 25), follow_up_due_on: Date.new(2026, 6, 18), follow_up_owner: "George", vendor_reference: "PO-12", estimate_required: true, estimate_number: "EST-12")

@@ -113,17 +113,51 @@ class MonthlyReportService
 
   def pm_summary
     timed_tasks = pm_tasks.select { |pm_task| pm_task.actual_duration_minutes.present? }
+    timed_visits = timed_pm_visits(timed_tasks)
     {
       total: pm_tasks.count,
       completed: pm_tasks.where(status: "completed").count,
       incomplete: pm_tasks.where.not(status: "completed").count,
       deferred: pm_tasks.where(status: "deferred").count,
       timed: timed_tasks.count,
-      actual_minutes: timed_tasks.sum(&:actual_duration_minutes),
+      timed_visits: timed_visits.count,
+      actual_minutes: timed_visits.sum { |visit| visit.fetch(:minutes) },
       by_status: pm_tasks.group(:status).count,
       by_region: pm_tasks.joins(:location).group("locations.region").count,
-      by_trade_actual_minutes: timed_tasks.group_by(&:trade_category).transform_values { |tasks| tasks.sum(&:actual_duration_minutes) }
+      by_trade_actual_minutes: timed_pm_minutes_by_trade(timed_visits)
     }
+  end
+
+  def timed_pm_visits(timed_tasks)
+    # Station bulk-complete applies one JCF visit window to every checklist item
+    # at the station. Count that shared window once so actual PM time does not
+    # inflate by the number of tasks completed during the same visit.
+    timed_tasks.group_by { |pm_task| [ pm_task.location_id, pm_task.time_in_at.to_i, pm_task.time_out_at.to_i ] }.values.map do |tasks|
+      { tasks: tasks, minutes: tasks.first.actual_duration_minutes.to_i }
+    end
+  end
+
+  def timed_pm_minutes_by_trade(timed_visits)
+    timed_visits.each_with_object(Hash.new(0)) do |visit, totals|
+      allocate_visit_minutes_by_trade(visit.fetch(:tasks), visit.fetch(:minutes)).each do |trade, minutes|
+        totals[trade] += minutes
+      end
+    end
+  end
+
+  def allocate_visit_minutes_by_trade(tasks, minutes)
+    weights_by_trade = tasks.each_with_object(Hash.new(0)) do |task, weights|
+      estimated_minutes = task.estimated_minutes.to_i
+      weights[task.trade_category] += estimated_minutes.positive? ? estimated_minutes : 1
+    end
+    total_weight = weights_by_trade.values.sum
+    return {} if total_weight.zero?
+
+    allocations = weights_by_trade.transform_values { |weight| (minutes * weight) / total_weight }
+    remainder = minutes - allocations.values.sum
+    weighted_remainders = weights_by_trade.map { |trade, weight| [ trade, (minutes * weight) % total_weight ] }.sort_by { |trade, remainder_weight| [ -remainder_weight, trade ] }
+    weighted_remainders.first(remainder).each { |trade, _remainder_weight| allocations[trade] += 1 }
+    allocations
   end
 
   def follow_up_summary

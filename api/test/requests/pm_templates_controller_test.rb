@@ -106,6 +106,25 @@ class PmTemplatesControllerTest < ActionDispatch::IntegrationTest
     assert_equal 2, PmTemplateLocation.count
   end
 
+  test "preview and generate reject inactive templates" do
+    template = pm_template(name: "Inactive Template")
+    template.update!(active: false)
+
+    with_auth_env do
+      post "/api/v1/pm_templates/#{template.id}/preview", params: { month: "2026-06" }, headers: auth_headers
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal [ "PM template is inactive" ], JSON.parse(response.body).fetch("errors")
+
+    with_auth_env do
+      post "/api/v1/pm_templates/#{template.id}/generate", params: { month: "2026-06" }, headers: auth_headers
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal [ "PM template is inactive" ], JSON.parse(response.body).fetch("errors")
+  end
+
   test "viewer cannot create or generate templates" do
     template = pm_template
 

@@ -209,11 +209,8 @@ module Api
       def parse_optional_time(value, label)
         return nil if value.blank?
 
-        parsed_time = Time.zone.parse(value.to_s)
-        return parsed_time if parsed_time.present?
-
-        raise ArgumentError, "Invalid #{label}"
-      rescue ArgumentError
+        Time.zone.parse(value.to_s) || raise(ArgumentError, "Invalid #{label}")
+      rescue ArgumentError, TypeError
         raise ArgumentError, "Invalid #{label}"
       end
 

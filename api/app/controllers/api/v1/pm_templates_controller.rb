@@ -127,6 +127,8 @@ module Api
 
       def generation_service
         template = template_scope.find(params[:id])
+        raise ArgumentError, "PM template is inactive" unless template.active?
+
         PmTemplateGenerationService.new(
           template: template,
           month: params[:month],

@@ -35,7 +35,9 @@ module Api
       end
 
       def generate
-        render json: generation_service.generate!, status: :created
+        result = generation_service.generate!
+        status = result.dig(:summary, :created_count).to_i.positive? ? :created : :ok
+        render json: result, status: status
       rescue ActiveRecord::RecordInvalid => e
         render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
       rescue ActiveRecord::RecordNotFound => e

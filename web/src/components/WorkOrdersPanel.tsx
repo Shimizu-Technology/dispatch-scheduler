@@ -821,7 +821,7 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, savin
     </div>
 
     <div className="border-b border-[rgba(23,32,51,0.1)] bg-white p-3 sm:p-4">
-      <div className="grid gap-2 sm:gap-3 lg:grid-cols-[1fr_150px_160px_150px_150px_180px_150px]">
+      <div className="grid gap-2 sm:gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-[1fr_150px_160px_150px_150px_180px_150px]">
         <label className="relative block">
           <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#7b8798]" size={16} />
           <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search WO #, location, description, notes..." className="field-control w-full rounded-xl py-2 pl-9 pr-3 text-sm font-semibold text-[#172033]" />

@@ -56,7 +56,8 @@ class PmTemplatesControllerTest < ActionDispatch::IntegrationTest
       post "/api/v1/pm_templates/#{template.id}/generate", params: { month: "2026-06" }, headers: auth_headers
     end
 
-    assert_response :created
+    assert_response :success
+    assert_equal 200, response.status
     payload = JSON.parse(response.body)
     assert_equal 0, payload.dig("summary", "created_count")
     assert_equal 1, payload.dig("summary", "duplicate_count")

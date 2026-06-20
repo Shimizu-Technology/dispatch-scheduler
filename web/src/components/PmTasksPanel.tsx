@@ -418,17 +418,17 @@ export function PmTasksPanel({ pmTasks, pmTemplates, serviceLines, canEdit, savi
     setTemplateStationsText(templateStationTextFromTasks(pmTasks))
   }
 
-  const templateAction = <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+  const templateAction = <div className="flex w-full flex-col gap-2 md:flex-row md:flex-wrap md:items-center 2xl:justify-end">
     {canEdit && <>
-      <button onClick={() => { setShowTemplateGenerator((value) => !value); if (!selectedTemplateId && pmTemplates[0]) setSelectedTemplateId(pmTemplates[0].id) }} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#172b63] px-4 py-2.5 text-sm font-extrabold text-white shadow-[0_14px_30px_rgba(23,43,99,0.22)] transition hover:-translate-y-0.5 hover:bg-[#244393] sm:w-auto"><ListChecks size={17} /> Generate From Template</button>
-      <button onClick={() => setShowTemplateSetup((value) => !value)} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-[#244393]/15 bg-[#e8eefc] px-4 py-2.5 text-sm font-extrabold text-[#244393] shadow-sm transition hover:-translate-y-0.5 hover:bg-[#dfe8ff] sm:w-auto"><Building2 size={17} /> PM Template</button>
-      <button onClick={() => setShowMonthSetup((value) => !value)} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-[#244393]/15 bg-white px-4 py-2.5 text-sm font-extrabold text-[#244393] shadow-sm transition hover:-translate-y-0.5 hover:bg-[#e8eefc] sm:w-auto"><ClipboardList size={17} /> Paste Rows</button>
-      <button onClick={() => setShowNewForm((value) => !value)} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#df3f32] px-4 py-2.5 text-sm font-extrabold text-white shadow-[0_14px_30px_rgba(223,63,50,0.24)] transition hover:-translate-y-0.5 hover:bg-[#c83328] sm:w-auto"><Plus size={17} /> New PM</button>
+      <button onClick={() => { setShowTemplateGenerator((value) => !value); if (!selectedTemplateId && pmTemplates[0]) setSelectedTemplateId(pmTemplates[0].id) }} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#172b63] px-4 py-2.5 text-sm font-extrabold text-white shadow-[0_14px_30px_rgba(23,43,99,0.22)] transition hover:-translate-y-0.5 hover:bg-[#244393] md:w-auto"><ListChecks size={17} /> Generate Month</button>
+      <button onClick={() => setShowTemplateSetup((value) => !value)} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-[#244393]/15 bg-[#e8eefc] px-4 py-2.5 text-sm font-extrabold text-[#244393] shadow-sm transition hover:-translate-y-0.5 hover:bg-[#dfe8ff] md:w-auto"><Building2 size={17} /> Template Setup</button>
+      <button onClick={() => setShowMonthSetup((value) => !value)} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-[#244393]/15 bg-white px-4 py-2.5 text-sm font-extrabold text-[#244393] shadow-sm transition hover:-translate-y-0.5 hover:bg-[#e8eefc] md:w-auto"><ClipboardList size={17} /> Paste Exceptions</button>
+      <button onClick={() => setShowNewForm((value) => !value)} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#df3f32] px-4 py-2.5 text-sm font-extrabold text-white shadow-[0_14px_30px_rgba(223,63,50,0.24)] transition hover:-translate-y-0.5 hover:bg-[#c83328] md:w-auto"><Plus size={17} /> New PM</button>
     </>}
-    <div className="grid w-full grid-cols-3 gap-2 text-center text-[0.68rem] font-extrabold uppercase tracking-[0.08em] text-[#64748b] sm:w-auto sm:text-xs sm:tracking-[0.1em]">
-      <span className="rounded-xl border border-[#244393]/15 bg-[#e8eefc] px-2 py-2 text-[#244393] sm:px-3">{pmTasks.length} total</span>
-      <span className="rounded-xl border border-amber-200 bg-amber-50 px-2 py-2 text-amber-900 sm:px-3">{incomplete.length} incomplete</span>
-      <span className="rounded-xl border border-emerald-200 bg-emerald-50 px-2 py-2 text-emerald-800 sm:px-3">{completed.length} done</span>
+    <div className="grid w-full grid-cols-3 gap-2 text-center text-[0.68rem] font-extrabold uppercase tracking-[0.08em] text-[#64748b] md:w-auto md:text-xs md:tracking-[0.1em]">
+      <span className="rounded-xl border border-[#244393]/15 bg-[#e8eefc] px-2 py-2 text-[#244393] md:px-3">{pmTasks.length} total</span>
+      <span className="rounded-xl border border-amber-200 bg-amber-50 px-2 py-2 text-amber-900 md:px-3">{incomplete.length} incomplete</span>
+      <span className="rounded-xl border border-emerald-200 bg-emerald-50 px-2 py-2 text-emerald-800 md:px-3">{completed.length} done</span>
     </div>
   </div>
 
@@ -436,7 +436,7 @@ export function PmTasksPanel({ pmTasks, pmTemplates, serviceLines, canEdit, savi
     <PanelHeader
       eyebrow="Preventive maintenance"
       title={`PM Month Tracker · ${monthString(selectedDate)}`}
-      description="Track station completion, JCF time, exceptions, and remaining monthly obligations. Template generation stays available for month setup without making PMs forced dispatch items."
+      description="Generate the monthly PM list from the saved Mobil checklist, then track station completion, exceptions, and JCF time. PMs remain monthly obligations, not forced dispatch stops."
       action={templateAction}
     />
 
@@ -567,16 +567,20 @@ export function PmTasksPanel({ pmTasks, pmTemplates, serviceLines, canEdit, savi
     </div>}
 
     <div className="border-b border-[rgba(23,32,51,0.1)] bg-white p-3 sm:p-4">
-      <div className="grid gap-3 lg:grid-cols-[180px_180px_1fr_auto]">
+      <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-[180px_180px_minmax(16rem,1fr)_auto]">
         <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as '' | PmTaskStatus)} className="field-control rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]">{statusOptions.map((option) => <option key={option.value || 'all'} value={option.value}>{option.label}</option>)}</select>
         <select value={regionFilter} onChange={(event) => setRegionFilter(event.target.value)} className="field-control rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]"><option value="">All regions</option>{regions.map((region) => <option key={region} value={region}>{region}</option>)}</select>
-        <p className="rounded-xl border border-blue-100 bg-[#f8faff] px-3 py-2 text-sm font-semibold text-[#526071]">Incomplete PMs at the same location as a work order can be added automatically as while-you're-there suggestions. Late-month pressure pulls remaining PMs forward.</p>
-        <button type="button" onClick={() => setViewMode((mode) => mode === 'station' ? 'list' : 'station')} className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#244393]/15 bg-white px-3 py-2 text-sm font-extrabold text-[#244393] transition hover:bg-[#e8eefc]">{viewMode === 'station' ? <LayoutGrid size={16} /> : <ListChecks size={16} />}{viewMode === 'station' ? 'List view' : 'Station view'}</button>
+        <p className="rounded-xl border border-blue-100 bg-[#f8faff] px-3 py-2 text-sm font-semibold leading-6 text-[#526071] md:col-span-2 2xl:col-span-1">While-you're-there PMs can be suggested beside work at the same station. Late-month pressure pulls remaining monthly PMs forward.</p>
+        <button type="button" onClick={() => setViewMode((mode) => mode === 'station' ? 'list' : 'station')} className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#244393]/15 bg-white px-3 py-2 text-sm font-extrabold text-[#244393] transition hover:bg-[#e8eefc] md:col-span-2 2xl:col-span-1">{viewMode === 'station' ? <LayoutGrid size={16} /> : <ListChecks size={16} />}{viewMode === 'station' ? 'List view' : 'Station view'}</button>
       </div>
     </div>
 
     {viewMode === 'station' ? <div className="grid gap-3 p-3 sm:p-4 xl:grid-cols-2">
-      {stationGroups.length === 0 && <p className="rounded-xl border border-dashed border-[rgba(23,32,51,0.18)] bg-[#f8faff] p-5 text-sm font-semibold text-[#526071] xl:col-span-2">No PM tasks match the current month filters.</p>}
+      {stationGroups.length === 0 && <div className="rounded-xl border border-dashed border-[rgba(23,32,51,0.18)] bg-[#f8faff] p-5 xl:col-span-2">
+        <p className="font-display text-base font-extrabold text-[#172033]">{pmTasks.length === 0 ? `No PMs generated for ${monthString(selectedDate)} yet.` : 'No PM tasks match the current filters.'}</p>
+        <p className="mt-1 max-w-2xl text-sm font-semibold leading-6 text-[#526071]">{pmTasks.length === 0 ? 'Start by generating the monthly station checklist from the saved PM template. You can preview duplicates before anything is created.' : 'Adjust the status or region filters to see the rest of the month.'}</p>
+        {canEdit && pmTasks.length === 0 && <button type="button" onClick={() => setShowTemplateGenerator(true)} className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-[#172b63] px-4 py-2.5 text-sm font-extrabold text-white transition hover:-translate-y-0.5 hover:bg-[#244393]"><ListChecks size={16} /> Generate this month</button>}
+      </div>}
       {stationGroups.map((group) => {
         const done = group.tasks.filter((pm) => pm.status === 'completed').length
         const percent = completionPercent(done, group.tasks.length)
@@ -604,7 +608,11 @@ export function PmTasksPanel({ pmTasks, pmTemplates, serviceLines, canEdit, savi
         </article>
       })}
     </div> : <div className="grid gap-3 p-3 sm:grid-cols-2 sm:p-4">
-      {filteredPmTasks.length === 0 && <p className="rounded-xl border border-dashed border-[rgba(23,32,51,0.18)] bg-[#f8faff] p-5 text-sm font-semibold text-[#526071] sm:col-span-2">No PM tasks match the current month filters.</p>}
+      {filteredPmTasks.length === 0 && <div className="rounded-xl border border-dashed border-[rgba(23,32,51,0.18)] bg-[#f8faff] p-5 sm:col-span-2">
+        <p className="font-display text-base font-extrabold text-[#172033]">{pmTasks.length === 0 ? `No PMs generated for ${monthString(selectedDate)} yet.` : 'No PM tasks match the current filters.'}</p>
+        <p className="mt-1 max-w-2xl text-sm font-semibold leading-6 text-[#526071]">{pmTasks.length === 0 ? 'Generate the month from the saved template first, then use list view for one-off status and time edits.' : 'Adjust the status or region filters to see the rest of the month.'}</p>
+        {canEdit && pmTasks.length === 0 && <button type="button" onClick={() => setShowTemplateGenerator(true)} className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-[#172b63] px-4 py-2.5 text-sm font-extrabold text-white transition hover:-translate-y-0.5 hover:bg-[#244393]"><ListChecks size={16} /> Generate this month</button>}
+      </div>}
       {filteredPmTasks.map((pm) => (
         <article key={pm.id} className="rounded-2xl border border-blue-100 bg-gradient-to-br from-[#f8faff] to-white p-3 shadow-[0_10px_26px_rgba(36,67,147,0.08)] sm:p-4">
           <div className="flex flex-wrap items-center gap-2"><Badge kind="pm">PM</Badge><Badge kind={pm.status}>{statusLabel(pm.status)}</Badge><span className="font-display text-xs font-extrabold uppercase tracking-[0.12em] text-[#7b8798]">Due {shortDate(pm.due_on || pm.scheduled_date)}</span>{pm.pm_template_name && <Badge kind="scheduled">Template</Badge>}</div>

@@ -129,7 +129,7 @@ function FloatingTooltip({ anchorRef, label, visible }: { anchorRef: RefObject<H
   if (!visible || !position || typeof document === 'undefined') return null
 
   return createPortal(
-    <div className="pointer-events-none fixed z-[120] hidden -translate-y-1/2 items-center lg:flex" style={{ top: position.top, left: position.left }}>
+    <div className="pointer-events-none fixed z-[120] hidden -translate-y-1/2 items-center xl:flex" style={{ top: position.top, left: position.left }}>
       <span className="h-3 w-3 translate-x-[7px] rotate-45 rounded-[3px] bg-[#111827] shadow-lg" />
       <span className="whitespace-nowrap rounded-xl bg-[#111827] px-3.5 py-2 text-xs font-semibold text-white shadow-2xl">{label}</span>
     </div>,
@@ -138,13 +138,13 @@ function FloatingTooltip({ anchorRef, label, visible }: { anchorRef: RefObject<H
 }
 
 function SidebarLogo({ collapsed }: { collapsed: boolean }) {
-  return <div className={`flex items-center rounded-2xl transition-colors ${collapsed ? 'gap-3 px-3 py-2 lg:justify-center lg:p-1.5' : 'gap-3 px-3 py-2'}`}>
+  return <div className={`flex items-center rounded-2xl transition-colors ${collapsed ? 'gap-3 px-3 py-2 xl:justify-center xl:p-1.5' : 'gap-3 px-3 py-2'}`}>
     <span className="relative inline-flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-[#244393]/12">
       <span className="absolute left-2.5 h-8 w-1.5 -skew-x-[28deg] bg-[#244393]" />
       <span className="absolute left-5 h-8 w-1.5 -skew-x-[28deg] bg-[#d84332]" />
       <span className="absolute left-[1.875rem] h-8 w-1.5 -skew-x-[28deg] bg-[#244393]" />
     </span>
-    <span className={collapsed ? 'min-w-0 lg:sr-only' : 'min-w-0'}>
+    <span className={collapsed ? 'min-w-0 xl:sr-only' : 'min-w-0'}>
       <span className="font-display block truncate text-sm font-black tracking-tight text-[#172033]">JMI Guam</span>
       <span className="block truncate text-[0.64rem] font-extrabold uppercase tracking-[0.18em] text-[#64748b]">Management System</span>
     </span>
@@ -171,14 +171,14 @@ function SidebarNavLink({ section, href, active, collapsed, onNavigate }: { sect
       onBlur={() => setTooltipVisible(false)}
       aria-label={collapsed ? section.label : undefined}
       title={collapsed ? section.label : undefined}
-      className={`group relative flex min-h-11 items-center rounded-xl text-sm font-semibold transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#244393]/30 ${collapsed ? 'gap-3 px-3 py-2.5 lg:justify-center lg:gap-0 lg:px-2' : 'gap-3 px-3 py-2.5'} ${active ? 'bg-[#172b63] text-white shadow-[0_12px_26px_-18px_rgba(23,43,99,0.9)] ring-1 ring-[#172b63]/15' : 'text-[#526071] hover:bg-[#eef3ff] hover:text-[#172033]'}`}
+      className={`group relative flex min-h-11 items-center rounded-xl text-sm font-semibold transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#244393]/30 ${collapsed ? 'gap-3 px-3 py-2.5 xl:justify-center xl:gap-0 xl:px-2' : 'gap-3 px-3 py-2.5'} ${active ? 'bg-[#172b63] text-white shadow-[0_12px_26px_-18px_rgba(23,43,99,0.9)] ring-1 ring-[#172b63]/15' : 'text-[#526071] hover:bg-[#eef3ff] hover:text-[#172033]'}`}
     >
       <span className={`inline-flex shrink-0 rounded-xl p-2 ${active ? 'bg-white/12 text-white' : 'bg-[#eef3ff] text-[#244393] group-hover:bg-white'}`}>{section.icon}</span>
-      <span className={collapsed ? 'min-w-0 flex-1 lg:sr-only' : 'min-w-0 flex-1'}>
+      <span className={collapsed ? 'min-w-0 flex-1 xl:sr-only' : 'min-w-0 flex-1'}>
         <span className="block truncate font-display text-sm font-extrabold">{section.label}</span>
         <span className={`block truncate text-xs font-semibold ${active ? 'text-blue-100/78' : 'text-[#7b8798]'}`}>{section.description}</span>
       </span>
-      {typeof section.count === 'number' && <span className={`${collapsed ? 'ml-auto min-w-7 px-2 text-xs lg:absolute lg:right-1 lg:top-1 lg:min-w-5 lg:px-1 lg:text-[0.62rem]' : 'ml-auto min-w-7 px-2 text-xs'} tabular inline-flex justify-center rounded-full py-0.5 font-extrabold ${active ? 'bg-white/14 text-white' : 'bg-[#eef2ff] text-[#244393]'}`}>{section.count}</span>}
+      {typeof section.count === 'number' && <span className={`${collapsed ? 'ml-auto min-w-7 px-2 text-xs xl:absolute xl:right-1 xl:top-1 xl:min-w-5 xl:px-1 xl:text-[0.62rem]' : 'ml-auto min-w-7 px-2 text-xs'} tabular inline-flex justify-center rounded-full py-0.5 font-extrabold ${active ? 'bg-white/14 text-white' : 'bg-[#eef2ff] text-[#244393]'}`}>{section.count}</span>}
     </a>
     {collapsed && <FloatingTooltip anchorRef={anchorRef} label={section.label} visible={tooltipVisible} />}
   </>
@@ -193,14 +193,14 @@ function AppSidebar({ sections, currentSection, collapsed, mobileOpen, userName,
     items: sections.filter((section) => section.group === group),
   })).filter((group) => group.items.length > 0)
 
-  return <aside className={`fixed inset-y-0 left-0 z-50 flex w-[18rem] flex-col border-r border-[rgba(23,32,51,0.1)] bg-white/98 shadow-2xl shadow-slate-900/18 transition-all duration-200 lg:sticky lg:top-5 lg:z-auto lg:h-[calc(100vh-2.5rem)] lg:translate-x-0 lg:rounded-[1.15rem] lg:border lg:shadow-[0_14px_36px_rgba(23,32,51,0.08)] ${mobileOpen ? 'translate-x-0' : '-translate-x-full'} ${collapsed ? 'lg:w-[5.25rem]' : 'lg:w-[15.5rem]'}`}>
+  return <aside className={`fixed inset-y-0 left-0 z-50 flex w-[18rem] flex-col border-r border-[rgba(23,32,51,0.1)] bg-white/98 shadow-2xl shadow-slate-900/18 transition-all duration-200 xl:sticky xl:top-5 xl:z-auto xl:h-[calc(100vh-2.5rem)] xl:translate-x-0 xl:rounded-[1.15rem] xl:border xl:shadow-[0_14px_36px_rgba(23,32,51,0.08)] ${mobileOpen ? 'translate-x-0' : '-translate-x-full'} ${collapsed ? 'xl:w-[5.25rem]' : 'xl:w-[15.5rem]'}`}>
     <nav className="flex h-full flex-col" aria-label="JMI management navigation">
       <div className={`border-b border-[rgba(23,32,51,0.09)] ${collapsed ? 'px-3 pb-3 pt-4' : 'px-3 pb-4 pt-4'}`}>
         <div className="flex items-center justify-between gap-2">
           <a href="/dashboard" onClick={(event) => { event.preventDefault(); onNavigate('overview') }} className="min-w-0 rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#244393]/30">
             <SidebarLogo collapsed={collapsed} />
           </a>
-          <button type="button" onClick={onCloseMobile} className="rounded-xl p-2 text-[#64748b] transition hover:bg-slate-100 lg:hidden" aria-label="Close navigation"><X size={18} /></button>
+          <button type="button" onClick={onCloseMobile} className="rounded-xl p-2 text-[#64748b] transition hover:bg-slate-100 xl:hidden" aria-label="Close navigation"><X size={18} /></button>
         </div>
         <button
           ref={collapseButtonRef}
@@ -210,7 +210,7 @@ function AppSidebar({ sections, currentSection, collapsed, mobileOpen, userName,
           onMouseLeave={() => setCollapseTooltipVisible(false)}
           onFocus={() => collapsed && setCollapseTooltipVisible(true)}
           onBlur={() => setCollapseTooltipVisible(false)}
-          className={`mt-3 hidden min-h-10 w-full items-center rounded-xl border border-[rgba(23,32,51,0.1)] bg-[#f8faff] px-3 py-2 text-xs font-extrabold text-[#526071] transition hover:border-[#244393]/18 hover:bg-[#eef3ff] hover:text-[#244393] lg:flex ${collapsed ? 'justify-center' : 'justify-between'}`}
+          className={`mt-3 hidden min-h-10 w-full items-center rounded-xl border border-[rgba(23,32,51,0.1)] bg-[#f8faff] px-3 py-2 text-xs font-extrabold text-[#526071] transition hover:border-[#244393]/18 hover:bg-[#eef3ff] hover:text-[#244393] xl:flex ${collapsed ? 'justify-center' : 'justify-between'}`}
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           aria-expanded={!collapsed}
           title={collapsed ? 'Expand sidebar' : undefined}
@@ -222,7 +222,7 @@ function AppSidebar({ sections, currentSection, collapsed, mobileOpen, userName,
 
       <div className={`flex-1 overflow-y-auto py-3 ${collapsed ? 'space-y-3 px-2' : 'space-y-4 px-3'}`}>
         {groupedSections.map((group, groupIndex) => <div key={group.group}>
-          <div className={collapsed ? (groupIndex === 0 ? 'mb-1.5 px-3 font-display text-[0.62rem] font-extrabold uppercase tracking-[0.16em] text-[#94a0b5] lg:sr-only' : 'mb-1.5 px-3 font-display text-[0.62rem] font-extrabold uppercase tracking-[0.16em] text-[#94a0b5] lg:mx-3 lg:my-2 lg:border-t lg:border-[rgba(23,32,51,0.1)] lg:px-0 lg:text-transparent') : 'mb-1.5 px-3 font-display text-[0.62rem] font-extrabold uppercase tracking-[0.16em] text-[#94a0b5]'}>{group.label}</div>
+          <div className={collapsed ? (groupIndex === 0 ? 'mb-1.5 px-3 font-display text-[0.62rem] font-extrabold uppercase tracking-[0.16em] text-[#94a0b5] xl:sr-only' : 'mb-1.5 px-3 font-display text-[0.62rem] font-extrabold uppercase tracking-[0.16em] text-[#94a0b5] xl:mx-3 xl:my-2 xl:border-t xl:border-[rgba(23,32,51,0.1)] xl:px-0 xl:text-transparent') : 'mb-1.5 px-3 font-display text-[0.62rem] font-extrabold uppercase tracking-[0.16em] text-[#94a0b5]'}>{group.label}</div>
           <div className="space-y-1">
             {group.items.map((section) => <SidebarNavLink key={section.id} section={section} href={hrefForSection(section.id)} active={currentSection === section.id} collapsed={collapsed} onNavigate={(target) => { onNavigate(target); onCloseMobile() }} />)}
           </div>
@@ -230,9 +230,9 @@ function AppSidebar({ sections, currentSection, collapsed, mobileOpen, userName,
       </div>
 
       <div className={`border-t border-[rgba(23,32,51,0.09)] p-3 ${collapsed ? 'text-center' : ''}`}>
-        <div className={`flex items-center rounded-2xl border border-[rgba(23,32,51,0.1)] bg-[#f8faff] ${collapsed ? 'gap-3 px-3 py-2.5 lg:justify-center lg:gap-0 lg:px-2 lg:py-2' : 'gap-3 px-3 py-2.5'}`}>
+        <div className={`flex items-center rounded-2xl border border-[rgba(23,32,51,0.1)] bg-[#f8faff] ${collapsed ? 'gap-3 px-3 py-2.5 xl:justify-center xl:gap-0 xl:px-2 xl:py-2' : 'gap-3 px-3 py-2.5'}`}>
           <UserButton />
-          <div className={collapsed ? 'min-w-0 flex-1 lg:sr-only' : 'min-w-0 flex-1'}>
+          <div className={collapsed ? 'min-w-0 flex-1 xl:sr-only' : 'min-w-0 flex-1'}>
             <p className="font-display truncate text-sm font-extrabold text-[#172033]">{userName || 'User'}</p>
             <p className="truncate text-xs capitalize text-[#64748b]">{userRole || 'viewer'}</p>
           </div>
@@ -1195,8 +1195,8 @@ function DispatchApp() {
 
   return (
     <main className="min-h-screen overflow-hidden">
-      {mobileNavOpen && <button type="button" aria-label="Close navigation" className="fixed inset-0 z-40 bg-[#07111f]/38 backdrop-blur-sm lg:hidden" onClick={() => setMobileNavOpen(false)} />}
-      <div className={`mx-auto grid max-w-[94rem] gap-3 px-3 py-3 sm:px-5 lg:px-6 lg:py-5 ${desktopSidebarCollapsed ? 'lg:grid-cols-[5.25rem_minmax(0,1fr)]' : 'lg:grid-cols-[15.5rem_minmax(0,1fr)]'}`}>
+      {mobileNavOpen && <button type="button" aria-label="Close navigation" className="fixed inset-0 z-40 bg-[#07111f]/38 backdrop-blur-sm xl:hidden" onClick={() => setMobileNavOpen(false)} />}
+      <div className={`mx-auto grid max-w-[94rem] gap-3 px-3 py-3 sm:px-5 xl:px-6 xl:py-5 ${desktopSidebarCollapsed ? 'xl:grid-cols-[5.25rem_minmax(0,1fr)]' : 'xl:grid-cols-[15.5rem_minmax(0,1fr)]'}`}>
         <AppSidebar
           sections={sections}
           currentSection={currentSection}
@@ -1217,7 +1217,7 @@ function DispatchApp() {
               <div className="absolute inset-y-0 left-0 w-1 bg-[#d84332]" />
               <div className="flex flex-col justify-between gap-2 pl-2">
                 <div className="flex flex-wrap items-center gap-3">
-                  <button type="button" onClick={() => setMobileNavOpen(true)} className="inline-flex items-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-3 py-2 font-display text-xs font-extrabold uppercase tracking-[0.14em] text-white shadow-[0_10px_24px_rgba(0,0,0,0.12)] backdrop-blur transition hover:bg-white/16 lg:hidden" aria-label="Open navigation" aria-expanded={mobileNavOpen}>
+                  <button type="button" onClick={() => setMobileNavOpen(true)} className="inline-flex items-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-3 py-2 font-display text-xs font-extrabold uppercase tracking-[0.14em] text-white shadow-[0_10px_24px_rgba(0,0,0,0.12)] backdrop-blur transition hover:bg-white/16 xl:hidden" aria-label="Open navigation" aria-expanded={mobileNavOpen}>
                     <Menu size={17} /> Menu
                   </button>
                   {schedule && <span className={`inline-flex items-center rounded-full border px-3 py-1.5 font-display text-[0.66rem] font-extrabold uppercase tracking-[0.14em] ${schedule.status === 'sent' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : schedule.status === 'finalized' ? 'border-blue-200 bg-blue-50 text-blue-900' : 'border-white/15 bg-white/10 text-blue-50'}`}>{schedule.status}</span>}
@@ -1272,11 +1272,11 @@ function DispatchApp() {
                 </button>
               </div>}
 
-              <div className="flex flex-col gap-2 sm:col-span-2 sm:flex-row sm:flex-wrap sm:items-center lg:col-span-1">
+              <div className="flex flex-col gap-2 sm:col-span-2 sm:flex-row sm:flex-wrap sm:items-center xl:col-span-1">
                 {canEditDispatch && currentSection !== 'overview' && <button disabled={working || Boolean(schedule && schedule.status !== 'draft')} onClick={suggestSchedule} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#d84332] px-4 py-2.5 font-display text-sm font-extrabold text-white shadow-[0_10px_22px_rgba(216,67,50,0.18)] transition hover:-translate-y-0.5 hover:bg-[#bf3228] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:flex-none">
                   <ClipboardList size={17} /> {scheduleActionLabel}
                 </button>}
-                {user && <div className="inline-flex w-full items-center gap-3 rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white px-3 py-2 text-sm text-[#526071] shadow-sm sm:w-auto sm:flex-none lg:hidden">
+                {user && <div className="inline-flex w-full items-center gap-3 rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white px-3 py-2 text-sm text-[#526071] shadow-sm sm:w-auto sm:flex-none xl:hidden">
                   <UserButton />
                   <span className="leading-tight">
                     <span className="font-display block font-extrabold text-[#172033]">{user.name}</span>

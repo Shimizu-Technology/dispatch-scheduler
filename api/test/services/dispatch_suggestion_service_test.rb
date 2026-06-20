@@ -183,6 +183,20 @@ class DispatchSuggestionServiceTest < ActiveSupport::TestCase
     assert_includes late_schedule.dispatch_items.map(&:pm_task_id).compact, generated.fetch(:id)
   end
 
+  test "client scoped dispatch keeps late month PM pressure within that client" do
+    team(name: "PM Closeout Crew", skills: [ "General" ])
+    mobil = client("Mobil")
+    hotel = client("Hotel Client")
+    mobil_pm = pm_task(task_name: "Mobil closeout PM", date: Date.new(2026, 5, 31), location_record: location(name: "Mobil Station", client_record: mobil))
+    hotel_pm = pm_task(task_name: "Hotel closeout PM", date: Date.new(2026, 5, 31), location_record: location(name: "Hotel Station", client_record: hotel))
+
+    schedule = DispatchSuggestionService.new(date: Date.new(2026, 5, 27), client_id: mobil.id).call
+    scheduled_pm_ids = schedule.dispatch_items.map(&:pm_task_id).compact
+
+    assert_includes scheduled_pm_ids, mobil_pm.id
+    refute_includes scheduled_pm_ids, hotel_pm.id
+  end
+
   test "suggests incomplete monthly PMs when crew is already going to the same location" do
     team(name: "North Crew", skills: [ "General" ])
     site = location(name: "Yigo Station", region: "North")

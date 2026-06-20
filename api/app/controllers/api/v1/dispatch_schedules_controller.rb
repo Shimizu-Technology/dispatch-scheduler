@@ -14,7 +14,7 @@ module Api
           return render json: { errors: [ "This schedule is #{locked_schedule.status}. Reopen it before regenerating." ] }, status: :conflict
         end
 
-        service = DispatchSuggestionService.new(date: schedule_date)
+        service = DispatchSuggestionService.new(date: schedule_date, client_id: params[:client_id])
         schedule = nil
         ApplicationRecord.transaction do
           schedule = service.call

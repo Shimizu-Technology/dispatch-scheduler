@@ -84,6 +84,26 @@ class PmTemplatesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "North", payload.fetch("locations").first.fetch("region")
   end
 
+  test "template creation gives a clear duplicate template name error" do
+    pm_template(name: "Mobil Monthly PMs")
+
+    with_auth_env do
+      post "/api/v1/pm_templates", params: {
+        name: "Mobil Monthly PMs",
+        client: "Mobil",
+        locations: [
+          { name: "Yigo North", region: "North" }
+        ],
+        items: [
+          { task_name: "Electrical Inspection", trade_category: "Electrical", frequency: "monthly", estimated_minutes: 45 }
+        ]
+      }, headers: auth_headers
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal [ "PM template name already exists for Mobil" ], JSON.parse(response.body).fetch("errors")
+  end
+
   test "template creation deduplicates repeated stations before inserting assignments" do
     with_auth_env do
       post "/api/v1/pm_templates", params: {

@@ -9,8 +9,9 @@ class DispatchSuggestionService
 
   attr_reader :summary
 
-  def initialize(date:)
+  def initialize(date:, client_id: nil, client_ids: nil)
     @date = Date.parse(date.to_s)
+    @client_ids = normalize_client_ids(client_ids.presence || client_id)
     @summary = {}
     @previous_dispatch_contexts = {}
     @capacity_deferred_items_count = 0
@@ -115,14 +116,14 @@ class DispatchSuggestionService
   end
 
   def eligible_work_orders
-    scheduled_scope = WorkOrder.includes(:client, :location, :team)
+    scheduled_scope = scoped_work_orders(WorkOrder.includes(:client, :location, :team)
       .dispatchable
-      .sla_dispatchable_for_date(@date)
-    carry_over_scope = WorkOrder.includes(:client, :location, :team)
+      .sla_dispatchable_for_date(@date))
+    carry_over_scope = scoped_work_orders(WorkOrder.includes(:client, :location, :team)
       .dispatchable
       .joins(:dispatch_items)
-      .where(dispatch_items: { outcome_status: "carry_over", carried_over_to_date: @date })
-    unfinished_scope = WorkOrder.includes(:client, :location, :team).unfinished_previous_dispatch_for(@date)
+      .where(dispatch_items: { outcome_status: "carry_over", carried_over_to_date: @date }))
+    unfinished_scope = scoped_work_orders(WorkOrder.includes(:client, :location, :team).unfinished_previous_dispatch_for(@date))
 
     work_orders = (scheduled_scope.to_a + carry_over_scope.to_a + unfinished_scope.to_a).uniq(&:id)
     @previous_dispatch_contexts = previous_dispatch_contexts_for(work_orders)
@@ -133,15 +134,15 @@ class DispatchSuggestionService
   end
 
   def pm_tasks_due(work_orders = [])
-    explicit_due = PmTask.includes(:client, :location).dispatchable_for_date(@date).to_a
+    explicit_due = scoped_pm_tasks(PmTask.includes(:client, :location).dispatchable_for_date(@date)).to_a
     location_ids = work_orders.map(&:location_id).uniq
     opportunistic = if location_ids.any?
-      PmTask.includes(:client, :location).opportunistic_for_locations(@date, location_ids).to_a
+      scoped_pm_tasks(PmTask.includes(:client, :location).opportunistic_for_locations(@date, location_ids)).to_a
     else
       []
     end
     month_pressure = if pm_month_pressure?
-      PmTask.includes(:client, :location).for_month(@date).where(status: %w[pending scheduled]).to_a
+      scoped_pm_tasks(PmTask.includes(:client, :location).for_month(@date).where(status: %w[pending scheduled])).to_a
     else
       []
     end
@@ -266,9 +267,26 @@ class DispatchSuggestionService
   end
 
   def blocked_work_orders
-    WorkOrder.active_queue.open
+    scoped_work_orders(WorkOrder.active_queue.open)
       .where(status: blocked_statuses)
       .where("scheduled_date = ? OR scheduled_date IS NULL", @date)
+  end
+
+  def normalize_client_ids(values)
+    ids = Array(values).reject(&:blank?).map(&:to_i).select(&:positive?).uniq
+    ids.presence
+  end
+
+  def scoped_work_orders(scope)
+    return scope unless @client_ids
+
+    scope.where(client_id: @client_ids)
+  end
+
+  def scoped_pm_tasks(scope)
+    return scope unless @client_ids
+
+    scope.where(client_id: @client_ids)
   end
 
   def daily_item_limit

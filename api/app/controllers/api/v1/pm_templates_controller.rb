@@ -18,8 +18,8 @@ module Api
         render json: { pm_template: Serializers.pm_template(template_scope.find(template.id)) }, status: :created
       rescue ActiveRecord::RecordInvalid => e
         render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
-      rescue ActiveRecord::RecordNotUnique
-        render json: { errors: [ "PM template has duplicate station or checklist rows" ] }, status: :unprocessable_entity
+      rescue ActiveRecord::RecordNotUnique => e
+        render json: { errors: record_not_unique_errors(e) }, status: :unprocessable_entity
       rescue ActiveRecord::RecordNotFound => e
         render json: { errors: [ e.message ] }, status: :not_found
       rescue ArgumentError => e
@@ -58,11 +58,14 @@ module Api
         locations = deduplicated_location_params(locations)
 
         client = Client.find_or_create_by!(name: attrs[:client].to_s.strip.presence || "Mobil")
+        template_name = attrs[:name].to_s.strip.presence || "#{client.name} Monthly PMs"
+        raise ArgumentError, "PM template name already exists for #{client.name}" if PmTemplate.exists?(client: client, name: template_name)
+
         service_line = attrs[:service_line_id].present? ? ServiceLine.find(attrs[:service_line_id]) : nil
         template = PmTemplate.create!(
           client: client,
           service_line: service_line,
-          name: attrs[:name].to_s.strip.presence || "#{client.name} Monthly PMs",
+          name: template_name,
           notes: attrs[:notes].presence
         )
 
@@ -142,6 +145,16 @@ module Api
 
       def template_scope
         PmTemplate.includes(:client, :service_line, pm_template_locations: :location, pm_template_items: { pm_template_item_locations: :location })
+      end
+
+      def record_not_unique_errors(error)
+        message = error.message.to_s
+        return [ "PM template name already exists for this client" ] if message.include?("index_pm_templates_on_client_id_and_name") || message.include?("pm_templates.client_id")
+        return [ "PM template has duplicate checklist item names" ] if message.include?("index_pm_template_items_on_pm_template_id_and_task_name") || message.include?("pm_template_items.pm_template_id")
+        return [ "PM template has duplicate station rows" ] if message.include?("index_pm_template_locations_on_pm_template_id_and_location_id") || message.include?("pm_template_locations.pm_template_id")
+        return [ "PM checklist item has duplicate station restrictions" ] if message.include?("index_pm_template_item_locations_unique") || message.include?("pm_template_item_locations.pm_template_item_id")
+
+        [ "PM template has duplicate station or checklist rows" ]
       end
 
       def pm_template_audit_metadata(template)

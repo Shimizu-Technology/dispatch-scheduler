@@ -681,7 +681,10 @@ export function PmTasksPanel({ pmTasks, pmTemplates, serviceLines, canEdit, savi
           <div className="rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white p-3">
             <div className="mb-2 flex items-center justify-between gap-2"><p className="text-xs font-extrabold uppercase tracking-[0.12em] text-[#64748b]">Stations</p><button type="button" onClick={() => setSelectedLocationIds(selectedTemplate.locations.filter((location) => location.active).map((location) => location.id))} className="text-xs font-extrabold text-[#244393]">Select all</button></div>
             <div className="max-h-72 space-y-2 overflow-auto pr-1">
-              {selectedTemplate.locations.filter((location) => location.active).map((location) => <label key={location.id} className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-100 bg-[#fbfcff] px-3 py-2 text-sm font-semibold text-[#526071]"><input type="checkbox" checked={selectedLocationIdsForRequest.includes(location.id)} onChange={() => toggleLocation(location.id)} className="accent-[#244393]" /><span>{location.name}</span><span className="ml-auto text-xs text-[#7b8798]">{location.region}</span></label>)}
+              {selectedTemplate.locations.filter((location) => location.active).map((location) => {
+                const station = normalizeStationRow(location.name, location.region)
+                return <label key={location.id} className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-100 bg-[#fbfcff] px-3 py-2 text-sm font-semibold text-[#526071]"><input type="checkbox" checked={selectedLocationIdsForRequest.includes(location.id)} onChange={() => toggleLocation(location.id)} className="accent-[#244393]" /><span>{station.name}</span><span className="ml-auto text-xs text-[#7b8798]">{station.region}</span></label>
+              })}
             </div>
           </div>
           <div className="rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white p-3">

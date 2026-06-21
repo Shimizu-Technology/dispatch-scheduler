@@ -289,10 +289,19 @@ module Api
 
       def apply_location_region!(pm_task, attrs)
         region = Location.normalized_region(attrs[:region], pm_task.location.name)
+        requested_region = attrs[:region].to_s.strip.presence
+        explicit_region = requested_region.present? && !requested_region.casecmp?(Location::UNKNOWN_REGION)
         location = pm_task.location
         location.name = location.name.to_s.strip
-        location.region = region if region.present? && location.region != region
+        location.region = region if should_update_location_region?(location, region, explicit_region: explicit_region)
         location.save! if location.changed? || location.new_record?
+      end
+
+      def should_update_location_region?(location, region, explicit_region:)
+        return false if region.blank? || location.region == region
+        return true if explicit_region
+
+        location.new_record? || location.region.blank? || location.region == Location::UNKNOWN_REGION
       end
 
       def archive_scope(scope)

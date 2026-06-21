@@ -86,6 +86,39 @@ class PmTasksControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1, JSON.parse(response.body).fetch("summary").fetch("duplicate_count")
   end
 
+  test "manual PM creation does not overwrite existing location region with Unknown fallback" do
+    existing_location = location(name: "Station Pending Region", region: "Central")
+
+    with_auth_env do
+      post "/api/v1/pm_tasks", params: {
+        client: "Mobil",
+        location: "Station Pending Region",
+        region: "Unknown",
+        task_name: "No-region PM",
+        trade_category: "General",
+        scheduled_date: DEFAULT_DATE.to_s
+      }, headers: auth_headers
+    end
+
+    assert_response :created
+    assert_equal "Central", existing_location.reload.region
+    assert_equal "Central", JSON.parse(response.body).fetch("region")
+  end
+
+  test "bulk PM creation does not overwrite existing location region when region is omitted" do
+    existing_location = location(name: "Station Pending Region", region: "South")
+
+    with_auth_env do
+      post "/api/v1/pm_tasks/bulk_create", params: { pm_tasks: [
+        { client: "Mobil", location: "Station Pending Region", task_name: "Bulk no-region PM", trade_category: "General", scheduled_date: DEFAULT_DATE.to_s }
+      ] }, headers: auth_headers
+    end
+
+    assert_response :created
+    assert_equal "South", existing_location.reload.region
+    assert_equal "South", JSON.parse(response.body).fetch("created").first.fetch("region")
+  end
+
   test "viewer cannot create PM task" do
     with_auth_env do
       post "/api/v1/pm_tasks", params: { location: "Yigo North", task_name: "PM", scheduled_date: DEFAULT_DATE.to_s }, headers: auth_headers("viewer_pm_create_123", "viewer-pm-create@example.com", "viewer")

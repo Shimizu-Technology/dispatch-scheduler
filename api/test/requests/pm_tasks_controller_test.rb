@@ -86,6 +86,39 @@ class PmTasksControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1, JSON.parse(response.body).fetch("summary").fetch("duplicate_count")
   end
 
+  test "manual PM creation does not overwrite existing location region with Unknown fallback" do
+    existing_location = location(name: "Station Pending Region", region: "Central")
+
+    with_auth_env do
+      post "/api/v1/pm_tasks", params: {
+        client: "Mobil",
+        location: "Station Pending Region",
+        region: "Unknown",
+        task_name: "No-region PM",
+        trade_category: "General",
+        scheduled_date: DEFAULT_DATE.to_s
+      }, headers: auth_headers
+    end
+
+    assert_response :created
+    assert_equal "Central", existing_location.reload.region
+    assert_equal "Central", JSON.parse(response.body).fetch("region")
+  end
+
+  test "bulk PM creation does not overwrite existing location region when region is omitted" do
+    existing_location = location(name: "Station Pending Region", region: "South")
+
+    with_auth_env do
+      post "/api/v1/pm_tasks/bulk_create", params: { pm_tasks: [
+        { client: "Mobil", location: "Station Pending Region", task_name: "Bulk no-region PM", trade_category: "General", scheduled_date: DEFAULT_DATE.to_s }
+      ] }, headers: auth_headers
+    end
+
+    assert_response :created
+    assert_equal "South", existing_location.reload.region
+    assert_equal "South", JSON.parse(response.body).fetch("created").first.fetch("region")
+  end
+
   test "viewer cannot create PM task" do
     with_auth_env do
       post "/api/v1/pm_tasks", params: { location: "Yigo North", task_name: "PM", scheduled_date: DEFAULT_DATE.to_s }, headers: auth_headers("viewer_pm_create_123", "viewer-pm-create@example.com", "viewer")
@@ -110,6 +143,108 @@ class PmTasksControllerTest < ActionDispatch::IntegrationTest
     assert_equal "2026-05-05T09:30:00+10:00", payload.fetch("time_out_at")
     assert_equal 90, payload.fetch("actual_duration_minutes")
     assert_equal "pm_task.updated", AuditEvent.last.action
+  end
+
+  test "dispatcher edits PM task details" do
+    pm = pm_task(task_name: "Old PM", date: DEFAULT_DATE)
+
+    with_auth_env do
+      patch "/api/v1/pm_tasks/#{pm.id}", params: {
+        location: "Agat South",
+        region: "South",
+        task_name: "Updated PM",
+        trade_category: "Plumbing",
+        scheduled_date: "2026-05-20",
+        due_on: "2026-05-20",
+        estimated_minutes: 75,
+        notes: "Corrected PM details"
+      }, headers: auth_headers
+    end
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_equal "Agat South", payload.fetch("location")
+    assert_equal "South", payload.fetch("region")
+    assert_equal "Updated PM", payload.fetch("task_name")
+    assert_equal "Plumbing", payload.fetch("trade_category")
+    assert_equal "2026-05-20", payload.fetch("due_on")
+    assert_equal 75, payload.fetch("estimated_minutes")
+  end
+
+  test "dispatcher cannot update a generated PM into an occupied template slot" do
+    north = location(name: "Yigo North", region: "North")
+    south = location(name: "Agat South", region: "South")
+    template = pm_template(locations: [ north, south ])
+    created = PmTemplateGenerationService.new(template: template, month: "2026-05").generate!.fetch(:created)
+    north_pm = PmTask.find(created.find { |pm| pm.fetch(:location) == "Yigo North" }.fetch(:id))
+
+    with_auth_env do
+      patch "/api/v1/pm_tasks/#{north_pm.id}", params: { location: "Agat South", region: "South", task_name: "Field renamed PM" }, headers: auth_headers
+    end
+
+    assert_response :conflict
+    assert_includes JSON.parse(response.body).fetch("errors").join(", "), "active PM task already exists"
+    assert_equal north.id, north_pm.reload.location_id
+  end
+
+  test "dispatcher cannot unarchive generated PM when replacement was regenerated" do
+    site = location(name: "Yigo North", region: "North")
+    template = pm_template(locations: [ site ])
+    original = PmTemplateGenerationService.new(template: template, month: "2026-05").generate!.fetch(:created).first
+    original_pm = PmTask.find(original.fetch(:id))
+    original_pm.update!(archived_at: Time.current, archive_reason: "Entered by mistake")
+    replacement = PmTemplateGenerationService.new(template: template, month: "2026-05").generate!.fetch(:created).first
+    PmTask.find(replacement.fetch(:id)).update!(task_name: "Replacement renamed in field")
+
+    with_auth_env do
+      patch "/api/v1/pm_tasks/#{original_pm.id}/unarchive", headers: auth_headers
+    end
+
+    assert_response :conflict
+    assert_includes JSON.parse(response.body).fetch("errors").join(", "), "archive it first before restoring the original"
+    assert original_pm.reload.archived?
+  end
+
+  test "dispatcher archives PM task and active month list hides it" do
+    archived = pm_task(task_name: "Mistake PM", date: DEFAULT_DATE)
+    active = pm_task(task_name: "Keep PM", date: DEFAULT_DATE)
+
+    with_auth_env do
+      patch "/api/v1/pm_tasks/#{archived.id}/archive", params: { archive_reason: "Entered by mistake" }, headers: auth_headers
+    end
+
+    assert_response :success
+    assert PmTask.find(archived.id).archived?
+    assert_equal "pm_task.archived", AuditEvent.last.action
+
+    with_auth_env do
+      get "/api/v1/pm_tasks", params: { month: DEFAULT_DATE.strftime("%Y-%m") }, headers: auth_headers
+    end
+
+    assert_response :success
+    assert_equal [ active.id ], JSON.parse(response.body).map { |item| item.fetch("id") }
+  end
+
+  test "dispatcher archive PM task is idempotent" do
+    pm = pm_task(task_name: "Already archived PM", date: DEFAULT_DATE)
+
+    with_auth_env do
+      patch "/api/v1/pm_tasks/#{pm.id}/archive", params: { archive_reason: "Entered by mistake" }, headers: auth_headers
+    end
+
+    assert_response :success
+    archived_at = pm.reload.archived_at
+    assert_equal "Entered by mistake", pm.archive_reason
+    assert_equal 1, AuditEvent.where(action: "pm_task.archived").count
+
+    with_auth_env do
+      patch "/api/v1/pm_tasks/#{pm.id}/archive", params: { archive_reason: "Second archive request" }, headers: auth_headers
+    end
+
+    assert_response :success
+    assert_equal archived_at, pm.reload.archived_at
+    assert_equal "Entered by mistake", pm.archive_reason
+    assert_equal 1, AuditEvent.where(action: "pm_task.archived").count
   end
 
   test "dispatcher cannot save PM time out before time in" do
@@ -140,6 +275,21 @@ class PmTasksControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ Time.zone.parse("2026-05-05T08:00:00+10:00"), Time.zone.parse("2026-05-05T08:00:00+10:00") ], [ first.time_in_at, second.time_in_at ]
     assert_equal 2, AuditEvent.where(action: "pm_task.updated").count
     assert_equal "station_completion", AuditEvent.last.metadata_hash.fetch("source")
+  end
+
+  test "station checklist completion rejects archived PM tasks without partial updates" do
+    active = pm_task(task_name: "Active Station PM", date: DEFAULT_DATE)
+    archived = pm_task(task_name: "Voided Station PM", date: DEFAULT_DATE)
+    archived.update!(archived_at: Time.current, archive_reason: "Entered by mistake")
+
+    with_auth_env do
+      post "/api/v1/pm_tasks/bulk_complete", params: { pm_task_ids: [ active.id, archived.id ] }, headers: auth_headers
+    end
+
+    assert_response :unprocessable_entity
+    assert_includes JSON.parse(response.body).fetch("errors").join(", "), "Archived PM tasks cannot be completed"
+    assert_equal "pending", active.reload.status
+    assert_equal "pending", archived.reload.status
   end
 
   test "station checklist completion rejects invalid JCF time without partial updates" do

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_18_153000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_21_130000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -115,6 +115,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_18_153000) do
   end
 
   create_table "pm_tasks", force: :cascade do |t|
+    t.text "archive_reason"
+    t.datetime "archived_at"
     t.integer "client_id", null: false
     t.datetime "completed_at"
     t.datetime "created_at", null: false
@@ -138,12 +140,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_18_153000) do
     t.datetime "updated_at", null: false
     t.index "COALESCE(period_end, scheduled_date)", name: "index_pm_tasks_on_effective_period_end"
     t.index "COALESCE(period_start, scheduled_date)", name: "index_pm_tasks_on_effective_period_start"
+    t.index ["archived_at"], name: "index_pm_tasks_on_archived_at"
     t.index ["client_id"], name: "index_pm_tasks_on_client_id"
     t.index ["deferred_until"], name: "index_pm_tasks_on_deferred_until"
     t.index ["due_on"], name: "index_pm_tasks_on_due_on"
     t.index ["location_id"], name: "index_pm_tasks_on_location_id"
     t.index ["pm_template_id"], name: "index_pm_tasks_on_pm_template_id"
-    t.index ["pm_template_item_id", "location_id", "period_start"], name: "index_pm_tasks_on_template_item_location_period", unique: true, where: "((pm_template_item_id IS NOT NULL) AND (period_start IS NOT NULL))"
+    t.index ["pm_template_item_id", "location_id", "period_start"], name: "index_pm_tasks_on_template_item_location_period", unique: true, where: "((pm_template_item_id IS NOT NULL) AND (period_start IS NOT NULL) AND (archived_at IS NULL))"
     t.index ["pm_template_item_id"], name: "index_pm_tasks_on_pm_template_item_id"
     t.index ["scheduled_date", "status"], name: "index_pm_tasks_on_scheduled_date_and_status"
     t.index ["status"], name: "index_pm_tasks_on_status"

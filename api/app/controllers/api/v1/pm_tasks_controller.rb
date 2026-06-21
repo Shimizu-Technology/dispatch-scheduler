@@ -1,10 +1,11 @@
 module Api
   module V1
     class PmTasksController < ApplicationController
-      before_action :require_dispatch_edit!, only: [ :create, :bulk_create, :bulk_complete, :update ]
+      before_action :require_dispatch_edit!, only: [ :create, :bulk_create, :bulk_complete, :update, :archive, :unarchive ]
 
       def index
         scope = PmTask.includes(:client, :location, :pm_template).order(:scheduled_date, :id)
+        scope = archive_scope(scope)
         if params[:month].present?
           scope = scope.for_month(month_param)
         elsif params[:date].present?
@@ -91,9 +92,14 @@ module Api
         raise ArgumentError, "Choose at least one PM task to complete" if ids.blank?
         raise ArgumentError, "Station completion is limited to 100 PM tasks at a time" if ids.length > 100
 
-        pm_tasks = PmTask.includes(:client, :location, :pm_template).where(id: ids).index_by(&:id)
+        pm_tasks = PmTask.active.includes(:client, :location, :pm_template).where(id: ids).index_by(&:id)
         missing_ids = ids - pm_tasks.keys
-        raise ActiveRecord::RecordNotFound, "Could not find PM tasks: #{missing_ids.join(', ')}" if missing_ids.any?
+        if missing_ids.any?
+          archived_ids = PmTask.archived.where(id: missing_ids).pluck(:id)
+          raise ArgumentError, "Archived PM tasks cannot be completed: #{archived_ids.join(', ')}" if archived_ids.any?
+
+          raise ActiveRecord::RecordNotFound, "Could not find PM tasks: #{missing_ids.join(', ')}"
+        end
 
         completed_at = Time.current
         timing_attrs = pm_task_time_attributes(nil, bulk_complete_params)
@@ -120,16 +126,63 @@ module Api
         raise ArgumentError, "Invalid PM status" if attrs[:status].present? && PmTask::STATUSES.exclude?(attrs[:status])
 
         ApplicationRecord.transaction do
-          pm_task.update!(pm_task_record_attributes(pm_task, attrs))
+          pm_task.assign_attributes(pm_task_record_attributes(pm_task, attrs))
+          if duplicate_pm_task?(pm_task, exclude_id: pm_task.id)
+            render json: { errors: duplicate_pm_task_errors(pm_task) }, status: :conflict
+            raise ActiveRecord::Rollback
+          end
+          pm_task.save!
           AuditEvent.record!(action: "pm_task.updated", record: pm_task, user: current_user, metadata: pm_task_audit_metadata(pm_task))
+        end
+        render json: Serializers.pm_task(pm_task) unless performed?
+      rescue ActiveRecord::RecordNotFound => e
+        render json: { errors: [ e.message ] }, status: :not_found
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
+      rescue ActiveRecord::RecordNotUnique => e
+        render_record_not_unique(e)
+      rescue ArgumentError => e
+        render json: { errors: [ e.message ] }, status: :unprocessable_entity
+      end
+
+      def archive
+        pm_task = PmTask.find(params[:id])
+        if pm_task.archived?
+          destroy_draft_dispatch_items(pm_task)
+          render json: Serializers.pm_task(pm_task)
+          return
+        end
+
+        ApplicationRecord.transaction do
+          pm_task.update!(archived_at: Time.current, archive_reason: params[:archive_reason].presence || params[:reason].presence)
+          destroy_draft_dispatch_items(pm_task)
+          AuditEvent.record!(action: "pm_task.archived", record: pm_task, user: current_user, metadata: pm_task_audit_metadata(pm_task).merge(archive_reason: pm_task.archive_reason))
         end
         render json: Serializers.pm_task(pm_task)
       rescue ActiveRecord::RecordNotFound => e
         render json: { errors: [ e.message ] }, status: :not_found
       rescue ActiveRecord::RecordInvalid => e
         render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
-      rescue ArgumentError => e
-        render json: { errors: [ e.message ] }, status: :unprocessable_entity
+      end
+
+      def unarchive
+        pm_task = PmTask.find(params[:id])
+        if duplicate_pm_task?(pm_task, exclude_id: pm_task.id)
+          render json: { errors: duplicate_pm_task_errors(pm_task) }, status: :conflict
+          return
+        end
+
+        ApplicationRecord.transaction do
+          pm_task.update!(archived_at: nil, archive_reason: nil)
+          AuditEvent.record!(action: "pm_task.unarchived", record: pm_task, user: current_user, metadata: pm_task_audit_metadata(pm_task))
+        end
+        render json: Serializers.pm_task(pm_task)
+      rescue ActiveRecord::RecordNotFound => e
+        render json: { errors: [ e.message ] }, status: :not_found
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
+      rescue ActiveRecord::RecordNotUnique => e
+        render_record_not_unique(e)
       end
 
       private
@@ -141,7 +194,23 @@ module Api
       end
 
       def pm_task_params
-        params.permit(:status, :completed_at, :deferred_until, :notes, :time_in_at, :time_out_at)
+        params.permit(
+          :client,
+          :location,
+          :region,
+          :task_name,
+          :trade_category,
+          :frequency,
+          :scheduled_date,
+          :due_on,
+          :estimated_minutes,
+          :status,
+          :completed_at,
+          :deferred_until,
+          :notes,
+          :time_in_at,
+          :time_out_at
+        )
       end
 
       def bulk_complete_params
@@ -169,6 +238,10 @@ module Api
         Array(params[:pm_task_ids] || params[:ids]).reject(&:blank?).map(&:to_i).uniq
       end
 
+      def destroy_draft_dispatch_items(pm_task)
+        DispatchItem.joins(:dispatch_schedule).where(pm_task: pm_task, dispatch_schedules: { status: "draft" }).destroy_all
+      end
+
       def build_pm_task(attrs)
         scheduled_date = parse_required_date(attrs[:scheduled_date], "scheduled date")
         client_name = attrs[:client].to_s.strip.presence || "Mobil"
@@ -179,7 +252,7 @@ module Api
 
         client = Client.find_or_create_by!(name: client_name)
         location = Location.find_or_initialize_by_normalized_name(client: client, name: location_name)
-        location.region ||= attrs[:region].to_s.strip.presence || "Unknown"
+        location.region ||= Location.normalized_region(attrs[:region], location_name)
 
         PmTask.new(
           client: client,
@@ -215,19 +288,54 @@ module Api
       end
 
       def apply_location_region!(pm_task, attrs)
-        region = attrs[:region].to_s.strip.presence
+        region = Location.normalized_region(attrs[:region], pm_task.location.name)
+        requested_region = attrs[:region].to_s.strip.presence
+        explicit_region = requested_region.present? && !requested_region.casecmp?(Location::UNKNOWN_REGION)
         location = pm_task.location
         location.name = location.name.to_s.strip
-        location.region = region if region.present? && location.region != region
+        location.region = region if should_update_location_region?(location, region, explicit_region: explicit_region)
         location.save! if location.changed? || location.new_record?
       end
 
-      def duplicate_pm_task?(pm_task)
+      def should_update_location_region?(location, region, explicit_region:)
+        return false if region.blank? || location.region == region
+        return true if explicit_region
+
+        location.new_record? || location.region.blank? || location.region == Location::UNKNOWN_REGION
+      end
+
+      def archive_scope(scope)
+        case params[:archived].to_s
+        when "all" then scope
+        when "true", "only", "archived" then scope.archived
+        else scope.active
+        end
+      end
+
+      def duplicate_pm_task?(pm_task, exclude_id: nil)
+        return true if duplicate_pm_template_slot?(pm_task, exclude_id: exclude_id)
         return false unless pm_task.client_id && pm_task.location_id && pm_task.scheduled_date && pm_task.task_name.present?
 
-        PmTask.where(client_id: pm_task.client_id, location_id: pm_task.location_id, scheduled_date: pm_task.scheduled_date)
+        scope = PmTask.active.where(client_id: pm_task.client_id, location_id: pm_task.location_id, scheduled_date: pm_task.scheduled_date)
           .where("LOWER(task_name) = ?", pm_task.task_name.downcase)
-          .exists?
+        scope = scope.where.not(id: exclude_id) if exclude_id
+        scope.exists?
+      end
+
+      def duplicate_pm_template_slot?(pm_task, exclude_id: nil)
+        return false unless pm_task.pm_template_item_id && pm_task.location_id && pm_task.period_start
+
+        scope = PmTask.active.where(pm_template_item_id: pm_task.pm_template_item_id, location_id: pm_task.location_id, period_start: pm_task.period_start)
+        scope = scope.where.not(id: exclude_id) if exclude_id
+        scope.exists?
+      end
+
+      def duplicate_pm_task_errors(pm_task)
+        if duplicate_pm_template_slot?(pm_task, exclude_id: pm_task.id)
+          [ "An active PM task already exists for this template item, location, and period — archive it first before restoring the original." ]
+        else
+          [ "PM already exists for this month, location, task, and scheduled date" ]
+        end
       end
 
       def duplicate_signature(pm_task)
@@ -246,6 +354,7 @@ module Api
       end
 
       def pm_task_record_attributes(pm_task, attrs)
+        changes = editable_pm_task_attributes(pm_task, attrs)
         status = attrs[:status].presence || pm_task.status
         completed_at = if status == "completed"
           attrs[:completed_at].present? ? Time.zone.parse(attrs[:completed_at].to_s) : pm_task.completed_at || Time.current
@@ -255,14 +364,34 @@ module Api
         deferred_until = if status == "deferred"
           attrs[:deferred_until].present? ? Date.parse(attrs[:deferred_until].to_s) : pm_task.deferred_until
         end
-        {
+        changes.merge(
           status: status,
           completed_at: completed_at,
           deferred_until: deferred_until,
           notes: attrs.key?(:notes) ? attrs[:notes] : pm_task.notes
-        }.merge(pm_task_time_attributes(pm_task, attrs))
+        ).merge(pm_task_time_attributes(pm_task, attrs))
       rescue Date::Error
-        raise ActionController::BadRequest, "Invalid deferred until"
+        raise ActionController::BadRequest, "Invalid PM date"
+      end
+
+      def editable_pm_task_attributes(pm_task, attrs)
+        changes = {}
+        if attrs.key?(:client) || attrs.key?(:location) || attrs.key?(:region)
+          client = attrs.key?(:client) ? Client.find_or_create_by!(name: attrs[:client].to_s.strip.presence || pm_task.client.name) : pm_task.client
+          location_name = attrs.key?(:location) ? attrs[:location].to_s.strip.presence || raise(ArgumentError, "Location can't be blank") : pm_task.location.name
+          location = Location.find_or_initialize_by_normalized_name(client: client, name: location_name)
+          location.region = Location.normalized_region(attrs[:region], location_name) if attrs.key?(:region) || location.new_record? || location.region.blank?
+          location.save!
+          changes[:client] = client
+          changes[:location] = location
+        end
+        changes[:task_name] = attrs[:task_name].to_s.strip.presence || raise(ArgumentError, "Task name can't be blank") if attrs.key?(:task_name)
+        changes[:trade_category] = attrs[:trade_category].presence || "General" if attrs.key?(:trade_category)
+        changes[:frequency] = attrs[:frequency].presence || "monthly" if attrs.key?(:frequency)
+        changes[:scheduled_date] = parse_required_date(attrs[:scheduled_date], "scheduled date") if attrs.key?(:scheduled_date)
+        changes[:due_on] = attrs[:due_on].present? ? Date.parse(attrs[:due_on].to_s) : nil if attrs.key?(:due_on)
+        changes[:estimated_minutes] = attrs[:estimated_minutes].present? ? attrs[:estimated_minutes].to_i : nil if attrs.key?(:estimated_minutes)
+        changes
       end
 
       def pm_task_time_attributes(pm_task, attrs)
@@ -272,6 +401,27 @@ module Api
         changes[:time_in_at] = pm_task.time_in_at if pm_task&.respond_to?(:time_in_at) && !changes.key?(:time_in_at)
         changes[:time_out_at] = pm_task.time_out_at if pm_task&.respond_to?(:time_out_at) && !changes.key?(:time_out_at)
         changes
+      end
+
+      def render_record_not_unique(error)
+        render json: { errors: record_not_unique_errors(error) }, status: record_not_unique_status(error)
+      end
+
+      def record_not_unique_status(error)
+        pm_task_unique_error?(error) ? :conflict : :unprocessable_entity
+      end
+
+      def record_not_unique_errors(error)
+        if pm_task_unique_error?(error)
+          [ "An active PM task already exists for this template item, location, and period — archive it first before restoring the original." ]
+        else
+          [ "Record already exists" ]
+        end
+      end
+
+      def pm_task_unique_error?(error)
+        message = error.message.to_s
+        message.include?("index_pm_tasks_on_template_item_location_period") || message.include?("pm_tasks.pm_template_item_id")
       end
 
       def pm_task_audit_metadata(pm_task)

@@ -281,6 +281,9 @@ module Serializers
       actual_duration_minutes: pm_task.respond_to?(:actual_duration_minutes) ? pm_task.actual_duration_minutes : nil,
       deferred_until: pm_task.deferred_until,
       notes: pm_task.notes,
+      archived_at: pm_task.respond_to?(:archived_at) ? pm_task.archived_at&.iso8601 : nil,
+      archived: pm_task.respond_to?(:archived?) ? pm_task.archived? : false,
+      archive_reason: pm_task.respond_to?(:archive_reason) ? pm_task.archive_reason : nil,
       source_file: pm_task.source_file
     }
   end

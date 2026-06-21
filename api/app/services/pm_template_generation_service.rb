@@ -212,14 +212,14 @@ class PmTemplateGenerationService
   end
 
   def template_duplicate_keys(item_ids, location_ids)
-    PmTask.where(pm_template_item_id: item_ids, location_id: location_ids, period_start: @period_start)
+    PmTask.active.where(pm_template_item_id: item_ids, location_id: location_ids, period_start: @period_start)
       .pluck(:pm_template_item_id, :location_id)
       .map { |item_id, location_id| [ item_id, location_id ] }
       .to_set
   end
 
   def legacy_duplicate_keys(location_ids, task_names)
-    PmTask.for_month(@period_start)
+    PmTask.active.for_month(@period_start)
       .where(location_id: location_ids)
       .where("LOWER(task_name) IN (:task_names)", task_names: task_names)
       .pluck(:location_id, Arel.sql("LOWER(task_name)"))

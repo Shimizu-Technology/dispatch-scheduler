@@ -117,6 +117,10 @@ function addMonths(month: string, delta: number) {
   return `${nextYear}-${String(nextMonth).padStart(2, '0')}`
 }
 
+function knownRegion(value?: string | null) {
+  return regionOptions.find((region) => region !== 'Unknown' && region.toLowerCase() === value?.trim().toLowerCase())
+}
+
 function inferRegion(value?: string | null) {
   return regionOptions.find((region) => region !== 'Unknown' && new RegExp(`\\b${region}\\b`, 'i').test(value || '')) || 'Unknown'
 }
@@ -173,15 +177,35 @@ function normalizeDate(value: string, fallback: string) {
   return `${year}-${month}-${day}`
 }
 
+function normalizeStationRow(name: string, region?: string | null) {
+  const trimmedName = name.trim()
+  const trimmedRegion = region?.trim()
+  const canonicalRegion = knownRegion(trimmedRegion) || (trimmedRegion && trimmedRegion !== 'Unknown' ? trimmedRegion : inferRegion(trimmedName))
+  const words = trimmedName.split(/\s+/)
+  const trailingRegion = knownRegion(words.at(-1))
+  const cleanedName = canonicalRegion && trailingRegion === knownRegion(canonicalRegion) && words.length > 2 ? words.slice(0, -1).join(' ') : trimmedName
+  return { name: cleanedName, region: canonicalRegion || 'Unknown' }
+}
+
+function parseStationLine(line: string) {
+  if (line.includes('\t') || line.includes(',')) {
+    const [name, region] = splitColumns(line)
+    return normalizeStationRow(name || '', region)
+  }
+
+  const words = line.trim().split(/\s+/)
+  const trailingRegion = knownRegion(words.at(-1))
+  if (trailingRegion && words.length > 2) return normalizeStationRow(words.slice(0, -1).join(' '), trailingRegion)
+
+  return normalizeStationRow(line)
+}
+
 function parseStations(text: string): PmTemplateInput['locations'] {
   const seen = new Set<string>()
   return text.split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean)
-    .map((line) => {
-      const [name, region] = splitColumns(line)
-      return { name: name || '', region: region || inferRegion(name) }
-    })
+    .map(parseStationLine)
     .filter((station) => {
       const key = station.name.toLowerCase().trim()
       if (!key || seen.has(key)) return false
@@ -224,7 +248,10 @@ function templateStationTextFromTemplate(template: PmTemplate) {
   return template.locations
     .filter((location) => location.active)
     .sort((a, b) => a.position - b.position || a.name.localeCompare(b.name))
-    .map((location) => `${location.name}\t${location.region && location.region !== 'Unknown' ? location.region : inferRegion(location.name)}`)
+    .map((location) => {
+      const station = normalizeStationRow(location.name, location.region && location.region !== 'Unknown' ? location.region : inferRegion(location.name))
+      return `${station.name}, ${station.region}`
+    })
     .join('\n')
 }
 
@@ -240,7 +267,10 @@ function templateStationTextFromTasks(pmTasks: PmTask[]) {
   const seen = new Map<string, string>()
   pmTasks.forEach((pm) => {
     const key = pm.location.toLowerCase().trim()
-    if (!seen.has(key)) seen.set(key, `${pm.location}\t${pm.region || 'Unknown'}`)
+    if (!seen.has(key)) {
+      const station = normalizeStationRow(pm.location, pm.region || 'Unknown')
+      seen.set(key, `${station.name}, ${station.region}`)
+    }
   })
   return Array.from(seen.values()).sort((a, b) => a.localeCompare(b)).join('\n')
 }
@@ -699,7 +729,7 @@ export function PmTasksPanel({ pmTasks, pmTemplates, serviceLines, canEdit, savi
         <div className="flex items-end"><button type="button" onClick={hydrateStationsFromVisiblePms} className="w-full rounded-xl border border-[#244393]/15 bg-[#e8eefc] px-3 py-2.5 text-sm font-extrabold text-[#244393] transition hover:-translate-y-0.5">Use visible PM stations</button></div>
       </div>
       <div className="mt-3 grid gap-3 lg:grid-cols-2">
-        <label className="block text-xs font-extrabold uppercase tracking-[0.12em] text-[#64748b]">Stations <span className="normal-case tracking-normal text-[#7b8798]">one per line: Station, Region</span><textarea required value={templateStationsText} onChange={(event) => setTemplateStationsText(event.target.value)} rows={9} placeholder={'Yigo North\tNorth\nYigo P.A.\tNorth\nAirport\tCentral'} className="field-control mt-1 w-full rounded-2xl px-4 py-3 text-sm font-semibold leading-6 normal-case tracking-normal text-[#172033]" /></label>
+        <label className="block text-xs font-extrabold uppercase tracking-[0.12em] text-[#64748b]">Stations <span className="normal-case tracking-normal text-[#7b8798]">one per line: Station, Region</span><textarea required value={templateStationsText} onChange={(event) => setTemplateStationsText(event.target.value)} rows={9} placeholder={'Yigo North, North\nYigo P.A., North\nAirport, Central'} className="field-control mt-1 w-full rounded-2xl px-4 py-3 text-sm font-semibold leading-6 normal-case tracking-normal text-[#172033]" /></label>
         <label className="block text-xs font-extrabold uppercase tracking-[0.12em] text-[#64748b]">PM checklist <span className="normal-case tracking-normal text-[#7b8798]">Task, Trade, Frequency, Minutes</span><textarea required value={templateItemsText} onChange={(event) => setTemplateItemsText(event.target.value)} rows={9} className="field-control mt-1 w-full rounded-2xl px-4 py-3 text-sm font-semibold leading-6 normal-case tracking-normal text-[#172033]" /></label>
       </div>
       <div className="mt-3 flex flex-wrap gap-2">

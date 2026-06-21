@@ -104,9 +104,17 @@ function monthLabel(month: string) {
 }
 
 function addMonths(month: string, delta: number) {
-  const date = new Date(`${month}-01T00:00:00`)
-  date.setMonth(date.getMonth() + delta)
-  return date.toISOString().slice(0, 7)
+  const match = /^(\d{4})-(\d{2})$/.exec(month)
+  if (!match) return month
+
+  const year = Number(match[1])
+  const monthNumber = Number(match[2])
+  if (monthNumber < 1 || monthNumber > 12) return month
+
+  const absoluteMonth = year * 12 + (monthNumber - 1) + delta
+  const nextYear = Math.floor(absoluteMonth / 12)
+  const nextMonth = ((absoluteMonth % 12) + 12) % 12 + 1
+  return `${nextYear}-${String(nextMonth).padStart(2, '0')}`
 }
 
 function inferRegion(value?: string | null) {

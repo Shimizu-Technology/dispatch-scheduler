@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ClipboardEvent, FormEvent, ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { Archive, ArchiveRestore, ClipboardPaste, Edit3, FileUp, Plus, Search, Sparkles, X } from 'lucide-react'
 import { Badge, Card, PanelHeader } from './ui'
 import { postForm, postJson } from '../lib/api'
@@ -507,22 +508,25 @@ function WorkOrderEditorDrawer({ open, title, subtitle, saving, onClose, childre
     }
   }, [open, onClose, saving])
 
-  if (!open) return null
+  if (!open || typeof document === 'undefined') return null
 
-  return <div className="fixed inset-0 z-50 flex justify-end">
-    <button type="button" aria-label="Close work order editor" disabled={saving} onClick={onClose} className="absolute inset-0 bg-[#07111f]/48 backdrop-blur-sm transition disabled:cursor-wait" />
-    <aside role="dialog" aria-modal="true" aria-labelledby="work-order-editor-title" className="relative flex h-full w-full max-w-5xl flex-col overflow-hidden border-l border-white/20 bg-[#f8faff] shadow-[-28px_0_60px_rgba(7,17,31,0.26)] sm:w-[92vw] xl:w-[78vw]">
-      <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[rgba(23,32,51,0.1)] bg-white px-4 py-4 sm:px-5">
-        <div>
-          <p className="font-display text-xs font-extrabold uppercase tracking-[0.16em] text-[#244393]">Work order editor</p>
-          <h2 id="work-order-editor-title" className="font-display mt-1 text-xl font-black tracking-tight text-[#172033]">{title}</h2>
-          <p className="mt-1 text-sm font-semibold leading-5 text-[#64748b]">{subtitle}</p>
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex justify-end">
+      <button type="button" aria-label="Close work order editor" disabled={saving} onClick={onClose} className="absolute inset-0 bg-[#07111f]/48 backdrop-blur-sm transition disabled:cursor-wait" />
+      <aside role="dialog" aria-modal="true" aria-labelledby="work-order-editor-title" className="relative flex h-full w-full max-w-5xl flex-col overflow-hidden border-l border-white/20 bg-[#f8faff] shadow-[-28px_0_60px_rgba(7,17,31,0.26)] sm:w-[92vw] xl:w-[78vw]">
+        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[rgba(23,32,51,0.1)] bg-white px-4 py-4 sm:px-5">
+          <div>
+            <p className="font-display text-xs font-extrabold uppercase tracking-[0.16em] text-[#244393]">Work order editor</p>
+            <h2 id="work-order-editor-title" className="font-display mt-1 text-xl font-black tracking-tight text-[#172033]">{title}</h2>
+            <p className="mt-1 text-sm font-semibold leading-5 text-[#64748b]">{subtitle}</p>
+          </div>
+          <button type="button" disabled={saving} onClick={onClose} className="rounded-2xl border border-[rgba(23,32,51,0.12)] bg-white p-2 text-[#526071] transition hover:-translate-y-0.5 hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60"><X size={18} /></button>
         </div>
-        <button type="button" disabled={saving} onClick={onClose} className="rounded-2xl border border-[rgba(23,32,51,0.12)] bg-white p-2 text-[#526071] transition hover:-translate-y-0.5 hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60"><X size={18} /></button>
-      </div>
-      {children}
-    </aside>
-  </div>
+        {children}
+      </aside>
+    </div>,
+    document.body
+  )
 }
 
 export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, saving, routeSearch = '', workOrderToEdit, onEditConsumed, onRouteQueryChange, onFetch, onCreate, onUpdate, onArchive }: { workOrders: WorkOrder[]; meta: PaginationMeta | null; serviceLines: ServiceLine[]; canEdit: boolean; saving: boolean; routeSearch?: string; workOrderToEdit?: WorkOrder | null; onEditConsumed?: () => void; onRouteQueryChange?: (query: string) => void; onFetch: (query: string) => Promise<void>; onCreate: (values: WorkOrderInput) => Promise<void>; onUpdate: (id: number, values: WorkOrderInput) => Promise<void>; onArchive: (workOrderId: number, archived: boolean) => Promise<void> }) {

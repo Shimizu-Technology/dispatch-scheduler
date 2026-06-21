@@ -180,6 +180,29 @@ class PmTemplatesControllerTest < ActionDispatch::IntegrationTest
     refute PmTemplate.find(template.id).active?
   end
 
+  test "template update rejects checklist item IDs from another template" do
+    template = pm_template(name: "Mobil Monthly PMs")
+    original_item = template.pm_template_items.first
+    other_template = pm_template(name: "Other Monthly PMs")
+    other_item = other_template.pm_template_items.first
+
+    with_auth_env do
+      patch "/api/v1/pm_templates/#{template.id}", params: {
+        name: template.name,
+        client: template.client.name,
+        locations: template.pm_template_locations.map { |assignment| { name: assignment.location.name, region: assignment.location.region } },
+        items: [
+          { id: other_item.id, task_name: "Electrical Inspection", trade_category: "Electrical", frequency: "monthly", estimated_minutes: 60 }
+        ]
+      }, headers: auth_headers
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal [ "PM checklist item does not belong to this template" ], JSON.parse(response.body).fetch("errors")
+    assert original_item.reload.active?
+    assert_equal 1, template.pm_template_items.reload.count
+  end
+
   test "preview and generate reject inactive templates" do
     template = pm_template(name: "Inactive Template")
     template.update!(active: false)

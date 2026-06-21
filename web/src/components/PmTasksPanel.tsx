@@ -181,10 +181,7 @@ function normalizeStationRow(name: string, region?: string | null) {
   const trimmedName = name.trim()
   const trimmedRegion = region?.trim()
   const canonicalRegion = knownRegion(trimmedRegion) || (trimmedRegion && trimmedRegion !== 'Unknown' ? trimmedRegion : inferRegion(trimmedName))
-  const words = trimmedName.split(/\s+/)
-  const trailingRegion = knownRegion(words.at(-1))
-  const cleanedName = canonicalRegion && trailingRegion === knownRegion(canonicalRegion) && words.length > 2 ? words.slice(0, -1).join(' ') : trimmedName
-  return { name: cleanedName, region: canonicalRegion || 'Unknown' }
+  return { name: trimmedName, region: canonicalRegion || 'Unknown' }
 }
 
 function parseStationLine(line: string) {

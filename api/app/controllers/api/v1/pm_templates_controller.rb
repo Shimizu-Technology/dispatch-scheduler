@@ -187,8 +187,7 @@ module Api
           frequency = item_params[:frequency].presence || "monthly"
           raise ArgumentError, "Invalid PM frequency: #{frequency}" unless PmTemplateItem::FREQUENCIES.include?(frequency)
 
-          item = item_params[:id].present? ? template.pm_template_items.find_by(id: item_params[:id]) : template.pm_template_items.find_by(task_name: task_name)
-          item ||= template.pm_template_items.build
+          item = template_item_for_update(template, item_params, task_name)
           item.update!(
             task_name: task_name,
             trade_category: item_params[:trade_category].presence || "General",
@@ -201,6 +200,17 @@ module Api
           active_item_ids << item.id
         end
         template.pm_template_items.where.not(id: active_item_ids).update_all(active: false, updated_at: Time.current)
+      end
+
+      def template_item_for_update(template, item_params, task_name)
+        if item_params[:id].present?
+          item = template.pm_template_items.find_by(id: item_params[:id])
+          return item if item
+
+          raise ArgumentError, "PM checklist item does not belong to this template"
+        end
+
+        template.pm_template_items.find_by(task_name: task_name) || template.pm_template_items.build
       end
 
       def deduplicated_location_params(locations)

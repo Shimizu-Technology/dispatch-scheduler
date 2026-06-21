@@ -192,6 +192,28 @@ class PmTasksControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ active.id ], JSON.parse(response.body).map { |item| item.fetch("id") }
   end
 
+  test "dispatcher archive PM task is idempotent" do
+    pm = pm_task(task_name: "Already archived PM", date: DEFAULT_DATE)
+
+    with_auth_env do
+      patch "/api/v1/pm_tasks/#{pm.id}/archive", params: { archive_reason: "Entered by mistake" }, headers: auth_headers
+    end
+
+    assert_response :success
+    archived_at = pm.reload.archived_at
+    assert_equal "Entered by mistake", pm.archive_reason
+    assert_equal 1, AuditEvent.where(action: "pm_task.archived").count
+
+    with_auth_env do
+      patch "/api/v1/pm_tasks/#{pm.id}/archive", params: { archive_reason: "Second archive request" }, headers: auth_headers
+    end
+
+    assert_response :success
+    assert_equal archived_at, pm.reload.archived_at
+    assert_equal "Entered by mistake", pm.archive_reason
+    assert_equal 1, AuditEvent.where(action: "pm_task.archived").count
+  end
+
   test "dispatcher cannot save PM time out before time in" do
     pm = pm_task(task_name: "Backwards JCF PM", date: DEFAULT_DATE)
 
@@ -220,6 +242,21 @@ class PmTasksControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ Time.zone.parse("2026-05-05T08:00:00+10:00"), Time.zone.parse("2026-05-05T08:00:00+10:00") ], [ first.time_in_at, second.time_in_at ]
     assert_equal 2, AuditEvent.where(action: "pm_task.updated").count
     assert_equal "station_completion", AuditEvent.last.metadata_hash.fetch("source")
+  end
+
+  test "station checklist completion rejects archived PM tasks without partial updates" do
+    active = pm_task(task_name: "Active Station PM", date: DEFAULT_DATE)
+    archived = pm_task(task_name: "Voided Station PM", date: DEFAULT_DATE)
+    archived.update!(archived_at: Time.current, archive_reason: "Entered by mistake")
+
+    with_auth_env do
+      post "/api/v1/pm_tasks/bulk_complete", params: { pm_task_ids: [ active.id, archived.id ] }, headers: auth_headers
+    end
+
+    assert_response :unprocessable_entity
+    assert_includes JSON.parse(response.body).fetch("errors").join(", "), "Archived PM tasks cannot be completed"
+    assert_equal "pending", active.reload.status
+    assert_equal "pending", archived.reload.status
   end
 
   test "station checklist completion rejects invalid JCF time without partial updates" do

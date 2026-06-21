@@ -92,9 +92,14 @@ module Api
         raise ArgumentError, "Choose at least one PM task to complete" if ids.blank?
         raise ArgumentError, "Station completion is limited to 100 PM tasks at a time" if ids.length > 100
 
-        pm_tasks = PmTask.includes(:client, :location, :pm_template).where(id: ids).index_by(&:id)
+        pm_tasks = PmTask.active.includes(:client, :location, :pm_template).where(id: ids).index_by(&:id)
         missing_ids = ids - pm_tasks.keys
-        raise ActiveRecord::RecordNotFound, "Could not find PM tasks: #{missing_ids.join(', ')}" if missing_ids.any?
+        if missing_ids.any?
+          archived_ids = PmTask.archived.where(id: missing_ids).pluck(:id)
+          raise ArgumentError, "Archived PM tasks cannot be completed: #{archived_ids.join(', ')}" if archived_ids.any?
+
+          raise ActiveRecord::RecordNotFound, "Could not find PM tasks: #{missing_ids.join(', ')}"
+        end
 
         completed_at = Time.current
         timing_attrs = pm_task_time_attributes(nil, bulk_complete_params)
@@ -142,9 +147,15 @@ module Api
 
       def archive
         pm_task = PmTask.find(params[:id])
+        if pm_task.archived?
+          destroy_draft_dispatch_items(pm_task)
+          render json: Serializers.pm_task(pm_task)
+          return
+        end
+
         ApplicationRecord.transaction do
           pm_task.update!(archived_at: Time.current, archive_reason: params[:archive_reason].presence || params[:reason].presence)
-          DispatchItem.joins(:dispatch_schedule).where(pm_task: pm_task, dispatch_schedules: { status: "draft" }).destroy_all
+          destroy_draft_dispatch_items(pm_task)
           AuditEvent.record!(action: "pm_task.archived", record: pm_task, user: current_user, metadata: pm_task_audit_metadata(pm_task).merge(archive_reason: pm_task.archive_reason))
         end
         render json: Serializers.pm_task(pm_task)
@@ -225,6 +236,10 @@ module Api
 
       def bulk_pm_task_ids
         Array(params[:pm_task_ids] || params[:ids]).reject(&:blank?).map(&:to_i).uniq
+      end
+
+      def destroy_draft_dispatch_items(pm_task)
+        DispatchItem.joins(:dispatch_schedule).where(pm_task: pm_task, dispatch_schedules: { status: "draft" }).destroy_all
       end
 
       def build_pm_task(attrs)

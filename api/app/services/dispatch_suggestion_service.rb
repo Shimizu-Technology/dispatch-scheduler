@@ -142,7 +142,7 @@ class DispatchSuggestionService
       []
     end
     month_pressure = if pm_month_pressure?
-      scoped_pm_tasks(PmTask.includes(:client, :location).for_month(@date).where(status: %w[pending scheduled])).to_a
+      scoped_pm_tasks(PmTask.active.includes(:client, :location).for_month(@date).where(status: %w[pending scheduled])).to_a
     else
       []
     end

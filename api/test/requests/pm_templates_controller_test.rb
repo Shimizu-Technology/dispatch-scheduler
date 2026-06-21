@@ -63,6 +63,22 @@ class PmTemplatesControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1, payload.dig("summary", "duplicate_count")
   end
 
+  test "generation can recreate an archived generated PM" do
+    site = location(name: "Yigo North", region: "North")
+    template = pm_template(locations: [ site ])
+    generated = PmTemplateGenerationService.new(template: template, month: "2026-06").generate!.fetch(:created).first
+    PmTask.find(generated.fetch(:id)).update!(archived_at: Time.current, archive_reason: "Entered by mistake")
+
+    with_auth_env do
+      post "/api/v1/pm_templates/#{template.id}/generate", params: { month: "2026-06" }, headers: auth_headers
+    end
+
+    assert_response :created
+    payload = JSON.parse(response.body)
+    assert_equal 1, payload.dig("summary", "created_count")
+    assert_equal 0, payload.dig("summary", "duplicate_count")
+  end
+
   test "template creation preserves existing station region metadata" do
     existing_location = location(name: "Yigo North", region: "North")
 
@@ -125,6 +141,43 @@ class PmTemplatesControllerTest < ActionDispatch::IntegrationTest
     payload = JSON.parse(response.body).fetch("pm_template")
     assert_equal [ "Airport", "Yigo North" ], payload.fetch("locations").map { |station| station.fetch("name") }.sort
     assert_equal 2, PmTemplateLocation.count
+  end
+
+  test "dispatcher updates and archives a PM template without changing historical PMs" do
+    old_site = location(name: "Yigo North", region: "North")
+    template = pm_template(locations: [ old_site ], items: [ { task_name: "Electrical Inspection", trade_category: "Electrical", frequency: "monthly", estimated_minutes: 45 } ])
+    generated = PmTemplateGenerationService.new(template: template, month: "2026-05").generate!.fetch(:created).first
+
+    with_auth_env do
+      patch "/api/v1/pm_templates/#{template.id}", params: {
+        name: "Mobil Monthly PMs Revised",
+        client: "Mobil",
+        locations: [
+          { name: "Yigo North", region: "North" },
+          { name: "Agat South" }
+        ],
+        items: [
+          { task_name: "Electrical Inspection", trade_category: "Electrical", frequency: "monthly", estimated_minutes: 60 },
+          { task_name: "Generator Inspection", trade_category: "General", frequency: "monthly", estimated_minutes: 30 }
+        ]
+      }, headers: auth_headers
+    end
+
+    assert_response :success
+    payload = JSON.parse(response.body).fetch("pm_template")
+    assert_equal "Mobil Monthly PMs Revised", payload.fetch("name")
+    assert_equal [ "Agat South", "Yigo North" ], payload.fetch("locations").select { |station| station.fetch("active") }.map { |station| station.fetch("name") }.sort
+    assert_equal "South", payload.fetch("locations").find { |station| station.fetch("name") == "Agat South" }.fetch("region")
+    assert_equal 2, payload.fetch("items").count { |item| item.fetch("active") }
+    assert_equal 45, PmTask.find(generated.fetch(:id)).estimated_minutes, "generated PM history should not be rewritten by template edits"
+    assert_equal "pm_template.updated", AuditEvent.last.action
+
+    with_auth_env do
+      patch "/api/v1/pm_templates/#{template.id}/archive", headers: auth_headers
+    end
+
+    assert_response :success
+    refute PmTemplate.find(template.id).active?
   end
 
   test "preview and generate reject inactive templates" do

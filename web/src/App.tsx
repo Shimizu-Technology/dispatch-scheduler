@@ -101,7 +101,10 @@ function routeForLocation(location: Location = window.location): AppRoute {
 }
 
 function dateFromMonth(month: string, fallbackDay: string) {
-  return `${month}-${fallbackDay.slice(8, 10) || '01'}`
+  const day = Number(fallbackDay.slice(8, 10) || '1')
+  const [year, monthNumber] = month.split('-').map(Number)
+  const lastDay = new Date(year, monthNumber, 0).getDate()
+  return `${month}-${String(Math.min(day || 1, lastDay)).padStart(2, '0')}`
 }
 
 function FloatingTooltip({ anchorRef, label, visible }: { anchorRef: RefObject<HTMLElement | null>; label: string; visible: boolean }) {
@@ -727,6 +730,25 @@ function DispatchApp() {
     }
   }
 
+  async function archivePmTask(pmTaskId: number, reason?: string) {
+    if (!canEditDispatch) {
+      setError('Viewer access cannot void PM tasks.')
+      return
+    }
+    setPmTaskSavingId(pmTaskId)
+    setError('')
+    try {
+      await patchJson<PmTask>(`/pm_tasks/${pmTaskId}/archive`, { archive_reason: reason })
+      setPmTasks((current) => current.filter((pm) => pm.id !== pmTaskId))
+      await Promise.allSettled([refreshPmContext(), afterAuditedChange()])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to void PM task')
+      throw err
+    } finally {
+      setPmTaskSavingId(null)
+    }
+  }
+
   async function createPmTemplate(values: PmTemplateInput) {
     if (!canEditDispatch) {
       setError('Viewer access cannot create PM templates.')
@@ -740,6 +762,39 @@ function DispatchApp() {
       return payload.pm_template
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to create PM template')
+      throw err
+    }
+  }
+
+  async function updatePmTemplate(templateId: number, values: PmTemplateInput) {
+    if (!canEditDispatch) {
+      setError('Viewer access cannot edit PM templates.')
+      return
+    }
+    setError('')
+    try {
+      const payload = await patchJson<{ pm_template: PmTemplate }>(`/pm_templates/${templateId}`, values)
+      setPmTemplates((current) => [...current.filter((template) => template.id !== payload.pm_template.id), payload.pm_template].sort((a, b) => a.name.localeCompare(b.name)))
+      await afterAuditedChange()
+      return payload.pm_template
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to edit PM template')
+      throw err
+    }
+  }
+
+  async function archivePmTemplate(templateId: number) {
+    if (!canEditDispatch) {
+      setError('Viewer access cannot archive PM templates.')
+      return
+    }
+    setError('')
+    try {
+      await patchJson<{ pm_template: PmTemplate }>(`/pm_templates/${templateId}/archive`, {})
+      setPmTemplates((current) => current.filter((template) => template.id !== templateId))
+      await afterAuditedChange()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to archive PM template')
       throw err
     }
   }
@@ -1325,7 +1380,7 @@ function DispatchApp() {
 
         {currentSection === 'dispatch' && (user ? <DispatchBuilder schedule={schedule} teams={teams} technicians={technicians} working={working} canEdit={canEditDispatch} onSuggest={suggestSchedule} onUpdate={updateDispatchItem} onOutcome={updateDispatchItemOutcome} onWorkOrderStatus={updateWorkOrderStatus} onFinalize={finalizeSchedule} onReopen={reopenSchedule} /> : <SignInRequiredPanel title="Sign in to build today's dispatch" />)}
 
-        {currentSection === 'pm-tasks' && (user ? <PmTasksPanel key={selectedDate} pmTasks={pmTasks} pmTemplates={pmTemplates} serviceLines={serviceLines} canEdit={canEditDispatch} savingPmTaskId={pmTaskSavingId} selectedDate={selectedDate} onUpdate={updatePmTask} onCreate={createPmTask} onBulkCreate={bulkCreatePmTasks} onCompleteStation={completePmStation} onCreateTemplate={createPmTemplate} onPreviewTemplate={previewPmTemplate} onGenerateTemplate={generatePmTemplate} /> : <SignInRequiredPanel title="Sign in to review PM tasks" />)}
+        {currentSection === 'pm-tasks' && (user ? <PmTasksPanel key={selectedDate} pmTasks={pmTasks} pmTemplates={pmTemplates} serviceLines={serviceLines} canEdit={canEditDispatch} savingPmTaskId={pmTaskSavingId} selectedDate={selectedDate} onUpdate={updatePmTask} onCreate={createPmTask} onBulkCreate={bulkCreatePmTasks} onCompleteStation={completePmStation} onArchive={archivePmTask} onCreateTemplate={createPmTemplate} onUpdateTemplate={updatePmTemplate} onArchiveTemplate={archivePmTemplate} onPreviewTemplate={previewPmTemplate} onGenerateTemplate={generatePmTemplate} onMonthChange={(month) => handleSelectedDateChange(dateFromMonth(month, selectedDate))} /> : <SignInRequiredPanel title="Sign in to review PM tasks" />)}
 
         {currentSection === 'service-lines' && (user ? <ServiceLinesPanel serviceLines={serviceLines} canAdmin={Boolean(user.permissions.can_admin)} saving={serviceLineSaving} onCreate={createServiceLine} onUpdate={updateServiceLine} /> : <SignInRequiredPanel title="Sign in to review service lines" />)}
 

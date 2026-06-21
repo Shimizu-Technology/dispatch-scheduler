@@ -1,4 +1,6 @@
 class Location < ApplicationRecord
+  REGION_NAMES = [ "North", "Central", "South", "Islandwide", "Unknown" ].freeze
+
   belongs_to :client
   has_many :work_orders, dependent: :destroy
   has_many :pm_tasks, dependent: :destroy

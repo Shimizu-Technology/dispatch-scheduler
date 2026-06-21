@@ -108,7 +108,7 @@ class MonthlyReportService
   end
 
   def pm_tasks
-    @pm_tasks ||= PmTask.includes(:client, :location).for_month(@month)
+    @pm_tasks ||= PmTask.active.includes(:client, :location).for_month(@month)
   end
 
   def pm_summary

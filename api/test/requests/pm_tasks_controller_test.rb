@@ -112,6 +112,52 @@ class PmTasksControllerTest < ActionDispatch::IntegrationTest
     assert_equal "pm_task.updated", AuditEvent.last.action
   end
 
+  test "dispatcher edits PM task details" do
+    pm = pm_task(task_name: "Old PM", date: DEFAULT_DATE)
+
+    with_auth_env do
+      patch "/api/v1/pm_tasks/#{pm.id}", params: {
+        location: "Agat South",
+        region: "South",
+        task_name: "Updated PM",
+        trade_category: "Plumbing",
+        scheduled_date: "2026-05-20",
+        due_on: "2026-05-20",
+        estimated_minutes: 75,
+        notes: "Corrected PM details"
+      }, headers: auth_headers
+    end
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_equal "Agat South", payload.fetch("location")
+    assert_equal "South", payload.fetch("region")
+    assert_equal "Updated PM", payload.fetch("task_name")
+    assert_equal "Plumbing", payload.fetch("trade_category")
+    assert_equal "2026-05-20", payload.fetch("due_on")
+    assert_equal 75, payload.fetch("estimated_minutes")
+  end
+
+  test "dispatcher archives PM task and active month list hides it" do
+    archived = pm_task(task_name: "Mistake PM", date: DEFAULT_DATE)
+    active = pm_task(task_name: "Keep PM", date: DEFAULT_DATE)
+
+    with_auth_env do
+      patch "/api/v1/pm_tasks/#{archived.id}/archive", params: { archive_reason: "Entered by mistake" }, headers: auth_headers
+    end
+
+    assert_response :success
+    assert PmTask.find(archived.id).archived?
+    assert_equal "pm_task.archived", AuditEvent.last.action
+
+    with_auth_env do
+      get "/api/v1/pm_tasks", params: { month: DEFAULT_DATE.strftime("%Y-%m") }, headers: auth_headers
+    end
+
+    assert_response :success
+    assert_equal [ active.id ], JSON.parse(response.body).map { |item| item.fetch("id") }
+  end
+
   test "dispatcher cannot save PM time out before time in" do
     pm = pm_task(task_name: "Backwards JCF PM", date: DEFAULT_DATE)
 

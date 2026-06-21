@@ -252,6 +252,9 @@ export type PmTask = {
   actual_duration_minutes?: number | null
   deferred_until: string | null
   notes: string | null
+  archived?: boolean
+  archived_at?: string | null
+  archive_reason?: string | null
 }
 
 export type PmTaskInput = {
@@ -309,8 +312,8 @@ export type PmTemplateInput = {
   client: string
   service_line_id?: number | string | null
   notes?: string
-  locations: Array<{ name: string; region: string }>
-  items: Array<{ task_name: string; trade_category: string; frequency: PmFrequency; estimated_minutes?: number | string | null; notes?: string }>
+  locations: Array<{ id?: number; name: string; region: string; active?: boolean }>
+  items: Array<{ id?: number; task_name: string; trade_category: string; frequency: PmFrequency; estimated_minutes?: number | string | null; notes?: string; active?: boolean }>
 }
 
 export type PmTemplatePreviewRow = {

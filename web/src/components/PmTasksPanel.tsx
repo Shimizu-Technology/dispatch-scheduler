@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
-import { Building2, CalendarPlus, CheckCircle2, ClipboardList, FileSpreadsheet, LayoutGrid, ListChecks, Plus, RefreshCw, X } from 'lucide-react'
+import { Archive, Building2, CalendarPlus, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, Edit3, FileSpreadsheet, LayoutGrid, ListChecks, Plus, RefreshCw, X } from 'lucide-react'
 import { Badge, Card, PanelHeader } from './ui'
 import type { PmFrequency, PmTask, PmTaskInput, PmTaskStatus, PmTemplate, PmTemplateGenerationPayload, PmTemplateInput, ServiceLine } from '../types'
 
@@ -45,9 +45,13 @@ type PmTasksPanelProps = {
   onCreate: (values: PmTaskInput) => Promise<void>
   onBulkCreate: (values: PmTaskInput[]) => Promise<BulkResult | void>
   onCompleteStation: (pmTaskIds: number[], changes?: Record<string, unknown>) => Promise<void>
+  onArchive: (pmTaskId: number, reason?: string) => Promise<void>
   onCreateTemplate: (values: PmTemplateInput) => Promise<PmTemplate | void>
+  onUpdateTemplate: (templateId: number, values: PmTemplateInput) => Promise<PmTemplate | void>
+  onArchiveTemplate: (templateId: number) => Promise<void>
   onPreviewTemplate: (templateId: number, values: { month: string; frequencies: string[]; location_ids?: number[]; item_ids?: number[] }) => Promise<PmTemplateGenerationPayload>
   onGenerateTemplate: (templateId: number, values: { month: string; frequencies: string[]; location_ids?: number[]; item_ids?: number[] }) => Promise<PmTemplateGenerationPayload | void>
+  onMonthChange: (month: string) => void
 }
 
 function statusLabel(status: PmTaskStatus) {
@@ -91,6 +95,22 @@ function durationLabel(minutes?: number | null) {
 
 function monthString(dateString: string) {
   return dateString.slice(0, 7)
+}
+
+function monthLabel(month: string) {
+  const date = new Date(`${month}-01T00:00:00`)
+  if (Number.isNaN(date.getTime())) return month
+  return new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' }).format(date)
+}
+
+function addMonths(month: string, delta: number) {
+  const date = new Date(`${month}-01T00:00:00`)
+  date.setMonth(date.getMonth() + delta)
+  return date.toISOString().slice(0, 7)
+}
+
+function inferRegion(value?: string | null) {
+  return regionOptions.find((region) => region !== 'Unknown' && new RegExp(`\\b${region}\\b`, 'i').test(value || '')) || 'Unknown'
 }
 
 function emptyPmForm(selectedDate: string): PmTaskInput {
@@ -152,7 +172,7 @@ function parseStations(text: string): PmTemplateInput['locations'] {
     .filter(Boolean)
     .map((line) => {
       const [name, region] = splitColumns(line)
-      return { name: name || '', region: region || 'Unknown' }
+      return { name: name || '', region: region || inferRegion(name) }
     })
     .filter((station) => {
       const key = station.name.toLowerCase().trim()
@@ -162,12 +182,24 @@ function parseStations(text: string): PmTemplateInput['locations'] {
     })
 }
 
+function templateItemColumns(line: string) {
+  if (line.includes('\t') || line.includes(',')) return splitColumns(line)
+
+  const parts = line.trim().split(/\s+/)
+  const minutes = /^\d+$/.test(parts.at(-1) || '') ? parts.pop() : undefined
+  const frequencyCandidate = parts.at(-1) || ''
+  const frequency = frequencyOptions.some((option) => option.value === frequencyCandidate) || frequencyCandidate === 'manual' ? parts.pop() : undefined
+  const tradeCandidate = parts.at(-1) || ''
+  const trade = tradeOptions.includes(tradeCandidate) ? parts.pop() : undefined
+  return [parts.join(' '), trade || 'General', frequency || 'monthly', minutes || '45']
+}
+
 function parseTemplateItems(text: string): PmTemplateInput['items'] {
   return text.split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean)
     .map((line) => {
-      const [task, trade, frequency, minutes, ...notes] = splitColumns(line)
+      const [task, trade, frequency, minutes, ...notes] = templateItemColumns(line)
       const normalizedFrequency = (frequency || 'monthly') as PmFrequency
       return {
         task_name: task || '',
@@ -178,6 +210,22 @@ function parseTemplateItems(text: string): PmTemplateInput['items'] {
       }
     })
     .filter((item) => item.task_name)
+}
+
+function templateStationTextFromTemplate(template: PmTemplate) {
+  return template.locations
+    .filter((location) => location.active)
+    .sort((a, b) => a.position - b.position || a.name.localeCompare(b.name))
+    .map((location) => `${location.name}\t${location.region && location.region !== 'Unknown' ? location.region : inferRegion(location.name)}`)
+    .join('\n')
+}
+
+function templateItemTextFromTemplate(template: PmTemplate) {
+  return template.items
+    .filter((item) => item.active)
+    .sort((a, b) => a.position - b.position || a.task_name.localeCompare(b.task_name))
+    .map((item) => [item.task_name, item.trade_category, item.frequency, item.estimated_minutes, item.notes || ''].filter((value) => value !== '').join('\t'))
+    .join('\n')
 }
 
 function templateStationTextFromTasks(pmTasks: PmTask[]) {
@@ -231,7 +279,64 @@ function PmTimeEditor({ pm, canEdit, saving, onUpdate }: { pm: PmTask; canEdit: 
   </div>
 }
 
-export function PmTasksPanel({ pmTasks, pmTemplates, serviceLines, canEdit, savingPmTaskId, selectedDate, onUpdate, onCreate, onBulkCreate, onCompleteStation, onCreateTemplate, onPreviewTemplate, onGenerateTemplate }: PmTasksPanelProps) {
+function PmEditForm({ pm, saving, onCancel, onSave }: { pm: PmTask; saving: boolean; onCancel: () => void; onSave: (changes: Record<string, unknown>) => Promise<void> }) {
+  const [draft, setDraft] = useState(() => ({
+    client: pm.client,
+    location: pm.location,
+    region: pm.region || inferRegion(pm.location),
+    task_name: pm.task_name,
+    trade_category: pm.trade_category,
+    frequency: pm.frequency || 'monthly',
+    scheduled_date: pm.scheduled_date,
+    due_on: pm.due_on || pm.scheduled_date,
+    estimated_minutes: pm.estimated_minutes || '',
+    status: pm.status,
+    deferred_until: pm.deferred_until || '',
+    notes: pm.notes || '',
+    time_in_at: datetimeLocalValue(pm.time_in_at),
+    time_out_at: datetimeLocalValue(pm.time_out_at),
+  }))
+  const updateDraft = (field: keyof typeof draft, value: string) => setDraft((current) => ({ ...current, [field]: value }))
+
+  async function submit(event: FormEvent) {
+    event.preventDefault()
+    await onSave({
+      ...draft,
+      due_on: draft.due_on || draft.scheduled_date,
+      estimated_minutes: draft.estimated_minutes || null,
+      time_in_at: datetimeLocalToIso(draft.time_in_at) || '',
+      time_out_at: datetimeLocalToIso(draft.time_out_at) || '',
+    })
+    onCancel()
+  }
+
+  return <form onSubmit={(event) => void submit(event)} className="mt-3 rounded-2xl border border-[#244393]/12 bg-[#f8faff] p-3">
+    <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+      <div><p className="font-display text-sm font-extrabold text-[#172033]">Edit PM</p><p className="text-xs font-semibold text-[#64748b]">Changes apply only to this generated PM record.</p></div>
+      <button type="button" onClick={onCancel} className="rounded-lg border border-slate-200 bg-white p-1.5 text-[#64748b]"><X size={15} /></button>
+    </div>
+    <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+      <label className="text-[0.66rem] font-extrabold uppercase tracking-[0.1em] text-[#64748b]">Client<input value={draft.client} onChange={(event) => updateDraft('client', event.target.value)} className="field-control mt-1 w-full rounded-lg px-2 py-1.5 text-sm font-semibold normal-case tracking-normal text-[#172033]" /></label>
+      <label className="text-[0.66rem] font-extrabold uppercase tracking-[0.1em] text-[#64748b]">Station<input required value={draft.location} onChange={(event) => updateDraft('location', event.target.value)} className="field-control mt-1 w-full rounded-lg px-2 py-1.5 text-sm font-semibold normal-case tracking-normal text-[#172033]" /></label>
+      <label className="text-[0.66rem] font-extrabold uppercase tracking-[0.1em] text-[#64748b]">Region<select value={draft.region} onChange={(event) => updateDraft('region', event.target.value)} className="field-control mt-1 w-full rounded-lg px-2 py-1.5 text-sm font-semibold normal-case tracking-normal text-[#172033]">{regionOptions.map((region) => <option key={region}>{region}</option>)}</select></label>
+      <label className="text-[0.66rem] font-extrabold uppercase tracking-[0.1em] text-[#64748b]">Status<select value={draft.status} onChange={(event) => updateDraft('status', event.target.value)} className="field-control mt-1 w-full rounded-lg px-2 py-1.5 text-sm font-semibold normal-case tracking-normal text-[#172033]">{statusOptions.filter((option) => option.value).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+      <label className="text-[0.66rem] font-extrabold uppercase tracking-[0.1em] text-[#64748b] md:col-span-2">Task<input required value={draft.task_name} onChange={(event) => updateDraft('task_name', event.target.value)} className="field-control mt-1 w-full rounded-lg px-2 py-1.5 text-sm font-semibold normal-case tracking-normal text-[#172033]" /></label>
+      <label className="text-[0.66rem] font-extrabold uppercase tracking-[0.1em] text-[#64748b]">Trade<select value={draft.trade_category} onChange={(event) => updateDraft('trade_category', event.target.value)} className="field-control mt-1 w-full rounded-lg px-2 py-1.5 text-sm font-semibold normal-case tracking-normal text-[#172033]">{tradeOptions.map((trade) => <option key={trade}>{trade}</option>)}</select></label>
+      <label className="text-[0.66rem] font-extrabold uppercase tracking-[0.1em] text-[#64748b]">Minutes<input type="number" min="1" value={draft.estimated_minutes} onChange={(event) => updateDraft('estimated_minutes', event.target.value)} className="field-control mt-1 w-full rounded-lg px-2 py-1.5 text-sm font-semibold normal-case tracking-normal text-[#172033]" /></label>
+      <label className="text-[0.66rem] font-extrabold uppercase tracking-[0.1em] text-[#64748b]">Due date<input type="date" value={draft.due_on} onChange={(event) => { updateDraft('due_on', event.target.value); updateDraft('scheduled_date', event.target.value) }} className="field-control mt-1 w-full rounded-lg px-2 py-1.5 text-sm font-semibold normal-case tracking-normal text-[#172033]" /></label>
+      <label className="text-[0.66rem] font-extrabold uppercase tracking-[0.1em] text-[#64748b]">Defer until<input type="date" value={draft.deferred_until} onChange={(event) => updateDraft('deferred_until', event.target.value)} className="field-control mt-1 w-full rounded-lg px-2 py-1.5 text-sm font-semibold normal-case tracking-normal text-[#172033]" /></label>
+      <label className="text-[0.66rem] font-extrabold uppercase tracking-[0.1em] text-[#64748b]">Time in<input type="datetime-local" value={draft.time_in_at} onChange={(event) => updateDraft('time_in_at', event.target.value)} className="field-control mt-1 w-full rounded-lg px-2 py-1.5 text-sm font-semibold normal-case tracking-normal text-[#172033]" /></label>
+      <label className="text-[0.66rem] font-extrabold uppercase tracking-[0.1em] text-[#64748b]">Time out<input type="datetime-local" value={draft.time_out_at} onChange={(event) => updateDraft('time_out_at', event.target.value)} className="field-control mt-1 w-full rounded-lg px-2 py-1.5 text-sm font-semibold normal-case tracking-normal text-[#172033]" /></label>
+      <label className="text-[0.66rem] font-extrabold uppercase tracking-[0.1em] text-[#64748b] md:col-span-2 xl:col-span-4">Notes<input value={draft.notes} onChange={(event) => updateDraft('notes', event.target.value)} className="field-control mt-1 w-full rounded-lg px-2 py-1.5 text-sm font-semibold normal-case tracking-normal text-[#172033]" /></label>
+    </div>
+    <div className="mt-3 flex flex-wrap gap-2">
+      <button disabled={saving} className="rounded-xl bg-[#16835f] px-4 py-2 text-sm font-extrabold text-white disabled:opacity-50">Save PM</button>
+      <button type="button" disabled={saving} onClick={onCancel} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-[#526071] disabled:opacity-50">Cancel</button>
+    </div>
+  </form>
+}
+
+export function PmTasksPanel({ pmTasks, pmTemplates, serviceLines, canEdit, savingPmTaskId, selectedDate, onUpdate, onCreate, onBulkCreate, onCompleteStation, onArchive, onCreateTemplate, onUpdateTemplate, onArchiveTemplate, onPreviewTemplate, onGenerateTemplate, onMonthChange }: PmTasksPanelProps) {
   const [statusFilter, setStatusFilter] = useState<'' | PmTaskStatus>('')
   const [regionFilter, setRegionFilter] = useState('')
   const [viewMode, setViewMode] = useState<'station' | 'list'>('station')
@@ -245,6 +350,8 @@ export function PmTasksPanel({ pmTasks, pmTemplates, serviceLines, canEdit, savi
   const [bulkResult, setBulkResult] = useState<BulkResult | null>(null)
   const [savingCreate, setSavingCreate] = useState(false)
   const [templateBusy, setTemplateBusy] = useState(false)
+  const [editingTemplateId, setEditingTemplateId] = useState<number | null>(null)
+  const [editingPmId, setEditingPmId] = useState<number | null>(null)
   const [templateName, setTemplateName] = useState('Mobil Monthly PMs')
   const [templateClient, setTemplateClient] = useState('Mobil')
   const [templateServiceLineId, setTemplateServiceLineId] = useState<string>('')
@@ -374,12 +481,14 @@ export function PmTasksPanel({ pmTasks, pmTemplates, serviceLines, canEdit, savi
     event.preventDefault()
     const locations = parseStations(templateStationsText)
     const items = parseTemplateItems(templateItemsText)
+    const payload = { name: templateName, client: templateClient, service_line_id: templateServiceLineId || null, locations, items }
     setTemplateBusy(true)
     try {
-      const created = await onCreateTemplate({ name: templateName, client: templateClient, service_line_id: templateServiceLineId || null, locations, items })
-      if (created) {
-        setSelectedTemplateId(created.id)
-        resetTemplateSelection(created)
+      const saved = editingTemplateId ? await onUpdateTemplate(editingTemplateId, payload) : await onCreateTemplate(payload)
+      if (saved) {
+        setSelectedTemplateId(saved.id)
+        resetTemplateSelection(saved)
+        setEditingTemplateId(saved.id)
         setShowTemplateSetup(false)
         setShowTemplateGenerator(true)
       }
@@ -418,10 +527,54 @@ export function PmTasksPanel({ pmTasks, pmTemplates, serviceLines, canEdit, savi
     setTemplateStationsText(templateStationTextFromTasks(pmTasks))
   }
 
+  function loadTemplateForEditing(template: PmTemplate | null) {
+    if (!template) {
+      startNewTemplate()
+      return
+    }
+    setEditingTemplateId(template.id)
+    setTemplateName(template.name)
+    setTemplateClient(template.client)
+    setTemplateServiceLineId(template.service_line_id ? String(template.service_line_id) : '')
+    setTemplateStationsText(templateStationTextFromTemplate(template))
+    setTemplateItemsText(templateItemTextFromTemplate(template))
+    setShowTemplateSetup(true)
+  }
+
+  function startNewTemplate() {
+    setEditingTemplateId(null)
+    setTemplateName('Mobil Monthly PMs')
+    setTemplateClient('Mobil')
+    setTemplateServiceLineId('')
+    setTemplateStationsText('')
+    setTemplateItemsText(DEFAULT_TEMPLATE_ITEMS)
+    setShowTemplateSetup(true)
+  }
+
+  async function archiveTemplate() {
+    if (!editingTemplateId) return
+    if (!window.confirm('Archive this PM template? Existing generated PMs stay in history, but this template will no longer be used for new months.')) return
+    setTemplateBusy(true)
+    try {
+      await onArchiveTemplate(editingTemplateId)
+      setEditingTemplateId(null)
+      setShowTemplateSetup(false)
+    } finally {
+      setTemplateBusy(false)
+    }
+  }
+
+  async function voidPm(pm: PmTask) {
+    const reason = window.prompt(`Void ${pm.task_name} at ${pm.location}? It will be removed from active PM tracking but kept in audit history.`, 'Entered by mistake')
+    if (reason === null) return
+    await onArchive(pm.id, reason)
+    if (editingPmId === pm.id) setEditingPmId(null)
+  }
+
   const templateAction = <div className="flex w-full flex-col gap-2 md:flex-row md:flex-wrap md:items-center 2xl:justify-end">
     {canEdit && <>
       <button onClick={() => { setShowTemplateGenerator((value) => !value); if (!selectedTemplateId && pmTemplates[0]) setSelectedTemplateId(pmTemplates[0].id) }} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#172b63] px-4 py-2.5 text-sm font-extrabold text-white shadow-[0_14px_30px_rgba(23,43,99,0.22)] transition hover:-translate-y-0.5 hover:bg-[#244393] md:w-auto"><ListChecks size={17} /> Generate Month</button>
-      <button onClick={() => setShowTemplateSetup((value) => !value)} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-[#244393]/15 bg-[#e8eefc] px-4 py-2.5 text-sm font-extrabold text-[#244393] shadow-sm transition hover:-translate-y-0.5 hover:bg-[#dfe8ff] md:w-auto"><Building2 size={17} /> Template Setup</button>
+      <button onClick={() => { if (showTemplateSetup) setShowTemplateSetup(false); else loadTemplateForEditing(selectedTemplate) }} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-[#244393]/15 bg-[#e8eefc] px-4 py-2.5 text-sm font-extrabold text-[#244393] shadow-sm transition hover:-translate-y-0.5 hover:bg-[#dfe8ff] md:w-auto"><Building2 size={17} /> Template Setup</button>
       <button onClick={() => setShowMonthSetup((value) => !value)} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-[#244393]/15 bg-white px-4 py-2.5 text-sm font-extrabold text-[#244393] shadow-sm transition hover:-translate-y-0.5 hover:bg-[#e8eefc] md:w-auto"><ClipboardList size={17} /> Paste Exceptions</button>
       <button onClick={() => setShowNewForm((value) => !value)} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#df3f32] px-4 py-2.5 text-sm font-extrabold text-white shadow-[0_14px_30px_rgba(223,63,50,0.24)] transition hover:-translate-y-0.5 hover:bg-[#c83328] md:w-auto"><Plus size={17} /> New PM</button>
     </>}
@@ -439,6 +592,18 @@ export function PmTasksPanel({ pmTasks, pmTemplates, serviceLines, canEdit, savi
       description="Generate the monthly PM list from the saved Mobil checklist, then track station completion, exceptions, and JCF time. PMs remain monthly obligations, not forced dispatch stops."
       action={templateAction}
     />
+
+    <div className="flex flex-col gap-3 border-b border-[rgba(23,32,51,0.1)] bg-white p-3 sm:p-4 md:flex-row md:items-center md:justify-between">
+      <div>
+        <p className="font-display text-sm font-extrabold text-[#172033]">Viewing {monthLabel(monthString(selectedDate))}</p>
+        <p className="text-sm font-semibold text-[#64748b]">Use previous/future months for PM history, upcoming obligations, and month setup.</p>
+      </div>
+      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] gap-2 md:w-auto md:min-w-[22rem]">
+        <button type="button" onClick={() => onMonthChange(addMonths(monthString(selectedDate), -1))} className="rounded-xl border border-[#244393]/15 bg-white px-3 py-2 text-[#244393] transition hover:bg-[#e8eefc]" aria-label="Previous PM month"><ChevronLeft size={18} /></button>
+        <input type="month" value={monthString(selectedDate)} onChange={(event) => onMonthChange(event.target.value)} className="field-control rounded-xl px-3 py-2 text-center font-display text-sm font-extrabold text-[#172033]" />
+        <button type="button" onClick={() => onMonthChange(addMonths(monthString(selectedDate), 1))} className="rounded-xl border border-[#244393]/15 bg-white px-3 py-2 text-[#244393] transition hover:bg-[#e8eefc]" aria-label="Next PM month"><ChevronRight size={18} /></button>
+      </div>
+    </div>
 
     {canEdit && showTemplateGenerator && <div className="border-b border-[rgba(23,32,51,0.1)] bg-[#f8faff] p-3 sm:p-4">
       <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
@@ -469,6 +634,7 @@ export function PmTasksPanel({ pmTasks, pmTemplates, serviceLines, canEdit, savi
           <div className="flex flex-wrap gap-2">
             <button type="button" disabled={templateBusy || !selectedTemplate || selectedFrequencies.length === 0} onClick={() => void previewTemplateGeneration()} className="inline-flex items-center gap-2 rounded-xl border border-[#244393]/15 bg-[#e8eefc] px-4 py-2 text-sm font-extrabold text-[#244393] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"><FileSpreadsheet size={16} /> Preview</button>
             <button type="button" disabled={templateBusy || !selectedTemplate || selectedFrequencies.length === 0 || (templatePreview?.summary.new_count === 0)} onClick={() => void generateTemplatePms()} className="inline-flex items-center gap-2 rounded-xl bg-[#16835f] px-4 py-2 text-sm font-extrabold text-white transition hover:-translate-y-0.5 hover:bg-[#106a4c] disabled:cursor-not-allowed disabled:opacity-50">{templateBusy ? <RefreshCw className="animate-spin" size={16} /> : <CalendarPlus size={16} />} Generate PMs</button>
+            <button type="button" disabled={!selectedTemplate} onClick={() => loadTemplateForEditing(selectedTemplate)} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-[#526071] transition hover:-translate-y-0.5 hover:bg-slate-50 disabled:opacity-50"><Edit3 size={16} /> Edit template</button>
           </div>
           {generationResult && <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-800">Created {generationResult.summary.created_count || 0} PMs. Skipped {generationResult.summary.duplicate_count} duplicates.</p>}
         </div>
@@ -510,10 +676,13 @@ export function PmTasksPanel({ pmTasks, pmTemplates, serviceLines, canEdit, savi
     {canEdit && showTemplateSetup && <form onSubmit={(event) => void submitTemplate(event)} className="border-b border-[rgba(23,32,51,0.1)] bg-white p-3 sm:p-4">
       <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="font-display text-lg font-extrabold text-[#172033]">Build a reusable PM template</p>
-          <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-[#64748b]">Set up stations and PM checklist once. Next month, John or George can generate the full PM month without entering 140 records by hand.</p>
+          <p className="font-display text-lg font-extrabold text-[#172033]">{editingTemplateId ? 'Edit reusable PM template' : 'Build a reusable PM template'}</p>
+          <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-[#64748b]">Template changes apply to future generated months. Already-generated PM records stay unchanged for reporting history.</p>
         </div>
-        <button type="button" onClick={() => setShowTemplateSetup(false)} className="rounded-xl border border-slate-200 bg-white p-2 text-[#64748b] transition hover:bg-slate-50"><X size={18} /></button>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={startNewTemplate} className="rounded-xl border border-[#244393]/15 bg-[#e8eefc] px-3 py-2 text-xs font-extrabold text-[#244393] transition hover:bg-[#dfe8ff]">New template</button>
+          <button type="button" onClick={() => setShowTemplateSetup(false)} className="rounded-xl border border-slate-200 bg-white p-2 text-[#64748b] transition hover:bg-slate-50"><X size={18} /></button>
+        </div>
       </div>
       <div className="grid gap-3 lg:grid-cols-4">
         <label className="text-xs font-extrabold uppercase tracking-[0.12em] text-[#64748b]">Template name<input required value={templateName} onChange={(event) => setTemplateName(event.target.value)} className="field-control mt-1 w-full rounded-xl px-3 py-2.5 text-sm font-semibold normal-case tracking-normal text-[#172033]" /></label>
@@ -526,8 +695,9 @@ export function PmTasksPanel({ pmTasks, pmTemplates, serviceLines, canEdit, savi
         <label className="block text-xs font-extrabold uppercase tracking-[0.12em] text-[#64748b]">PM checklist <span className="normal-case tracking-normal text-[#7b8798]">Task, Trade, Frequency, Minutes</span><textarea required value={templateItemsText} onChange={(event) => setTemplateItemsText(event.target.value)} rows={9} className="field-control mt-1 w-full rounded-2xl px-4 py-3 text-sm font-semibold leading-6 normal-case tracking-normal text-[#172033]" /></label>
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
-        <button disabled={templateBusy} className="inline-flex items-center gap-2 rounded-xl bg-[#16835f] px-4 py-2.5 text-sm font-extrabold text-white transition hover:-translate-y-0.5 hover:bg-[#106a4c] disabled:cursor-not-allowed disabled:opacity-50">{templateBusy ? <RefreshCw className="animate-spin" size={16} /> : <CheckCircle2 size={16} />} Save PM template</button>
-        <span className="rounded-xl border border-blue-100 bg-[#f8faff] px-3 py-2.5 text-xs font-bold text-[#64748b]">Parsed: {parseStations(templateStationsText).length} stations · {parseTemplateItems(templateItemsText).length} PM items</span>
+        <button disabled={templateBusy} className="inline-flex items-center gap-2 rounded-xl bg-[#16835f] px-4 py-2.5 text-sm font-extrabold text-white transition hover:-translate-y-0.5 hover:bg-[#106a4c] disabled:cursor-not-allowed disabled:opacity-50">{templateBusy ? <RefreshCw className="animate-spin" size={16} /> : <CheckCircle2 size={16} />} {editingTemplateId ? 'Save template changes' : 'Save PM template'}</button>
+        {editingTemplateId && <button type="button" disabled={templateBusy} onClick={() => void archiveTemplate()} className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-extrabold text-red-700 transition hover:bg-red-100 disabled:opacity-50"><Archive size={16} /> Archive template</button>}
+        <span className="rounded-xl border border-blue-100 bg-[#f8faff] px-3 py-2.5 text-xs font-bold text-[#64748b]">Parsed: {parseStations(templateStationsText).length} stations · {parseTemplateItems(templateItemsText).length} PM items{parseStations(templateStationsText).some((station) => station.region === 'Unknown') ? ' · region needed' : ''}</span>
       </div>
     </form>}
 
@@ -602,7 +772,8 @@ export function PmTasksPanel({ pmTasks, pmTemplates, serviceLines, canEdit, savi
           <div className="mt-3 space-y-2">
             {group.tasks.sort((a, b) => a.task_name.localeCompare(b.task_name)).map((pm) => <div key={pm.id} className="rounded-xl border border-white bg-white/90 px-3 py-2 shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="font-display text-sm font-extrabold text-[#172033]">{pm.task_name}</p><p className="mt-0.5 text-xs font-semibold text-[#7b8798]">Due {shortDate(pm.due_on || pm.scheduled_date)} · {pm.trade_category}{pm.estimated_minutes ? ` · ${pm.estimated_minutes} min` : ''}</p>{(pm.time_in_at || pm.time_out_at) && <p className="mt-1 text-xs font-bold text-[#244393]">JCF {shortDateTime(pm.time_in_at)} → {shortDateTime(pm.time_out_at)} · {durationLabel(pm.actual_duration_minutes)}</p>}</div><Badge kind={pm.status}>{statusLabel(pm.status)}</Badge></div>
-              {canEdit && <div className="mt-2 flex flex-wrap gap-2"><button disabled={savingPmTaskId !== null || pm.status === 'completed'} onClick={() => void onUpdate(pm.id, { status: 'completed' })} className="rounded-lg bg-[#16835f] px-2.5 py-1.5 text-xs font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-50">Complete</button><button disabled={savingPmTaskId !== null || pm.status === 'scheduled'} onClick={() => void onUpdate(pm.id, { status: 'scheduled' })} className="rounded-lg border border-[#244393]/15 bg-[#e8eefc] px-2.5 py-1.5 text-xs font-extrabold text-[#244393] disabled:cursor-not-allowed disabled:opacity-50">Scheduled</button><button disabled={savingPmTaskId !== null || pm.status === 'pending'} onClick={() => void onUpdate(pm.id, { status: 'pending' })} className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-extrabold text-[#526071] disabled:cursor-not-allowed disabled:opacity-50">Reset</button></div>}
+              {canEdit && <div className="mt-2 flex flex-wrap gap-2"><button disabled={savingPmTaskId !== null || pm.status === 'completed'} onClick={() => void onUpdate(pm.id, { status: 'completed' })} className="rounded-lg bg-[#16835f] px-2.5 py-1.5 text-xs font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-50">Complete</button><button disabled={savingPmTaskId !== null || pm.status === 'scheduled'} onClick={() => void onUpdate(pm.id, { status: 'scheduled' })} className="rounded-lg border border-[#244393]/15 bg-[#e8eefc] px-2.5 py-1.5 text-xs font-extrabold text-[#244393] disabled:cursor-not-allowed disabled:opacity-50">Scheduled</button><button disabled={savingPmTaskId !== null || pm.status === 'pending'} onClick={() => void onUpdate(pm.id, { status: 'pending' })} className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-extrabold text-[#526071] disabled:cursor-not-allowed disabled:opacity-50">Reset</button><button disabled={savingPmTaskId !== null} onClick={() => setEditingPmId(editingPmId === pm.id ? null : pm.id)} className="inline-flex items-center gap-1 rounded-lg border border-[#244393]/15 bg-white px-2.5 py-1.5 text-xs font-extrabold text-[#244393] disabled:opacity-50"><Edit3 size={13} /> Edit</button><button disabled={savingPmTaskId !== null} onClick={() => void voidPm(pm)} className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-extrabold text-red-700 disabled:opacity-50"><Archive size={13} /> Void</button></div>}
+              {editingPmId === pm.id && <PmEditForm pm={pm} saving={savingPmTaskId !== null} onCancel={() => setEditingPmId(null)} onSave={(changes) => onUpdate(pm.id, changes)} />}
             </div>)}
           </div>
         </article>
@@ -621,7 +792,8 @@ export function PmTasksPanel({ pmTasks, pmTemplates, serviceLines, canEdit, savi
           <div className="mt-3 grid gap-1 text-xs font-semibold text-[#7b8798] sm:grid-cols-2"><span>Region: {pm.region}</span><span>Trade: {pm.trade_category}</span><span>Completed: {shortDate(pm.completed_at)}</span><span>Deferred until: {shortDate(pm.deferred_until)}</span></div>
           {pm.notes && <p className="mt-3 rounded-xl border border-blue-100 bg-white px-3 py-2 text-xs font-semibold leading-5 text-[#526071]">{pm.notes}</p>}
           <PmTimeEditor pm={pm} canEdit={canEdit} saving={savingPmTaskId !== null} onUpdate={onUpdate} />
-          {canEdit && <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap"><button disabled={savingPmTaskId !== null || pm.status === 'scheduled'} onClick={() => void onUpdate(pm.id, { status: 'scheduled' })} className="rounded-xl border border-[#244393]/15 bg-white px-3 py-2 text-xs font-extrabold text-[#244393] transition hover:-translate-y-0.5 hover:bg-[#e8eefc] disabled:cursor-not-allowed disabled:opacity-50">Scheduled</button><button disabled={savingPmTaskId !== null || pm.status === 'completed'} onClick={() => void onUpdate(pm.id, { status: 'completed' })} className="rounded-xl bg-[#16835f] px-3 py-2 text-xs font-extrabold text-white transition hover:-translate-y-0.5 hover:bg-[#106a4c] disabled:cursor-not-allowed disabled:opacity-50">Complete</button><button disabled={savingPmTaskId !== null || pm.status === 'deferred'} onClick={() => void deferUntilNextMonth(pm)} className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-extrabold text-amber-900 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50">Defer</button><button disabled={savingPmTaskId !== null || pm.status === 'pending'} onClick={() => void onUpdate(pm.id, { status: 'pending' })} className="rounded-xl border border-[rgba(23,32,51,0.12)] bg-white px-3 py-2 text-xs font-extrabold text-[#334155] transition hover:-translate-y-0.5 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">Reset</button></div>}
+          {canEdit && <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap"><button disabled={savingPmTaskId !== null || pm.status === 'scheduled'} onClick={() => void onUpdate(pm.id, { status: 'scheduled' })} className="rounded-xl border border-[#244393]/15 bg-white px-3 py-2 text-xs font-extrabold text-[#244393] transition hover:-translate-y-0.5 hover:bg-[#e8eefc] disabled:cursor-not-allowed disabled:opacity-50">Scheduled</button><button disabled={savingPmTaskId !== null || pm.status === 'completed'} onClick={() => void onUpdate(pm.id, { status: 'completed' })} className="rounded-xl bg-[#16835f] px-3 py-2 text-xs font-extrabold text-white transition hover:-translate-y-0.5 hover:bg-[#106a4c] disabled:cursor-not-allowed disabled:opacity-50">Complete</button><button disabled={savingPmTaskId !== null || pm.status === 'deferred'} onClick={() => void deferUntilNextMonth(pm)} className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-extrabold text-amber-900 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50">Defer</button><button disabled={savingPmTaskId !== null || pm.status === 'pending'} onClick={() => void onUpdate(pm.id, { status: 'pending' })} className="rounded-xl border border-[rgba(23,32,51,0.12)] bg-white px-3 py-2 text-xs font-extrabold text-[#334155] transition hover:-translate-y-0.5 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">Reset</button><button disabled={savingPmTaskId !== null} onClick={() => setEditingPmId(editingPmId === pm.id ? null : pm.id)} className="inline-flex items-center justify-center gap-1 rounded-xl border border-[#244393]/15 bg-white px-3 py-2 text-xs font-extrabold text-[#244393] transition hover:-translate-y-0.5 hover:bg-[#e8eefc] disabled:opacity-50"><Edit3 size={13} /> Edit</button><button disabled={savingPmTaskId !== null} onClick={() => void voidPm(pm)} className="inline-flex items-center justify-center gap-1 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-extrabold text-red-700 transition hover:-translate-y-0.5 hover:bg-red-100 disabled:opacity-50"><Archive size={13} /> Void</button></div>}
+          {editingPmId === pm.id && <PmEditForm pm={pm} saving={savingPmTaskId !== null} onCancel={() => setEditingPmId(null)} onSave={(changes) => onUpdate(pm.id, changes)} />}
         </article>
       ))}
     </div>}

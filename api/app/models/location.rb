@@ -1,5 +1,6 @@
 class Location < ApplicationRecord
-  REGION_NAMES = [ "North", "Central", "South", "Islandwide", "Unknown" ].freeze
+  UNKNOWN_REGION = "Unknown".freeze
+  REGION_NAMES = [ "North", "Central", "South", "Islandwide" ].freeze
 
   belongs_to :client
   has_many :work_orders, dependent: :destroy
@@ -13,6 +14,14 @@ class Location < ApplicationRecord
       .where("LOWER(TRIM(name)) = ?", normalized_name.downcase)
       .order(:id)
       .first || new(client: client, name: normalized_name)
+  end
+
+  def self.normalized_region(value, location_name = nil)
+    value.to_s.strip.presence || inferred_region(location_name) || UNKNOWN_REGION
+  end
+
+  def self.inferred_region(location_name)
+    REGION_NAMES.find { |region| location_name.to_s.match?(/\b#{Regexp.escape(region)}\b/i) }
   end
 
   private

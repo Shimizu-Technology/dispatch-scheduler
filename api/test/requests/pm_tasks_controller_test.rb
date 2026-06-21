@@ -138,6 +138,40 @@ class PmTasksControllerTest < ActionDispatch::IntegrationTest
     assert_equal 75, payload.fetch("estimated_minutes")
   end
 
+  test "dispatcher cannot update a generated PM into an occupied template slot" do
+    north = location(name: "Yigo North", region: "North")
+    south = location(name: "Agat South", region: "South")
+    template = pm_template(locations: [ north, south ])
+    created = PmTemplateGenerationService.new(template: template, month: "2026-05").generate!.fetch(:created)
+    north_pm = PmTask.find(created.find { |pm| pm.fetch(:location) == "Yigo North" }.fetch(:id))
+
+    with_auth_env do
+      patch "/api/v1/pm_tasks/#{north_pm.id}", params: { location: "Agat South", region: "South", task_name: "Field renamed PM" }, headers: auth_headers
+    end
+
+    assert_response :conflict
+    assert_includes JSON.parse(response.body).fetch("errors").join(", "), "active PM task already exists"
+    assert_equal north.id, north_pm.reload.location_id
+  end
+
+  test "dispatcher cannot unarchive generated PM when replacement was regenerated" do
+    site = location(name: "Yigo North", region: "North")
+    template = pm_template(locations: [ site ])
+    original = PmTemplateGenerationService.new(template: template, month: "2026-05").generate!.fetch(:created).first
+    original_pm = PmTask.find(original.fetch(:id))
+    original_pm.update!(archived_at: Time.current, archive_reason: "Entered by mistake")
+    replacement = PmTemplateGenerationService.new(template: template, month: "2026-05").generate!.fetch(:created).first
+    PmTask.find(replacement.fetch(:id)).update!(task_name: "Replacement renamed in field")
+
+    with_auth_env do
+      patch "/api/v1/pm_tasks/#{original_pm.id}/unarchive", headers: auth_headers
+    end
+
+    assert_response :conflict
+    assert_includes JSON.parse(response.body).fetch("errors").join(", "), "archive it first before restoring the original"
+    assert original_pm.reload.archived?
+  end
+
   test "dispatcher archives PM task and active month list hides it" do
     archived = pm_task(task_name: "Mistake PM", date: DEFAULT_DATE)
     active = pm_task(task_name: "Keep PM", date: DEFAULT_DATE)

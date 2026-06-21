@@ -123,7 +123,7 @@ module Api
         ApplicationRecord.transaction do
           pm_task.assign_attributes(pm_task_record_attributes(pm_task, attrs))
           if duplicate_pm_task?(pm_task, exclude_id: pm_task.id)
-            render json: { errors: [ "PM already exists for this month, location, task, and scheduled date" ] }, status: :conflict
+            render json: { errors: duplicate_pm_task_errors(pm_task) }, status: :conflict
             raise ActiveRecord::Rollback
           end
           pm_task.save!
@@ -134,6 +134,8 @@ module Api
         render json: { errors: [ e.message ] }, status: :not_found
       rescue ActiveRecord::RecordInvalid => e
         render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
+      rescue ActiveRecord::RecordNotUnique => e
+        render_record_not_unique(e)
       rescue ArgumentError => e
         render json: { errors: [ e.message ] }, status: :unprocessable_entity
       end
@@ -154,6 +156,11 @@ module Api
 
       def unarchive
         pm_task = PmTask.find(params[:id])
+        if duplicate_pm_task?(pm_task, exclude_id: pm_task.id)
+          render json: { errors: duplicate_pm_task_errors(pm_task) }, status: :conflict
+          return
+        end
+
         ApplicationRecord.transaction do
           pm_task.update!(archived_at: nil, archive_reason: nil)
           AuditEvent.record!(action: "pm_task.unarchived", record: pm_task, user: current_user, metadata: pm_task_audit_metadata(pm_task))
@@ -163,6 +170,8 @@ module Api
         render json: { errors: [ e.message ] }, status: :not_found
       rescue ActiveRecord::RecordInvalid => e
         render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
+      rescue ActiveRecord::RecordNotUnique => e
+        render_record_not_unique(e)
       end
 
       private
@@ -228,7 +237,7 @@ module Api
 
         client = Client.find_or_create_by!(name: client_name)
         location = Location.find_or_initialize_by_normalized_name(client: client, name: location_name)
-        location.region ||= normalized_region(attrs[:region], location_name)
+        location.region ||= Location.normalized_region(attrs[:region], location_name)
 
         PmTask.new(
           client: client,
@@ -264,7 +273,7 @@ module Api
       end
 
       def apply_location_region!(pm_task, attrs)
-        region = normalized_region(attrs[:region], pm_task.location.name)
+        region = Location.normalized_region(attrs[:region], pm_task.location.name)
         location = pm_task.location
         location.name = location.name.to_s.strip
         location.region = region if region.present? && location.region != region
@@ -279,21 +288,30 @@ module Api
         end
       end
 
-      def normalized_region(value, location_name = nil)
-        value.to_s.strip.presence || inferred_region(location_name) || "Unknown"
-      end
-
-      def inferred_region(location_name)
-        Location::REGION_NAMES.find { |region| location_name.to_s.match?(/\b#{Regexp.escape(region)}\b/i) }
-      end
-
       def duplicate_pm_task?(pm_task, exclude_id: nil)
+        return true if duplicate_pm_template_slot?(pm_task, exclude_id: exclude_id)
         return false unless pm_task.client_id && pm_task.location_id && pm_task.scheduled_date && pm_task.task_name.present?
 
         scope = PmTask.active.where(client_id: pm_task.client_id, location_id: pm_task.location_id, scheduled_date: pm_task.scheduled_date)
           .where("LOWER(task_name) = ?", pm_task.task_name.downcase)
         scope = scope.where.not(id: exclude_id) if exclude_id
         scope.exists?
+      end
+
+      def duplicate_pm_template_slot?(pm_task, exclude_id: nil)
+        return false unless pm_task.pm_template_item_id && pm_task.location_id && pm_task.period_start
+
+        scope = PmTask.active.where(pm_template_item_id: pm_task.pm_template_item_id, location_id: pm_task.location_id, period_start: pm_task.period_start)
+        scope = scope.where.not(id: exclude_id) if exclude_id
+        scope.exists?
+      end
+
+      def duplicate_pm_task_errors(pm_task)
+        if duplicate_pm_template_slot?(pm_task, exclude_id: pm_task.id)
+          [ "An active PM task already exists for this template item, location, and period — archive it first before restoring the original." ]
+        else
+          [ "PM already exists for this month, location, task, and scheduled date" ]
+        end
       end
 
       def duplicate_signature(pm_task)
@@ -338,7 +356,7 @@ module Api
           client = attrs.key?(:client) ? Client.find_or_create_by!(name: attrs[:client].to_s.strip.presence || pm_task.client.name) : pm_task.client
           location_name = attrs.key?(:location) ? attrs[:location].to_s.strip.presence || raise(ArgumentError, "Location can't be blank") : pm_task.location.name
           location = Location.find_or_initialize_by_normalized_name(client: client, name: location_name)
-          location.region = normalized_region(attrs[:region], location_name) if attrs.key?(:region) || location.new_record? || location.region.blank?
+          location.region = Location.normalized_region(attrs[:region], location_name) if attrs.key?(:region) || location.new_record? || location.region.blank?
           location.save!
           changes[:client] = client
           changes[:location] = location
@@ -359,6 +377,27 @@ module Api
         changes[:time_in_at] = pm_task.time_in_at if pm_task&.respond_to?(:time_in_at) && !changes.key?(:time_in_at)
         changes[:time_out_at] = pm_task.time_out_at if pm_task&.respond_to?(:time_out_at) && !changes.key?(:time_out_at)
         changes
+      end
+
+      def render_record_not_unique(error)
+        render json: { errors: record_not_unique_errors(error) }, status: record_not_unique_status(error)
+      end
+
+      def record_not_unique_status(error)
+        pm_task_unique_error?(error) ? :conflict : :unprocessable_entity
+      end
+
+      def record_not_unique_errors(error)
+        if pm_task_unique_error?(error)
+          [ "An active PM task already exists for this template item, location, and period — archive it first before restoring the original." ]
+        else
+          [ "Record already exists" ]
+        end
+      end
+
+      def pm_task_unique_error?(error)
+        message = error.message.to_s
+        message.include?("index_pm_tasks_on_template_item_location_period") || message.include?("pm_tasks.pm_template_item_id")
       end
 
       def pm_task_audit_metadata(pm_task)

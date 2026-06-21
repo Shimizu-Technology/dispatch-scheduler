@@ -220,9 +220,9 @@ module Api
         location_attrs = attrs.respond_to?(:permit) ? attrs.permit(:name, :region) : attrs
         name = location_attrs[:name].to_s.strip.presence || raise(ArgumentError, "Station name can't be blank")
         location = Location.find_or_initialize_by_normalized_name(client: client, name: name)
-        region = normalized_region(location_attrs[:region], name)
+        region = Location.normalized_region(location_attrs[:region], name)
         location.name = name
-        location.region = region if location.new_record? || location.region.blank? || location.region == "Unknown"
+        location.region = region if location.new_record? || location.region.blank? || location.region == Location::UNKNOWN_REGION
         location.save!
         location
       end
@@ -240,14 +240,6 @@ module Api
 
       def permitted_item_params(item_attrs)
         item_attrs.respond_to?(:permit) ? item_attrs.permit(:id, :task_name, :trade_category, :frequency, :estimated_minutes, :notes, :active) : item_attrs
-      end
-
-      def normalized_region(value, station_name = nil)
-        value.to_s.strip.presence || inferred_region(station_name) || "Unknown"
-      end
-
-      def inferred_region(station_name)
-        Location::REGION_NAMES.find { |region| station_name.to_s.match?(/\b#{Regexp.escape(region)}\b/i) }
       end
 
       def generation_service

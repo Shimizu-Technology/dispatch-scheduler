@@ -34,14 +34,14 @@ function Metric({ icon, label, value, tone = 'blue', detail, onClick }: { icon: 
   const content = <>
     <div className={`inline-flex rounded-xl border p-1.5 sm:p-2 ${toneClasses(tone)}`}>{icon}</div>
     <div className="min-w-0">
-      <div className="font-display tabular break-words text-xl font-black tracking-tight text-[#172033] sm:text-2xl">{value ?? 0}</div>
-      <div className="text-[0.62rem] font-extrabold uppercase tracking-[0.14em] text-[#64748b] sm:text-[0.64rem] sm:tracking-[0.16em]">{label}</div>
+      <div className="font-display tabular break-words text-lg font-black tracking-tight text-[#172033] sm:text-xl">{value ?? 0}</div>
+      <div className="text-[0.62rem] font-extrabold uppercase tracking-[0.12em] text-[#64748b]">{label}</div>
       {detail && <p className="mt-1 text-xs font-semibold leading-4 text-[#526071]">{detail}</p>}
     </div>
   </>
 
-  const baseClass = "flex min-h-[5.6rem] w-full items-start gap-2 rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white/94 p-3 text-left shadow-[0_10px_26px_rgba(23,32,51,0.055)] transition sm:min-h-[6.5rem] sm:gap-3 sm:p-4"
-  if (onClick) return <button type="button" onClick={onClick} className={`${baseClass} hover:border-[#244393]/20 hover:shadow-[0_16px_34px_rgba(23,32,51,0.08)]`}>{content}</button>
+  const baseClass = "flex min-h-[5rem] w-full items-start gap-2 rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white/96 p-3 text-left shadow-[0_6px_18px_rgba(23,32,51,0.045)] transition sm:gap-3"
+  if (onClick) return <button type="button" onClick={onClick} className={`${baseClass} hover:border-[#244393]/20 hover:shadow-[0_10px_24px_rgba(23,32,51,0.07)]`}>{content}</button>
   return <article className={baseClass}>{content}</article>
 }
 
@@ -114,6 +114,7 @@ export function DashboardMetrics({ dashboard, workOrders, teams, technicians, pm
   const correctiveMaintenance = dashboard?.counts.corrective_maintenance ?? workOrders.filter((workOrder) => workOrder.corrective_maintenance).length
   const estimateRequired = dashboard?.counts.estimate_required ?? workOrders.filter((workOrder) => workOrder.estimate_required).length
   const waitingForParts = dashboard?.counts.waiting_for_parts ?? workOrders.filter((workOrder) => workOrder.status === 'waiting_for_parts').length
+  const waitingForApproval = dashboard?.counts.waiting_for_approval ?? workOrders.filter((workOrder) => workOrder.status === 'waiting_for_approval').length
   const dashboardDate = dashboard?.date
   const partsEtaCutoff = dashboardDate ? datePlusDays(dashboardDate, 7) : null
   const followUpDueToday = dashboard?.counts.follow_up_due_today ?? workOrders.filter((workOrder) => workOrder.follow_up_due_on && dashboardDate && workOrder.follow_up_due_on <= dashboardDate).length
@@ -128,23 +129,23 @@ export function DashboardMetrics({ dashboard, workOrders, teams, technicians, pm
   const scheduleItems = schedule?.items.length || 0
   const recentEvents = auditEvents.slice(0, 5)
 
-  return <section className="soft-reveal-delay space-y-3 sm:space-y-4">
-    <div className="grid gap-3 sm:gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(22rem,0.9fr)]">
-      <Card className="overflow-hidden border-[#244393]/14 bg-white text-[#172033] shadow-[0_16px_42px_rgba(23,32,51,0.075)]">
+  return <section className="soft-reveal-delay space-y-3">
+    <div className="grid gap-3 xl:grid-cols-[minmax(0,1.1fr)_minmax(20rem,0.9fr)]">
+      <Card className="overflow-hidden border-[#244393]/12 bg-white text-[#172033] shadow-[0_10px_28px_rgba(23,32,51,0.06)]">
         <div className="grid gap-0 lg:grid-cols-[1fr_auto]">
-          <div className="relative p-4 sm:p-5">
-            <div className="absolute inset-y-0 left-0 w-1 sm:w-1.5 bg-[#d84332]" />
-            <p className="font-display text-[0.66rem] font-extrabold uppercase tracking-[0.2em] text-[#244393] sm:text-[0.68rem] sm:tracking-[0.24em]">Today’s command decision</p>
-            <h2 className="font-display mt-2 text-2xl font-black tracking-[-0.035em] text-[#172033] sm:text-3xl">{next.label}</h2>
+          <div className="relative p-4">
+            <div className="absolute inset-y-0 left-0 w-1 bg-[#d84332]" />
+            <p className="font-display text-[0.66rem] font-extrabold uppercase tracking-[0.18em] text-[#244393]">Next action</p>
+            <h2 className="font-display mt-2 text-xl font-black tracking-[-0.025em] text-[#172033] sm:text-2xl">{next.label}</h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-[#526071]">{next.detail}</p>
           </div>
-          <div className="flex min-w-0 flex-col justify-center gap-2 border-t border-[rgba(23,32,51,0.1)] bg-[#f8faff] p-3 sm:p-4 lg:min-w-[15rem] lg:border-l lg:border-t-0">
-            {!schedule && canEdit && driverIssues === 0 && <button type="button" disabled={working} onClick={onSuggest} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#d84332] px-4 py-3 font-display text-sm font-extrabold text-white shadow-[0_14px_30px_rgba(216,67,50,0.24)] transition hover:-translate-y-0.5 hover:bg-[#bf3228] disabled:cursor-not-allowed disabled:opacity-60">
+          <div className="flex min-w-0 flex-col justify-center gap-2 border-t border-[rgba(23,32,51,0.1)] bg-[#f8faff] p-3 lg:min-w-[13rem] lg:border-l lg:border-t-0">
+            {!schedule && canEdit && driverIssues === 0 && <button type="button" disabled={working} onClick={onSuggest} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#d84332] px-4 py-2.5 font-display text-sm font-extrabold text-white shadow-[0_10px_24px_rgba(216,67,50,0.18)] transition hover:-translate-y-0.5 hover:bg-[#bf3228] disabled:cursor-not-allowed disabled:opacity-60">
               <ClipboardList size={17} /> {working ? 'Working...' : 'Generate draft'}
             </button>}
-            <button type="button" onClick={() => onGoToSection(next.target)} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-[#244393]/15 bg-white px-4 py-3 font-display text-sm font-extrabold text-[#244393] transition hover:-translate-y-0.5 hover:bg-[#e8eefc]">
+            {Boolean(schedule || !canEdit || driverIssues > 0) && <button type="button" onClick={() => onGoToSection(next.target)} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-[#244393]/15 bg-white px-4 py-2.5 font-display text-sm font-extrabold text-[#244393] transition hover:-translate-y-0.5 hover:bg-[#e8eefc]">
               {next.cta} <ArrowRight size={17} />
-            </button>
+            </button>}
           </div>
         </div>
       </Card>
@@ -169,6 +170,7 @@ export function DashboardMetrics({ dashboard, workOrders, teams, technicians, pm
           <Metric icon={<Clock3 size={18} />} label="Due soon" value={slaDueSoon} detail="Within the next 24 hours" tone={slaDueSoon > 0 ? 'amber' : 'steel'} onClick={() => onGoToSection('work-orders')} />
           <Metric icon={<ShieldCheck size={18} />} label="KPI missing" value={slaMissing} detail="Needs reported time cleanup" tone={slaMissing > 0 ? 'amber' : 'green'} onClick={() => onGoToSection('work-orders')} />
           <Metric icon={<Clock3 size={18} />} label="Waiting parts" value={waitingForParts} detail="Held out of dispatch" tone={waitingForParts > 0 ? 'amber' : 'steel'} onClick={() => onGoToSection('work-orders')} />
+          <Metric icon={<ShieldCheck size={18} />} label="Waiting approval" value={waitingForApproval} detail="Blocked until approval" tone={waitingForApproval > 0 ? 'amber' : 'steel'} onClick={() => onGoToSection('work-orders')} />
         </div>
       </Card>
 

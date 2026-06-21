@@ -48,7 +48,7 @@ class MonthlyReportServiceTest < ActiveSupport::TestCase
       trade_category: "General",
       reported_at: Time.zone.local(2026, 6, 6, 9, 0)
     )
-    pm_task(task_name: "Monthly PM", date: Date.new(2026, 6, 2), location_record: loc).update!(status: "completed", completed_at: Time.zone.local(2026, 6, 2, 12, 0))
+    pm_task(task_name: "Monthly PM", trade: "Electrical", date: Date.new(2026, 6, 2), location_record: loc).update!(status: "completed", completed_at: Time.zone.local(2026, 6, 2, 12, 0), time_in_at: Time.zone.local(2026, 6, 2, 8, 0), time_out_at: Time.zone.local(2026, 6, 2, 9, 45))
     pm_task(task_name: "Deferred PM", date: Date.new(2026, 6, 3), location_record: loc).update!(status: "deferred", deferred_until: Date.new(2026, 7, 1))
 
     travel_to Time.zone.local(2026, 6, 15, 8, 0) do
@@ -63,9 +63,29 @@ class MonthlyReportServiceTest < ActiveSupport::TestCase
       assert_equal 2, payload.dig(:pm_tasks, :total)
       assert_equal 1, payload.dig(:pm_tasks, :completed)
       assert_equal 1, payload.dig(:pm_tasks, :deferred)
+      assert_equal 1, payload.dig(:pm_tasks, :timed)
+      assert_equal 105, payload.dig(:pm_tasks, :actual_minutes)
+      assert_equal({ "Electrical" => 105 }, payload.dig(:pm_tasks, :by_trade_actual_minutes))
       assert_equal 1, payload.dig(:follow_ups, :due_today)
       assert_equal 1, payload.dig(:follow_ups, :parts_eta_this_month)
     end
+  end
+
+  test "PM report counts a station bulk completion time window once" do
+    mobil = client("Mobil")
+    loc = location(name: "Dededo", region: "North", client_record: mobil)
+    time_in = Time.zone.local(2026, 6, 8, 8, 0)
+    time_out = Time.zone.local(2026, 6, 8, 9, 0)
+
+    pm_task(task_name: "Electrical PM", trade: "Electrical", date: Date.new(2026, 6, 8), location_record: loc, estimated_minutes: 30).update!(status: "completed", completed_at: time_out, time_in_at: time_in, time_out_at: time_out)
+    pm_task(task_name: "Plumbing PM", trade: "Plumbing", date: Date.new(2026, 6, 8), location_record: loc, estimated_minutes: 90).update!(status: "completed", completed_at: time_out, time_in_at: time_in, time_out_at: time_out)
+
+    payload = MonthlyReportService.new(month: "2026-06").payload
+
+    assert_equal 2, payload.dig(:pm_tasks, :timed)
+    assert_equal 1, payload.dig(:pm_tasks, :timed_visits)
+    assert_equal 60, payload.dig(:pm_tasks, :actual_minutes)
+    assert_equal({ "Electrical" => 15, "Plumbing" => 45 }, payload.dig(:pm_tasks, :by_trade_actual_minutes))
   end
 
   test "CSV includes follow up and parts detail" do

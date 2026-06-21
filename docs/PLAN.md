@@ -150,11 +150,11 @@ Implemented as of June 15, 2026:
 
 - Rails API and React/Vite frontend monorepo.
 - Sanitized seed/import flow from John's Mobil workbook, PM workbook, Sodexo sample, and CBRE PDF sample.
-- Dashboard counts, work-order list, PA Projects workspace, team/technician availability, PM task view, monthly reports, and dispatch builder.
+- Dashboard counts, work-order list, PA Projects workspace, team/technician availability, PM task view with reusable templates/station checklist, monthly reports, and dispatch builder.
 - Work-order operational tracking for PA Projects, corrective maintenance, estimate-required work, structured parts/ETA/follow-up owner/vendor references, and configurable service lines / contract lines.
 - SLA/KPI due-date modeling for reported time, assessment due time, assessed time, repair due time, Guam-local time, and dashboard SLA pressure counts.
-- PM month workflow for manual PM creation, spreadsheet-paste month setup, duplicate-safe bulk creation, pending/scheduled/completed/deferred preventive maintenance, and incomplete-this-month tracking.
-- Rule-based daily schedule suggestion using priority, lifecycle status, SLA pressure, skill/trade, driver availability, region, PM commitments, and same-location “while you’re there” PM opportunities.
+- PM month workflow for reusable Mobil monthly PM templates, duplicate-safe month generation, station-level completion tracking, manual PM creation, spreadsheet-paste exception rows, pending/scheduled/completed/deferred preventive maintenance, and incomplete-this-month tracking.
+- Rule-based daily schedule suggestion using priority, lifecycle status, SLA pressure, skill/trade, driver availability, region, PM commitments, same-location “while you’re there” PM opportunities, and late-month PM closeout pressure.
 - Idempotent draft regeneration by date with a configurable daily item cap.
 - Manual dispatch overrides for crew, per-stop technician assignment, scheduled time, order, and notes.
 - WhatsApp-ready schedule export with finalized-before-sent guard.

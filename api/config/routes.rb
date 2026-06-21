@@ -14,7 +14,7 @@ Rails.application.routes.draw do
       resources :audit_events, only: [ :index ]
       resources :service_lines, only: [ :index, :create, :update ]
       post "work_order_imports/preview", to: "work_order_imports#preview"
-      resources :work_orders, only: [ :index, :create, :update ] do
+      resources :work_orders, only: [ :index, :show, :create, :update ] do
         member do
           patch :archive
           patch :unarchive
@@ -27,9 +27,16 @@ Rails.application.routes.draw do
           patch :daily_memberships
         end
       end
+      resources :pm_templates, only: [ :index, :create ] do
+        member do
+          post :preview
+          post :generate
+        end
+      end
       resources :pm_tasks, only: [ :index, :create, :update ] do
         collection do
           post :bulk_create
+          post :bulk_complete
         end
       end
       resources :dispatch_items, only: [ :update ] do

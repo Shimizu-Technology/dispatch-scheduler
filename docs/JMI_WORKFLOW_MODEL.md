@@ -1,6 +1,6 @@
 # JMI Dispatch Workflow Model
 
-Last updated: 2026-05-26
+Last updated: 2026-06-18
 
 This document captures what we currently understand about John Ilao's dispatch workflow and how the Dispatch Scheduler app should model it. It exists to keep product decisions grounded in John's real process instead of drifting into generic CMMS/work-order software.
 
@@ -10,6 +10,7 @@ Primary sources:
 - `docs/examples-from-john/`
 - `Brain-Dump/work/shimizu-tech/JMI-John-Ilao/1) Meeting with John - May 7, 2026.md`
 - `Brain-Dump/work/shimizu-tech/JMI-John-Ilao/2) Meeting with John about the Dispatch App.md`
+- `Brain-Dump/work/shimizu-tech/JMI-John-Ilao/3) Meeting with John after the meeting with Mike and John.md`
 - John's May 11 operation-details email and attachments/screenshots
 - `docs/JOHN_MEETING_2026_05_26.md`
 
@@ -22,6 +23,17 @@ The core product is the morning dispatch decision:
 > Work orders + PM commitments + technician roster + default crews + today's call-outs/crew swaps + drivers + skills + regions → suggested daily schedule → reviewed/finalized dispatch → WhatsApp-ready crew assignments.
 
 The app succeeds if John, another admin, or a family member can open it and produce a competent daily dispatch plan without everything depending on John's memory.
+
+As of the pilot hardening work, the frontend should present as a route-based management system, not a single tabbed prototype. Dispatch remains the execution workflow, but the main navigation is tracking-first:
+
+- `/dashboard` — operations health and next decision.
+- `/work-orders` and `/work-orders/:id` — open/closed work, blocked work, KPI pressure, intake drafts, and deep-linked work-order review/edit drawers.
+- `/pm/month/:month` — monthly PM station tracking, JCF time, and template generation.
+- `/pa-projects` — parts, estimates, approval, owner, ETA, and follow-up board.
+- `/dispatch/today` or `/dispatch/:date` — daily crew plan, finalization, outcomes.
+- `/crews`, `/reports/monthly/:month`, `/whatsapp`, `/activity`, and `/admin/*` for supporting operations.
+
+This keeps the app intuitive for John, George, and John’s dad: each page answers one management question while preserving browser back/forward, bookmarks, and URL-based work-order filters.
 
 ## 2. What John Actually Does
 
@@ -409,9 +421,13 @@ The current top-level sections should evolve toward this mental model:
    - or become separate nav sections if the page gets too dense
 
 4. **PM Tasks**
+   - reusable monthly PM templates by station and checklist item
+   - duplicate-safe month generation so George does not enter 140 PMs one by one
+   - station checklist completion status
+   - PM/JCF time in and time out capture for later duration analysis by PM type, trade, station, month, or quarter
    - due PM commitments by date/location
    - monthly completion status
-   - future “while you are there” PM suggestions based on work-order locations
+   - “while you are there” PM suggestions based on work-order locations plus late-month closeout pressure
 
 5. **PA Projects**
    - work orders marked as PA Projects
@@ -472,6 +488,8 @@ Likely additions/changes:
 - optional service-line preference on crews/technicians later, after the base service-line model is in use
 - `dispatch_item_technicians` snapshots for immutable person-level dispatch history
 - `required_technician_count` on work orders for staffing-aware assignment
+- PM template tables for reusable station/task checklists: `pm_templates`, `pm_template_locations`, `pm_template_items`, optional item-location restrictions, and generated `pm_tasks` period/due metadata
+- PM task JCF timing fields: `time_in_at` and `time_out_at` on generated/manual PM instances, separate from `completed_at`
 - SLA/KPI due fields, likely assessment due and repair due timestamps derived from priority and lifecycle state
 - stronger seed/import distinction between default crews and historical daily assignments
 
@@ -489,6 +507,7 @@ Better seed strategy:
 
 ## 9. Product Rules To Preserve
 
+- Monthly PM setup should be generated from templates where possible; George should not manually enter every recurring station/task combination.
 - No AI-created work order enters dispatch without review.
 - Every active crew should have a driver warning if no available driver exists.
 - Daily crew edits should not mutate default crews unless the user explicitly chooses default crew editing.

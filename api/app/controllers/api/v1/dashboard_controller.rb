@@ -15,6 +15,8 @@ module Api
             approved: WorkOrder.active_queue.where(status: "approved").count,
             unscheduled_approved: WorkOrder.active_queue.where(status: "approved", scheduled_date: nil).count,
             waiting_for_parts: WorkOrder.active_queue.where(status: "waiting_for_parts").count,
+            waiting_for_approval: WorkOrder.active_queue.where(status: "waiting_for_approval").count,
+            closed_work_orders: WorkOrder.active_queue.where(status: WorkOrder::CLOSED_STATUSES).count,
             pa_projects: WorkOrder.active_queue.open.where(pa_project: true).count,
             corrective_maintenance: WorkOrder.active_queue.open.where(corrective_maintenance: true).count,
             estimate_required: WorkOrder.active_queue.open.where(estimate_required: true).count,

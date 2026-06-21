@@ -1,10 +1,10 @@
 module Api
   module V1
     class PmTasksController < ApplicationController
-      before_action :require_dispatch_edit!, only: [ :create, :bulk_create, :update ]
+      before_action :require_dispatch_edit!, only: [ :create, :bulk_create, :bulk_complete, :update ]
 
       def index
-        scope = PmTask.includes(:client, :location).order(:scheduled_date, :id)
+        scope = PmTask.includes(:client, :location, :pm_template).order(:scheduled_date, :id)
         if params[:month].present?
           scope = scope.for_month(month_param)
         elsif params[:date].present?
@@ -86,6 +86,34 @@ module Api
         render json: { errors: [ e.message ] }, status: :unprocessable_entity
       end
 
+      def bulk_complete
+        ids = bulk_pm_task_ids
+        raise ArgumentError, "Choose at least one PM task to complete" if ids.blank?
+        raise ArgumentError, "Station completion is limited to 100 PM tasks at a time" if ids.length > 100
+
+        pm_tasks = PmTask.includes(:client, :location, :pm_template).where(id: ids).index_by(&:id)
+        missing_ids = ids - pm_tasks.keys
+        raise ActiveRecord::RecordNotFound, "Could not find PM tasks: #{missing_ids.join(', ')}" if missing_ids.any?
+
+        completed_at = Time.current
+        timing_attrs = pm_task_time_attributes(nil, bulk_complete_params)
+        ApplicationRecord.transaction do
+          ids.each do |id|
+            pm_task = pm_tasks.fetch(id)
+            pm_task.update!({ status: "completed", completed_at: pm_task.completed_at || completed_at, deferred_until: nil }.merge(timing_attrs))
+            AuditEvent.record!(action: "pm_task.updated", record: pm_task, user: current_user, metadata: pm_task_audit_metadata(pm_task).merge(source: "station_completion"))
+          end
+        end
+
+        render json: { pm_tasks: ids.map { |id| Serializers.pm_task(pm_tasks.fetch(id)) } }
+      rescue ActiveRecord::RecordNotFound => e
+        render json: { errors: [ e.message ] }, status: :not_found
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
+      rescue ArgumentError => e
+        render json: { errors: [ e.message ] }, status: :unprocessable_entity
+      end
+
       def update
         pm_task = PmTask.find(params[:id])
         attrs = pm_task_params
@@ -113,7 +141,11 @@ module Api
       end
 
       def pm_task_params
-        params.permit(:status, :completed_at, :deferred_until, :notes)
+        params.permit(:status, :completed_at, :deferred_until, :notes, :time_in_at, :time_out_at)
+      end
+
+      def bulk_complete_params
+        params.permit(:time_in_at, :time_out_at)
       end
 
       def create_pm_task_params
@@ -121,12 +153,20 @@ module Api
       end
 
       def create_permitted_keys
-        [ :client, :location, :region, :task_name, :trade_category, :frequency, :scheduled_date, :notes, :source_file, :status ]
+        [
+          :client, :location, :region, :task_name, :trade_category, :frequency,
+          :scheduled_date, :due_on, :estimated_minutes, :notes, :source_file,
+          :status, :time_in_at, :time_out_at
+        ]
       end
 
       def bulk_rows
         rows = params[:pm_tasks] || params[:rows]
         rows.respond_to?(:to_unsafe_h) ? rows.to_unsafe_h.values : rows
+      end
+
+      def bulk_pm_task_ids
+        Array(params[:pm_task_ids] || params[:ids]).reject(&:blank?).map(&:to_i).uniq
       end
 
       def build_pm_task(attrs)
@@ -148,7 +188,11 @@ module Api
           trade_category: attrs[:trade_category].presence || "General",
           frequency: attrs[:frequency].presence || "monthly",
           scheduled_date: scheduled_date,
+          due_on: attrs[:due_on].present? ? Date.parse(attrs[:due_on].to_s) : scheduled_date,
+          estimated_minutes: attrs[:estimated_minutes].presence,
           status: status,
+          time_in_at: parse_optional_time(attrs[:time_in_at], "time in"),
+          time_out_at: parse_optional_time(attrs[:time_out_at], "time out"),
           notes: attrs[:notes].presence,
           source_file: attrs[:source_file].presence || "manual_pm_month_setup"
         )
@@ -159,6 +203,14 @@ module Api
 
         Date.parse(value.to_s)
       rescue Date::Error
+        raise ArgumentError, "Invalid #{label}"
+      end
+
+      def parse_optional_time(value, label)
+        return nil if value.blank?
+
+        Time.zone.parse(value.to_s) || raise(ArgumentError, "Invalid #{label}")
+      rescue ArgumentError, TypeError
         raise ArgumentError, "Invalid #{label}"
       end
 
@@ -208,9 +260,18 @@ module Api
           completed_at: completed_at,
           deferred_until: deferred_until,
           notes: attrs.key?(:notes) ? attrs[:notes] : pm_task.notes
-        }
+        }.merge(pm_task_time_attributes(pm_task, attrs))
       rescue Date::Error
         raise ActionController::BadRequest, "Invalid deferred until"
+      end
+
+      def pm_task_time_attributes(pm_task, attrs)
+        changes = {}
+        changes[:time_in_at] = parse_optional_time(attrs[:time_in_at], "time in") if attrs.key?(:time_in_at)
+        changes[:time_out_at] = parse_optional_time(attrs[:time_out_at], "time out") if attrs.key?(:time_out_at)
+        changes[:time_in_at] = pm_task.time_in_at if pm_task&.respond_to?(:time_in_at) && !changes.key?(:time_in_at)
+        changes[:time_out_at] = pm_task.time_out_at if pm_task&.respond_to?(:time_out_at) && !changes.key?(:time_out_at)
+        changes
       end
 
       def pm_task_audit_metadata(pm_task)
@@ -219,7 +280,14 @@ module Api
           location: pm_task.location.name,
           scheduled_date: pm_task.scheduled_date,
           status: pm_task.status,
-          deferred_until: pm_task.deferred_until
+          deferred_until: pm_task.deferred_until,
+          due_on: pm_task.respond_to?(:due_on) ? pm_task.due_on : nil,
+          period_start: pm_task.respond_to?(:period_start) ? pm_task.period_start : nil,
+          period_end: pm_task.respond_to?(:period_end) ? pm_task.period_end : nil,
+          pm_template: pm_task.respond_to?(:pm_template) ? pm_task.pm_template&.name : nil,
+          time_in_at: pm_task.respond_to?(:time_in_at) ? pm_task.time_in_at&.iso8601 : nil,
+          time_out_at: pm_task.respond_to?(:time_out_at) ? pm_task.time_out_at&.iso8601 : nil,
+          actual_duration_minutes: pm_task.respond_to?(:actual_duration_minutes) ? pm_task.actual_duration_minutes : nil
         }
       end
     end

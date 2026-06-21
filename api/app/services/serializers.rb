@@ -2,7 +2,7 @@ module Serializers
   module_function
 
   def schedule(dispatch_schedule, summary: nil)
-    schedule = DispatchSchedule.includes(dispatch_items: [ :team, :dispatch_item_technicians, { work_order: [ :client, :location, :service_line ] }, { pm_task: [ :client, :location ] } ]).find(dispatch_schedule.id)
+    schedule = DispatchSchedule.includes(dispatch_items: [ :team, :dispatch_item_technicians, { work_order: [ :client, :location, :service_line ] }, { pm_task: [ :client, :location, :pm_template ] } ]).find(dispatch_schedule.id)
     team_contexts = dispatch_team_contexts(schedule)
     {
       id: schedule.id,
@@ -267,11 +267,51 @@ module Serializers
       trade_category: pm_task.trade_category,
       frequency: pm_task.frequency,
       scheduled_date: pm_task.scheduled_date,
+      due_on: pm_task.respond_to?(:due_on) ? pm_task.due_on : nil,
+      period_start: pm_task.respond_to?(:period_start) ? pm_task.period_start : nil,
+      period_end: pm_task.respond_to?(:period_end) ? pm_task.period_end : nil,
+      estimated_minutes: pm_task.respond_to?(:estimated_minutes) ? pm_task.estimated_minutes : nil,
+      pm_template_id: pm_task.respond_to?(:pm_template_id) ? pm_task.pm_template_id : nil,
+      pm_template_item_id: pm_task.respond_to?(:pm_template_item_id) ? pm_task.pm_template_item_id : nil,
+      pm_template_name: pm_task.respond_to?(:pm_template) ? pm_task.pm_template&.name : nil,
       status: pm_task.status,
       completed_at: pm_task.completed_at&.iso8601,
+      time_in_at: pm_task.respond_to?(:time_in_at) ? pm_task.time_in_at&.iso8601 : nil,
+      time_out_at: pm_task.respond_to?(:time_out_at) ? pm_task.time_out_at&.iso8601 : nil,
+      actual_duration_minutes: pm_task.respond_to?(:actual_duration_minutes) ? pm_task.actual_duration_minutes : nil,
       deferred_until: pm_task.deferred_until,
       notes: pm_task.notes,
       source_file: pm_task.source_file
+    }
+  end
+
+  def pm_template(template)
+    {
+      id: template.id,
+      name: template.name,
+      client_id: template.client_id,
+      client: template.client.name,
+      service_line_id: template.service_line_id,
+      service_line: template.service_line&.name,
+      active: template.active,
+      notes: template.notes,
+      locations: template.pm_template_locations.sort_by { |assignment| [ assignment.position, assignment.id ] }.map do |assignment|
+        location = assignment.location
+        { id: location.id, name: location.name, region: location.region, position: assignment.position, active: assignment.active }
+      end,
+      items: template.pm_template_items.sort_by { |item| [ item.position, item.id ] }.map do |item|
+        {
+          id: item.id,
+          task_name: item.task_name,
+          trade_category: item.trade_category,
+          frequency: item.frequency,
+          estimated_minutes: item.estimated_minutes,
+          position: item.position,
+          active: item.active,
+          notes: item.notes,
+          location_ids: item.restricted_locations? ? item.pm_template_item_locations.select(&:active?).map(&:location_id) : []
+        }
+      end
     }
   end
 

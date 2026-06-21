@@ -94,11 +94,11 @@ class PmTasksControllerTest < ActionDispatch::IntegrationTest
     assert_response :forbidden
   end
 
-  test "dispatcher updates PM task workflow status" do
+  test "dispatcher updates PM task workflow status and JCF time" do
     pm = pm_task(task_name: "Station PM", date: DEFAULT_DATE)
 
     with_auth_env do
-      patch "/api/v1/pm_tasks/#{pm.id}", params: { status: "completed", notes: "Completed with station visit" }, headers: auth_headers
+      patch "/api/v1/pm_tasks/#{pm.id}", params: { status: "completed", notes: "Completed with station visit", time_in_at: "2026-05-05T08:00:00+10:00", time_out_at: "2026-05-05T09:30:00+10:00" }, headers: auth_headers
     end
 
     assert_response :success
@@ -106,7 +106,64 @@ class PmTasksControllerTest < ActionDispatch::IntegrationTest
     assert_equal "completed", payload.fetch("status")
     assert_not_nil payload.fetch("completed_at")
     assert_equal "Completed with station visit", payload.fetch("notes")
+    assert_equal "2026-05-05T08:00:00+10:00", payload.fetch("time_in_at")
+    assert_equal "2026-05-05T09:30:00+10:00", payload.fetch("time_out_at")
+    assert_equal 90, payload.fetch("actual_duration_minutes")
     assert_equal "pm_task.updated", AuditEvent.last.action
+  end
+
+  test "dispatcher cannot save PM time out before time in" do
+    pm = pm_task(task_name: "Backwards JCF PM", date: DEFAULT_DATE)
+
+    with_auth_env do
+      patch "/api/v1/pm_tasks/#{pm.id}", params: { time_in_at: "2026-05-05T09:00:00+10:00", time_out_at: "2026-05-05T08:00:00+10:00" }, headers: auth_headers
+    end
+
+    assert_response :unprocessable_entity
+    assert_includes JSON.parse(response.body).fetch("errors").join(", "), "Time out at can't be before time in"
+    assert_nil pm.reload.time_in_at
+  end
+
+  test "dispatcher completes a station checklist atomically" do
+    first = pm_task(task_name: "Station Electrical", date: DEFAULT_DATE)
+    second = pm_task(task_name: "Station Plumbing", date: DEFAULT_DATE)
+
+    with_auth_env do
+      post "/api/v1/pm_tasks/bulk_complete", params: { pm_task_ids: [ first.id, second.id ], time_in_at: "2026-05-05T08:00:00+10:00", time_out_at: "2026-05-05T10:15:00+10:00" }, headers: auth_headers
+    end
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_equal [ "completed", "completed" ], payload.fetch("pm_tasks").map { |pm| pm.fetch("status") }
+    assert_equal [ 135, 135 ], payload.fetch("pm_tasks").map { |pm| pm.fetch("actual_duration_minutes") }
+    assert_equal [ "completed", "completed" ], [ first.reload.status, second.reload.status ]
+    assert_equal [ Time.zone.parse("2026-05-05T08:00:00+10:00"), Time.zone.parse("2026-05-05T08:00:00+10:00") ], [ first.time_in_at, second.time_in_at ]
+    assert_equal 2, AuditEvent.where(action: "pm_task.updated").count
+    assert_equal "station_completion", AuditEvent.last.metadata_hash.fetch("source")
+  end
+
+  test "station checklist completion rejects invalid JCF time without partial updates" do
+    first = pm_task(task_name: "Station Electrical", date: DEFAULT_DATE)
+    second = pm_task(task_name: "Station Plumbing", date: DEFAULT_DATE)
+
+    with_auth_env do
+      post "/api/v1/pm_tasks/bulk_complete", params: { pm_task_ids: [ first.id, second.id ], time_in_at: "2026-05-05T10:00:00+10:00", time_out_at: "2026-05-05T08:00:00+10:00" }, headers: auth_headers
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal [ "pending", "pending" ], [ first.reload.status, second.reload.status ]
+    assert_nil first.time_in_at
+  end
+
+  test "station checklist completion rejects missing PM tasks without partial updates" do
+    first = pm_task(task_name: "Station Electrical", date: DEFAULT_DATE)
+
+    with_auth_env do
+      post "/api/v1/pm_tasks/bulk_complete", params: { pm_task_ids: [ first.id, 99_999 ] }, headers: auth_headers
+    end
+
+    assert_response :not_found
+    assert_equal "pending", first.reload.status
   end
 
   test "deferred PM update requires deferred until date" do

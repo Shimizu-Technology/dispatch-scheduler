@@ -105,17 +105,9 @@ class MonthlyReportService
 
   def active_during_month
     @active_during_month ||= begin
-      records = WorkOrder
-        .includes(:client, :location, :service_line)
-        .where(effective_reported_node.lt(@data_end_time))
-        .to_a
+      records = active_during_month_candidates.to_a
       statuses_at_start = statuses_as_of(records, @start_time - 1.second)
-      opened_during_month = WorkOrderStatusEvent
-        .where(work_order_id: records.map(&:id), occurred_at: @start_time...@data_end_time)
-        .where.not(to_status: WorkOrder::CLOSED_STATUSES)
-        .distinct
-        .pluck(:work_order_id)
-        .to_set
+      opened_during_month = opened_during_month_ids.to_set
 
       records.select do |work_order|
         effective_reported_at(work_order) >= @start_time ||
@@ -125,17 +117,39 @@ class MonthlyReportService
     end
   end
 
-  def work_orders_as_of
-    @work_orders_as_of ||= WorkOrder
+  def active_during_month_candidates
+    base_scope = WorkOrder
+      .includes(:client, :location, :service_line)
+      .where(effective_reported_node.lt(@data_end_time))
+
+    base_scope.where(effective_reported_node.gteq(@start_time))
+      .or(base_scope.where.not(status: WorkOrder::CLOSED_STATUSES))
+      .or(base_scope.where(WorkOrder.arel_table[:closed_at].gteq(@start_time)))
+      .or(base_scope.where(id: opened_during_month_ids))
+  end
+
+  def opened_during_month_ids
+    @opened_during_month_ids ||= WorkOrderStatusEvent
+      .where(occurred_at: @start_time...@data_end_time)
+      .where.not(to_status: WorkOrder::CLOSED_STATUSES)
+      .distinct
+      .pluck(:work_order_id)
+  end
+
+  def active_as_of_candidates
+    base_scope = WorkOrder
       .includes(:client, :location, :service_line)
       .where(effective_reported_node.lteq(@as_of_time))
-      .to_a
+
+    base_scope.where.not(status: WorkOrder::CLOSED_STATUSES)
+      .or(base_scope.where(WorkOrder.arel_table[:closed_at].gt(@as_of_time)))
   end
 
   def active_as_of
     @active_as_of ||= begin
-      statuses = statuses_as_of(work_orders_as_of)
-      work_orders_as_of.reject do |work_order|
+      records = active_as_of_candidates.to_a
+      statuses = statuses_as_of(records)
+      records.reject do |work_order|
         WorkOrder::CLOSED_STATUSES.include?(statuses.fetch(work_order.id, work_order.status))
       end
     end

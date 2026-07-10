@@ -121,6 +121,40 @@ class MonthlyReportServiceTest < ActiveSupport::TestCase
     assert_equal 1, payload.dig(:work_orders, :active_during_month)
   end
 
+  test "historical report reconstruction excludes irrelevant old closed work from memory" do
+    old_closed = nil
+    open_at_start = nil
+    reported_and_closed_during_month = nil
+    travel_to Time.zone.local(2026, 4, 1, 8, 0) do
+      old_closed = work_order(title: "Closed before report", status: "approved", date: nil, reported_at: Time.current)
+    end
+    travel_to(Time.zone.local(2026, 4, 2, 8, 0)) { old_closed.update!(status: "completed") }
+    travel_to Time.zone.local(2026, 5, 1, 8, 0) do
+      open_at_start = work_order(title: "Open at report start", status: "approved", date: nil, reported_at: Time.current)
+    end
+    travel_to Time.zone.local(2026, 6, 2, 8, 0) do
+      reported_and_closed_during_month = work_order(title: "Reported and closed in report", status: "completed", date: nil, reported_at: Time.current)
+    end
+
+    travel_to Time.zone.local(2026, 7, 10, 8, 0) do
+      report = MonthlyReportService.new(month: "2026-06")
+      during_month_candidate_ids = report.send(:active_during_month_candidates).pluck(:id)
+      as_of_candidate_ids = report.send(:active_as_of_candidates).pluck(:id)
+
+      refute_includes during_month_candidate_ids, old_closed.id
+      assert_includes during_month_candidate_ids, open_at_start.id
+      assert_includes during_month_candidate_ids, reported_and_closed_during_month.id
+      refute_includes as_of_candidate_ids, old_closed.id
+      assert_includes as_of_candidate_ids, open_at_start.id
+      refute_includes as_of_candidate_ids, reported_and_closed_during_month.id
+
+      payload = report.payload
+      assert_equal 2, payload.dig(:work_orders, :active_during_month)
+      assert_equal 1, payload.dig(:work_orders, :open_as_of)
+      assert_equal 1, payload.dig(:work_orders, :closed_during_month)
+    end
+  end
+
   test "historical reports label an unknowable pre-migration open status instead of inventing one" do
     wo = nil
     travel_to Time.zone.local(2026, 5, 1, 8, 0) do

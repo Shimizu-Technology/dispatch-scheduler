@@ -14,20 +14,28 @@ class WorkOrderImportItem < ApplicationRecord
   scope :pending_review, -> { where(status: "pending") }
 
   def approve!(work_order:, user:)
-    raise ActiveRecord::RecordInvalid.new(self) unless status == "pending"
+    ensure_pending_review!
 
     update!(status: "approved", work_order: work_order, reviewed_by: user, reviewed_at: Time.current)
     work_order_import.refresh_status!
   end
 
   def reject!(user:)
-    raise ActiveRecord::RecordInvalid.new(self) unless status == "pending"
+    ensure_pending_review!
 
     update!(status: "rejected", reviewed_by: user, reviewed_at: Time.current)
     work_order_import.refresh_status!
   end
 
   private
+
+  def ensure_pending_review!
+    return if status == "pending"
+
+    message = "This intake draft has already been reviewed"
+    errors.add(:base, message) unless errors.added?(:base, message)
+    raise ActiveRecord::RecordInvalid.new(self)
+  end
 
   def review_state_is_consistent
     if status == "approved" && work_order.blank?

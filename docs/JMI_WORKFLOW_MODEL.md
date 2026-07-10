@@ -7,7 +7,7 @@ This document captures what we currently understand about John Ilao's dispatch w
 Primary sources:
 
 - `docs/PLAN.md`
-- `docs/examples-from-john/`
+- private local source artifacts described by `docs/examples-from-john/README.md`
 - `Brain-Dump/work/shimizu-tech/JMI-John-Ilao/1) Meeting with John - May 7, 2026.md`
 - `Brain-Dump/work/shimizu-tech/JMI-John-Ilao/2) Meeting with John about the Dispatch App.md`
 - `Brain-Dump/work/shimizu-tech/JMI-John-Ilao/3) Meeting with John after the meeting with Mike and John.md`

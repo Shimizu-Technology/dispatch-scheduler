@@ -113,6 +113,7 @@ module Serializers
       response_due_at: work_order.response_due_at&.iso8601,
       repair_due_at: work_order.repair_due_at&.iso8601,
       assessed_at: work_order.assessed_at&.iso8601,
+      closed_at: work_order.closed_at&.iso8601,
       sla_due_at: work_order.sla_due_at&.iso8601,
       sla_status: sla_status(work_order),
       scheduled_date: work_order.scheduled_date,
@@ -161,6 +162,18 @@ module Serializers
       notes: service_line.notes,
       work_orders_count: work_orders_count.nil? ? service_line.work_orders.count : work_orders_count
     }
+  end
+
+  def work_order_import_item(item)
+    work_order_import = item.work_order_import
+    item.extracted_data.deep_symbolize_keys.merge(
+      import_id: work_order_import.id,
+      import_item_id: item.id,
+      import_status: item.status,
+      source_kind: work_order_import.source_kind,
+      source_filename: work_order_import.source_filename,
+      imported_at: work_order_import.created_at&.iso8601
+    )
   end
 
   def user(user)

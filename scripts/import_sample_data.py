@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
-"""Create sanitized seed data from John's workflow artifacts.
+"""Create public-safe demo seed data from local workflow artifacts.
 
-This script writes normalized demo data only. It does not copy external system
-credentials or confidential account details into the seed output.
+The source workbooks stay outside Git. This importer preserves useful operating
+shape (counts, priorities, statuses, trades, regions, dates, and crew sizes)
+while replacing people, locations, work-order identifiers, descriptions, and
+source references before writing the committed demo seed.
 """
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import re
@@ -20,26 +23,19 @@ DEFAULT_ARTIFACT_DIR = ROOT / "docs" / "examples-from-john"
 ARTIFACT_DIR = Path(os.environ.get("JOHN_ARTIFACT_DIR", DEFAULT_ARTIFACT_DIR))
 OUT = ROOT / "data" / "seeds" / "sample_data.json"
 
-NORTH = {"YIGO PA", "YIGO P.A.", "YIGO NORTH", "YSENGSONG", "YSS", "LIGUAN", "FATIMA", "DEDEDO"}
-CENTRAL = {
-    "AIRPORT",
-    "TAMUNING",
-    "UPPER TUMON",
-    "EAST AGANA",
-    "EAHO",
-    "AGANA",
-    "AGANA HEIGHTS ES",
-    "MAITE",
-    "BARRIGADA",
-    "BARRIGADA HEIGHTS",
-    "BARRIGADA HTS",
-    "MANGILAO",
-    "ADELUP",
-    "ANIGUA",
-    "SINAJANA",
+PUBLIC_SANITIZATION_VERSION = 2
+IMPORT_CONFIG = {"driver_names": [], "location_regions": {}}
+
+PUBLIC_DESCRIPTIONS = {
+    "Plumbing": "Inspect and repair a plumbing issue at the listed demo site.",
+    "HVAC": "Inspect and repair an HVAC or refrigeration issue at the listed demo site.",
+    "Electrical": "Inspect and repair an electrical issue at the listed demo site.",
+    "Painting": "Assess and complete painting work at the listed demo site.",
+    "Carpentry": "Assess and complete carpentry or building work at the listed demo site.",
+    "Landscaping": "Complete landscaping work at the listed demo site.",
+    "Masonry": "Assess and complete masonry work at the listed demo site.",
+    "General": "Assess and complete general facilities work at the listed demo site.",
 }
-SOUTH = {"AGAT", "APRA", "APRA HEIGHTS", "YONA", "IPAN", "INARAJAN", "UMATAC", "MERIZO"}
-DRIVERS = {"REY", "EFREN", "ERWIN", "RONALD", "ARIEL", "NILO", "RENE", "BERNIE", "MANNY", "ROBERT", "NELSON V."}
 
 APPROVED_WORK_ORDER_COLUMNS = {
     "client": 0,
@@ -110,6 +106,51 @@ def find_required_file(patterns: list[str], env_var: str | None = None) -> Path:
     raise FileNotFoundError(f"Could not find {expected} in {ARTIFACT_DIR}")
 
 
+def find_required_workbook(required_sheets: list[str], env_var: str, excluded_sheets: list[str] | None = None) -> Path:
+    if os.environ.get(env_var):
+        return find_required_file(["*.xlsx"], env_var=env_var)
+
+    required = {name.strip().lower() for name in required_sheets}
+    excluded = {name.strip().lower() for name in (excluded_sheets or [])}
+    matches = []
+    for path in sorted(ARTIFACT_DIR.glob("*.xlsx")):
+        workbook = load_workbook(path, read_only=True, data_only=True)
+        sheet_names = {name.strip().lower() for name in workbook.sheetnames}
+        workbook.close()
+        if required.issubset(sheet_names) and sheet_names.isdisjoint(excluded):
+            matches.append(path)
+
+    if len(matches) == 1:
+        return matches[0]
+    if len(matches) > 1:
+        names = ", ".join(path.name for path in matches)
+        raise ValueError(f"Multiple workbooks contain the required sheets: {names}. Set {env_var} to choose one.")
+
+    raise FileNotFoundError(f"Could not find a workbook containing sheets: {', '.join(required_sheets)} in {ARTIFACT_DIR}")
+
+
+def load_private_import_config() -> dict:
+    """Load customer-specific names and site mappings without committing them."""
+    config_path = os.environ.get("JMI_IMPORT_CONFIG_FILE")
+    if not config_path:
+        return {"driver_names": [], "location_regions": {}}
+
+    path = Path(config_path).expanduser()
+    payload = json.loads(path.read_text())
+    if not isinstance(payload, dict):
+        raise ValueError("JMI_IMPORT_CONFIG_FILE must contain a JSON object")
+
+    driver_names = payload.get("driver_names", [])
+    location_regions = payload.get("location_regions", {})
+    if not isinstance(driver_names, list) or not isinstance(location_regions, dict):
+        raise ValueError("Import config must contain driver_names (array) and location_regions (object)")
+
+    return {
+        "driver_names": [canonical(name) for name in driver_names if clean(name)],
+        "location_regions": {canonical(name): clean(region) for name, region in location_regions.items() if clean(name) and clean(region)},
+    }
+
+
 def sheet_by_name(wb, name: str):
     expected = name.strip().lower()
     for sheet_name in wb.sheetnames:
@@ -140,14 +181,14 @@ def mapped_value(values, columns, key):
 def region_for(location: str | None) -> str:
     if not location:
         return "Unknown"
-    loc = location.upper().strip()
+    loc = canonical(location)
+    region_map = IMPORT_CONFIG.get("location_regions", {})
+    if loc in region_map:
+        return region_map[loc]
     parts = [p.strip() for p in re.split(r"/|,|-", loc) if p.strip()]
-    if any(p in SOUTH for p in parts) and not any(p in NORTH for p in parts):
-        return "South"
-    if any(p in NORTH for p in parts) and not any(p in SOUTH for p in parts):
-        return "North"
-    if any(p in CENTRAL for p in parts):
-        return "Central"
+    mapped_regions = {region_map[part] for part in parts if part in region_map}
+    if len(mapped_regions) == 1:
+        return mapped_regions.pop()
     return "Islandwide"
 
 
@@ -234,7 +275,7 @@ def parse_technicians(wb):
             "name": name,
             "primary_trade": skills[0],
             "skills": sorted(set(skills)),
-            "is_driver": upper in DRIVERS,
+            "is_driver": upper in IMPORT_CONFIG.get("driver_names", []),
             "active": True,
             "division": section,
         })
@@ -289,10 +330,10 @@ def parse_mobil_schedule(wb):
             description=description,
             status=rec.get("STATUS"),
             source="mobil_schedule_import",
-            source_reference="MOBIL SCHEDULE - MAY2026.xlsx / May2026",
+            source_reference="Private schedule workbook / daily schedule",
             scheduled_date=current_date,
             team_name=rec.get("TECH ASSIGNED"),
-            notes="Sanitized from John's sample Mobil schedule workbook.",
+            notes="Normalized from the private schedule workbook.",
         ))
     return work_orders
 
@@ -323,9 +364,9 @@ def parse_approved_work_orders(wb):
             description=description,
             status=status,
             source="approved_work_orders_import",
-            source_reference="MOBIL SCHEDULE - MAY2026.xlsx / Approved Work Orders",
+            source_reference="Private schedule workbook / approved work orders",
             team_name=mapped_value(values, APPROVED_WORK_ORDER_COLUMNS, "team_name"),
-            notes="Approved/material-prep sample from John's workbook.",
+            notes="Normalized approved/material-prep work from the private workbook.",
         ))
     return work_orders
 
@@ -390,7 +431,7 @@ def parse_mobil_embedded_pms(wb):
             "trade_category": infer_trade(rec.get("DESCRIPTION")),
             "frequency": "monthly",
             "scheduled_date": current_date,
-            "source_file": "MOBIL SCHEDULE - MAY2026.xlsx / May2026",
+            "source_file": "Private schedule workbook / daily schedule",
         })
     return pms
 
@@ -414,45 +455,6 @@ def parse_typhoon_routes(wb):
     return routes
 
 
-def add_known_samples(work_orders):
-    work_orders.append({
-        "client": "Sodexo / Schools",
-        "location": "Agana Heights ES",
-        "region": "Central",
-        "external_id": "SODEXO-SAMPLE-001",
-        "source": "whatsapp_sample",
-        "source_reference": "Sodexo-sample.png",
-        "title": "Staff restroom faucet will not turn off",
-        "description": "Level 1 - Faucet in staff restroom does not want to turn off. Please send a team to Agana Heights ES.",
-        "priority": "Level 1",
-        "normalized_priority": "P1",
-        "status": "new",
-        "original_status_text": "Level 1 WhatsApp request",
-        "trade_category": "Plumbing",
-        "scheduled_date": None,
-        "team_name": None,
-        "notes": "Sanitized from sample WhatsApp/Sodexo request.",
-    })
-    work_orders.append({
-        "client": "Mobil",
-        "location": "Yigo McDonalds Mobil Service Station",
-        "region": "North",
-        "external_id": "40787",
-        "source": "cbre_pdf_sample",
-        "source_reference": "WORK ORDER 40787.pdf",
-        "title": "External walls request for painting",
-        "description": "To paint over former location of Subway sign (CH). Service type: external walls request for painting.",
-        "priority": "P4",
-        "normalized_priority": "P4",
-        "status": "approved",
-        "original_status_text": "Approved",
-        "trade_category": "Painting",
-        "scheduled_date": "2026-05-12",
-        "team_name": None,
-        "notes": "CBRE sample: target start 2026-05-12 16:04, target finish 2026-05-19 16:04, asset EXR_GU31777 - WALL.",
-    })
-
-
 def team_names_from_orders(orders):
     counts = Counter(o.get("team_name") for o in orders if o.get("team_name"))
     teams = []
@@ -470,28 +472,146 @@ def add_missing_team_technicians(technicians, teams):
             "name": name,
             "primary_trade": "General",
             "skills": ["General"],
-            "is_driver": name in DRIVERS,
+            "is_driver": name in IMPORT_CONFIG.get("driver_names", []),
             "active": True,
             "division": "Mobil",
         })
 
 
+def public_safe_data(data):
+    """Replace customer-operational details while preserving scheduler shape."""
+    technician_names = sorted({tech["name"] for tech in data["technicians"]})
+    technician_aliases = {name: f"Technician {index:02d}" for index, name in enumerate(technician_names, start=1)}
+
+    location_records = []
+    for record in data["work_orders"] + data["pm_tasks"]:
+        key = (record.get("client") or "Demo", record.get("location") or "Unknown")
+        location_records.append((key, record.get("region") or "Unknown"))
+    for route in data.get("typhoon_routes", []):
+        for location in route.get("locations", []):
+            location_records.append((("Demo", location), region_for(location)))
+
+    location_aliases = {}
+    region_counts = Counter()
+    for key, region in sorted(set(location_records), key=lambda item: (item[1], item[0][0], item[0][1])):
+        region_counts[region] += 1
+        location_aliases[key] = f"{region} Demo Site {region_counts[region]:02d}"
+
+    def client_alias(name):
+        value = (name or "").lower()
+        if "school" in value or "sodexo" in value:
+            return "Schools Demo"
+        if "hotel" in value or "kitchen" in value or "restaurant" in value or "hkr" in value:
+            return "HKR Demo"
+        return "Mobil Demo"
+
+    teams = []
+    team_aliases = {}
+    for index, team in enumerate(data["teams"], start=1):
+        alias = f"Crew {index:02d}"
+        team_aliases[team["name"]] = alias
+        teams.append({
+            **team,
+            "name": alias,
+            "members": [technician_aliases.get(member, member) for member in team.get("members", [])],
+        })
+
+    technicians = []
+    for technician in data["technicians"]:
+        technicians.append({
+            **technician,
+            "name": technician_aliases[technician["name"]],
+            "division": "Primary" if technician.get("division") == "Mobil" else "Secondary",
+        })
+
+    work_orders = []
+    for index, work_order in enumerate(data["work_orders"], start=1):
+        trade = work_order.get("trade_category") or "General"
+        raw_location_key = (work_order.get("client") or "Demo", work_order.get("location") or "Unknown")
+        description = PUBLIC_DESCRIPTIONS.get(trade, PUBLIC_DESCRIPTIONS["General"])
+        work_orders.append({
+            **work_order,
+            "client": client_alias(work_order.get("client")),
+            "location": location_aliases[raw_location_key],
+            "external_id": f"DEMO-WO-{index:04d}",
+            "source": "demo_import",
+            "source_reference": "Local private source artifact (not committed)",
+            "title": f"Demo {trade} work order {index:03d}",
+            "description": description,
+            "original_status_text": (work_order.get("status") or "new").replace("_", " ").title(),
+            "team_name": team_aliases.get(work_order.get("team_name")),
+            "notes": "Public-safe synthetic record preserving source workflow shape.",
+        })
+
+    pm_tasks = []
+    for task in data["pm_tasks"]:
+        raw_location_key = (task.get("client") or "Demo", task.get("location") or "Unknown")
+        pm_tasks.append({
+            **task,
+            "client": client_alias(task.get("client")),
+            "location": location_aliases[raw_location_key],
+            "task_name": f"Demo {task.get('trade_category') or 'General'} preventive maintenance",
+            "source_file": "Local private PM source (not committed)",
+        })
+
+    routes = []
+    for index, route in enumerate(data.get("typhoon_routes", []), start=1):
+        routes.append({
+            "team": f"Storm Crew {index:02d}",
+            "locations": [
+                location_aliases.get(("Demo", location), f"{region_for(location)} Demo Route Site")
+                for location in route.get("locations", [])
+            ],
+        })
+
+    return {
+        **data,
+        "sanitization_version": PUBLIC_SANITIZATION_VERSION,
+        "notes": "Public-safe synthetic demo data preserving counts, priorities, statuses, trades, regions, dates, and crew sizes from local private artifacts.",
+        "source_files": [],
+        "typhoon_routes": routes,
+        "technicians": technicians,
+        "teams": teams,
+        "work_orders": work_orders,
+        "pm_tasks": pm_tasks,
+    }
+
+
+def write_public_seed(data):
+    OUT.parent.mkdir(parents=True, exist_ok=True)
+    OUT.write_text(json.dumps(data, indent=2))
+    print(f"Wrote {OUT}")
+
+
 def main():
-    mobil_path = find_required_file(["MOBIL SCHEDULE - MAY2026.xlsx"], env_var="JOHN_MOBIL_SCHEDULE_FILE")
-    pm_path = find_required_file(["PM SCHEDULE-*2026.xlsx", "PM SCHEDULE-*.xlsx"], env_var="JOHN_PM_SCHEDULE_FILE")
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--resanitize-existing",
+        action="store_true",
+        help="Reapply the current public-safe transform to the committed seed without private source files.",
+    )
+    args = parser.parse_args()
+
+    if args.resanitize_existing:
+        write_public_seed(public_safe_data(json.loads(OUT.read_text())))
+        return
+
+    global IMPORT_CONFIG
+    IMPORT_CONFIG = load_private_import_config()
+    mobil_path = find_required_workbook(["Team", "May2026"], env_var="JOHN_MOBIL_SCHEDULE_FILE")
+    pm_path = find_required_workbook(["Sheet1"], env_var="JOHN_PM_SCHEDULE_FILE", excluded_sheets=["Team"])
     mobil_wb = load_workbook(mobil_path, data_only=True)
     pm_wb = load_workbook(pm_path, data_only=True)
 
     technicians = parse_technicians(mobil_wb)
     work_orders = parse_mobil_schedule(mobil_wb) + parse_approved_work_orders(mobil_wb)
     pm_tasks = parse_pm_schedule(pm_wb, pm_path.name) + parse_mobil_embedded_pms(mobil_wb)
-    add_known_samples(work_orders)
     teams = team_names_from_orders(work_orders)
     add_missing_team_technicians(technicians, teams)
 
-    data = {
+    source_data = {
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "notes": "Sanitized demo data generated from John's sample workflow artifacts in docs/examples-from-john.",
+        "notes": "Private normalized source data. This object must be sanitized before it is written.",
         "source_files": sorted(p.name for p in ARTIFACT_DIR.iterdir() if p.is_file()),
         "typhoon_routes": parse_typhoon_routes(pm_wb),
         "technicians": technicians,
@@ -499,9 +619,8 @@ def main():
         "work_orders": work_orders,
         "pm_tasks": pm_tasks,
     }
-    OUT.parent.mkdir(parents=True, exist_ok=True)
-    OUT.write_text(json.dumps(data, indent=2))
-    print(f"Wrote {OUT}")
+    data = public_safe_data(source_data)
+    write_public_seed(data)
     print(f"technicians={len(technicians)} teams={len(teams)} work_orders={len(work_orders)} pm_tasks={len(pm_tasks)}")
 
 

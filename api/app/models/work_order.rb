@@ -4,6 +4,7 @@ class WorkOrder < ApplicationRecord
   belongs_to :team, optional: true
   belongs_to :service_line, optional: true
   has_many :dispatch_items, dependent: :nullify
+  has_many :status_events, class_name: "WorkOrderStatusEvent", dependent: :destroy
 
   STATUSES = %w[new needs_assessment approved scheduled in_progress carry_over waiting_for_parts waiting_for_approval completed closed cancelled].freeze
   CLOSED_STATUSES = %w[completed closed cancelled].freeze
@@ -20,6 +21,9 @@ class WorkOrder < ApplicationRecord
   ASSESSMENT_STATUSES = %w[new needs_assessment].freeze
 
   before_validation :normalize_sla_due_dates
+  before_save :sync_closed_at
+  after_create :record_initial_status_event
+  after_update :record_status_change, if: :saved_change_to_status?
 
   validates :status, inclusion: { in: STATUSES }
   validates :required_technician_count, numericality: { only_integer: true, greater_than_or_equal_to: 1 }
@@ -145,6 +149,37 @@ class WorkOrder < ApplicationRecord
   end
 
   private
+
+  def sync_closed_at
+    return unless will_save_change_to_status? || new_record?
+
+    if CLOSED_STATUSES.include?(status)
+      self.closed_at ||= Time.current
+    elsif will_save_change_to_status?
+      self.closed_at = nil
+    end
+  end
+
+  def record_initial_status_event
+    status_events.create!(
+      user: Current.user,
+      from_status: nil,
+      to_status: status,
+      source: "application",
+      occurred_at: created_at || Time.current
+    )
+  end
+
+  def record_status_change
+    previous_status, next_status = saved_change_to_status
+    status_events.create!(
+      user: Current.user,
+      from_status: previous_status,
+      to_status: next_status,
+      source: "application",
+      occurred_at: updated_at || Time.current
+    )
+  end
 
   def normalize_sla_due_dates
     self.reported_at ||= requested_at

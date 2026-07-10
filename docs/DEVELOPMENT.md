@@ -3,8 +3,8 @@
 ## Setup
 
 ```bash
-# Generate sanitized sample data from docs/examples-from-john/
-./scripts/import_sample_data.py
+# The committed public-safe seed works without private source artifacts.
+# Regeneration is optional; see docs/examples-from-john/README.md.
 
 # API
 cd api
@@ -20,7 +20,7 @@ npm run dev -- --port 5173
 
 Open http://127.0.0.1:5173.
 
-The frontend expects Node `22.12.0` or newer; `web/.node-version` pins that
+The frontend expects Node `22.13.0` or newer; `web/.node-version` pins that
 minimum for local version managers.
 
 ## Authentication
@@ -52,6 +52,7 @@ manage admins, dispatchers, and viewers from the in-app `Users` section. See
 ```bash
 # Importer
 python3 -m unittest discover -s scripts -p "*_test.py"
+# Optional, only when private source artifacts and import config are available:
 ./scripts/import_sample_data.py
 
 # API
@@ -62,6 +63,7 @@ bundle exec rails runner 's=DispatchSuggestionService.new(date: "2026-05-01").ca
 
 # Web
 cd ../web
+npm test
 npm run lint
 npm run build
 ```
@@ -71,9 +73,9 @@ npm run build
 GitHub Actions runs from the repo-level `.github/workflows/ci.yml` file. It verifies:
 
 - Rails tests, RuboCop, Brakeman, and bundler-audit under `api/`.
-- TypeScript lint and production build under `web/`.
+- Frontend route tests, TypeScript lint, dependency installation, and production build under `web/`.
 - Python 3.10 importer compilation and unit tests for the sample-data parser.
 
 ## Data Safety
 
-Do not commit external-system credentials. The committed seed JSON is sanitized and generated from the local review examples in `docs/examples-from-john/`.
+Do not commit credentials, customer source files, real rosters, site mappings, or operational descriptions. The committed seed JSON is pseudonymized and CI verifies its public-safe identifiers. Customer-specific driver and location-region mappings belong in the ignored `JMI_IMPORT_CONFIG_FILE`; see `docs/examples-from-john/README.md` and `docs/DATA_HANDLING.md`.

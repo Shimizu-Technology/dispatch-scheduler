@@ -10,9 +10,36 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_21_130000) do
-  # These are extensions that must be enabled in order to support this database
-  enable_extension "pg_catalog.plpgsql"
+ActiveRecord::Schema[8.1].define(version: 2026_07_10_154000) do
+  create_table "active_storage_attachments", force: :cascade do |t|
+    t.bigint "blob_id", null: false
+    t.datetime "created_at", null: false
+    t.string "name", null: false
+    t.bigint "record_id", null: false
+    t.string "record_type", null: false
+    t.datetime "updated_at", null: false
+    t.index ["blob_id"], name: "index_active_storage_attachments_on_blob_id"
+    t.index ["record_type", "record_id", "name", "blob_id"], name: "index_active_storage_attachments_uniqueness", unique: true
+  end
+
+  create_table "active_storage_blobs", force: :cascade do |t|
+    t.bigint "byte_size", null: false
+    t.string "checksum"
+    t.string "content_type"
+    t.datetime "created_at", null: false
+    t.string "filename", null: false
+    t.string "key", null: false
+    t.text "metadata"
+    t.string "service_name", null: false
+    t.datetime "updated_at", null: false
+    t.index ["key"], name: "index_active_storage_blobs_on_key", unique: true
+  end
+
+  create_table "active_storage_variant_records", force: :cascade do |t|
+    t.bigint "blob_id", null: false
+    t.string "variation_digest", null: false
+    t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
+  end
 
   create_table "audit_events", force: :cascade do |t|
     t.string "action", null: false
@@ -112,6 +139,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_130000) do
     t.string "region"
     t.datetime "updated_at", null: false
     t.index ["client_id"], name: "index_locations_on_client_id"
+  end
+
+  create_table "pm_task_status_events", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "from_status"
+    t.datetime "occurred_at", null: false
+    t.bigint "pm_task_id", null: false
+    t.string "source", default: "application", null: false
+    t.string "to_status", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id"
+    t.index ["pm_task_id", "occurred_at"], name: "index_pm_task_status_events_on_pm_task_id_and_occurred_at"
+    t.index ["pm_task_id"], name: "index_pm_task_status_events_on_pm_task_id"
+    t.index ["user_id"], name: "index_pm_task_status_events_on_user_id"
   end
 
   create_table "pm_tasks", force: :cascade do |t|
@@ -315,11 +356,61 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_130000) do
     t.index ["role"], name: "index_users_on_role"
   end
 
+  create_table "work_order_import_items", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.json "extracted_data", default: {}, null: false
+    t.integer "position", default: 0, null: false
+    t.datetime "reviewed_at"
+    t.bigint "reviewed_by_id"
+    t.string "status", default: "pending", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "work_order_id"
+    t.bigint "work_order_import_id", null: false
+    t.index ["reviewed_by_id"], name: "index_work_order_import_items_on_reviewed_by_id"
+    t.index ["status", "created_at"], name: "index_work_order_import_items_on_status_and_created_at"
+    t.index ["work_order_id"], name: "index_work_order_import_items_on_work_order_id"
+    t.index ["work_order_import_id", "position"], name: "idx_on_work_order_import_id_position_d6d1ea96b1", unique: true
+    t.index ["work_order_import_id"], name: "index_work_order_import_items_on_work_order_import_id"
+  end
+
+  create_table "work_order_imports", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.datetime "extracted_at", null: false
+    t.string "extraction_model"
+    t.text "raw_response"
+    t.string "source_content_type"
+    t.string "source_filename"
+    t.string "source_kind", null: false
+    t.string "source_sha256", null: false
+    t.text "source_text"
+    t.string "status", default: "pending", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["source_sha256"], name: "index_work_order_imports_on_source_sha256"
+    t.index ["status", "created_at"], name: "index_work_order_imports_on_status_and_created_at"
+    t.index ["user_id"], name: "index_work_order_imports_on_user_id"
+  end
+
+  create_table "work_order_status_events", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "from_status"
+    t.datetime "occurred_at", null: false
+    t.string "source", default: "application", null: false
+    t.string "to_status", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id"
+    t.bigint "work_order_id", null: false
+    t.index ["user_id"], name: "index_work_order_status_events_on_user_id"
+    t.index ["work_order_id", "occurred_at"], name: "idx_on_work_order_id_occurred_at_e0344042f6"
+    t.index ["work_order_id"], name: "index_work_order_status_events_on_work_order_id"
+  end
+
   create_table "work_orders", force: :cascade do |t|
     t.datetime "archived_at"
     t.datetime "assessed_at"
     t.datetime "assessment_due_at"
     t.integer "client_id", null: false
+    t.datetime "closed_at"
     t.boolean "corrective_maintenance", default: false, null: false
     t.datetime "created_at", null: false
     t.text "description"
@@ -359,6 +450,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_130000) do
     t.index ["archived_at"], name: "index_work_orders_on_archived_at"
     t.index ["assessment_due_at"], name: "index_work_orders_on_assessment_due_at"
     t.index ["client_id"], name: "index_work_orders_on_client_id"
+    t.index ["closed_at"], name: "index_work_orders_on_closed_at"
     t.index ["corrective_maintenance"], name: "index_work_orders_on_corrective_maintenance"
     t.index ["estimate_number"], name: "index_work_orders_on_estimate_number"
     t.index ["estimate_required"], name: "index_work_orders_on_estimate_required"
@@ -372,6 +464,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_130000) do
     t.index ["team_id"], name: "index_work_orders_on_team_id"
   end
 
+  add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "audit_events", "users"
   add_foreign_key "dispatch_item_technicians", "dispatch_items"
   add_foreign_key "dispatch_item_technicians", "technicians"
@@ -383,6 +477,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_130000) do
   add_foreign_key "dispatch_schedules", "users", column: "sent_by_user_id"
   add_foreign_key "follow_ups", "work_orders"
   add_foreign_key "locations", "clients"
+  add_foreign_key "pm_task_status_events", "pm_tasks"
+  add_foreign_key "pm_task_status_events", "users"
   add_foreign_key "pm_tasks", "clients"
   add_foreign_key "pm_tasks", "locations"
   add_foreign_key "pm_tasks", "pm_template_items"
@@ -402,6 +498,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_130000) do
   add_foreign_key "technician_availabilities", "technicians"
   add_foreign_key "technician_skills", "technicians"
   add_foreign_key "users", "users", column: "invited_by_id"
+  add_foreign_key "work_order_import_items", "users", column: "reviewed_by_id"
+  add_foreign_key "work_order_import_items", "work_order_imports"
+  add_foreign_key "work_order_import_items", "work_orders"
+  add_foreign_key "work_order_imports", "users"
+  add_foreign_key "work_order_status_events", "users"
+  add_foreign_key "work_order_status_events", "work_orders"
   add_foreign_key "work_orders", "clients"
   add_foreign_key "work_orders", "locations"
   add_foreign_key "work_orders", "service_lines"

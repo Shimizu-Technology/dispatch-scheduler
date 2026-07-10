@@ -1,6 +1,6 @@
 # Current Implementation Roadmap
 
-Last updated: 2026-06-02
+Last updated: 2026-07-10
 
 This plan tracks what is done after the dispatch workflow and Clerk-auth PRs
 merged, and what should come next to make the app solid for JMI operations.
@@ -24,16 +24,17 @@ Implemented in the POC:
 - CI, Rails request/service tests, importer tests, frontend lint/build, Brakeman, and bundler-audit.
 - Clerk auth with Rails JWT verification, Clerk token-claim setup docs, `admin`/`dispatcher`/`viewer` roles, bootstrap-admin setup, in-app user management, role refresh on sign-in, and viewer-only UI/API mode.
 - Admin-only user management for changing persisted roles in the app, with `CLERK_BOOTSTRAP_ADMIN_EMAILS` reserved for first-admin setup and recovery.
+- Durable work-order intake imports with private Active Storage attachments, persisted review items, explicit approval/rejection, and audit history.
+- OpenRouter image/text extraction plus scanned and digital PDF file parsing.
+- Work-order and PM status history with selected-month cutoff reporting.
+- Public-safe synthetic seed generation with private source/config inputs excluded from Git.
 
 Not implemented yet / still evolving:
 
-- Production file upload/intake.
-- Full PDF OCR and source-file storage.
 - Excel-file PM import beyond the current spreadsheet-paste month setup.
-- Full production file upload/intake.
-- OpenRouter OCR review workflow.
 - Deeper technician-level service-line preferences beyond crew-level service-line preferences.
 - More configurable capacity settings by crew if John needs different day caps by crew type.
+- John validation of exact SLA lifecycle clocks, monthly report vocabulary, and intake retention/access policy.
 - Production deployment hardening, backups, and monitoring.
 
 ## Completed Phase 1 - Secure Internal Access
@@ -51,18 +52,18 @@ Completed:
 - Frontend/backend URL env vars are documented through `VITE_API_URL` and `FRONTEND_URL`.
 - Auth docs cover Clerk token claims, bootstrap-admin setup, in-app role management, and required env vars.
 
-## Phase 2 - Real Intake Foundation
+## Completed Phase 2 - Real Intake Foundation
 
 Goal: John/admin can add and maintain work without editing seed files.
 
-Tasks:
+Completed:
 
 - Expand the manual work-order form into a real intake screen.
 - Add edit/update endpoints for work orders.
 - Add UI controls for source, requester, location, WO number, priority, status, trade, requested date, due date, and notes.
 - Add filters/search for status, priority, client, region, trade, and scheduled date.
 - Add duplicate detection by source plus external WO number.
-- Decide whether created/edited work orders should be immediately dispatch-eligible or require review.
+- Manual work orders become live records immediately with their selected lifecycle status; AI-created drafts require review and approval.
 
 Acceptance criteria:
 
@@ -70,38 +71,43 @@ Acceptance criteria:
 - Newly created work appears in dashboard counts and can be included in dispatch suggestions.
 - Duplicate external WO numbers are flagged before save.
 
-## Phase 3 - Upload And OCR With OpenRouter
+## Completed Phase 3 - Upload And OCR With OpenRouter
 
 Goal: uploaded PDFs/images/text can become draft work orders with human review.
 
-Tasks:
+Completed:
 
-- Implement private S3-backed upload storage using the plan in `docs/UPLOAD_STORAGE_PLAN.md`.
-- Add Rails endpoints for presigned browser uploads and upload-complete registration.
-- Add upload endpoints for PDF/image/text artifacts.
+- Implement Active Storage with private local disk in development/test and private S3-compatible storage in production.
+- Add authenticated upload endpoints for PDF/image/text artifacts and pasted text.
 - Add an OpenRouter extraction service for OCR/vision-capable model calls.
 - Extract structured fields into an intake draft, not directly into live work orders.
-- Show confidence/status per extracted field.
-- Add an approve/edit/reject review screen.
-- Keep original files linked to the created work order.
+- Show confidence/issues per extracted request.
+- Add an approve/edit/reject review workflow whose pending drafts survive refresh.
+- Keep original files linked through the import and approved work order.
+- Record source hashes, raw responses, models, uploader/reviewer identity, and approval/rejection audit events.
 - Add transactional email only when invitations, schedule notifications, or intake/OCR alerts exist. Resend is the likely default provider; document `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, and `APP_URL` when that work starts.
 
 Acceptance criteria:
 
-- Uploading the CBRE sample PDF creates a reviewable draft with WO number, location, service description, priority/status, target dates, requester/vendor details where available, and source reference.
-- Uploading the Sodexo image or pasted text creates a reviewable draft.
+- Uploading a representative scanned or digital work-order PDF creates a reviewable draft with readable structured fields and review issues.
+- Uploading an image or pasted text creates a reviewable draft.
 - No AI-extracted work order enters dispatch until a human approves it.
 
-## Phase 4 - Daily Schedule Operations
+## Partially completed Phase 4 - Daily Schedule Operations
 
 Goal: the dispatch schedule behaves like a real daily operating artifact.
 
-Tasks:
+Completed:
 
-- Add schedule status transitions: draft, reviewed, finalized, sent, archived.
-- Add a "finalize schedule" action.
-- Prevent accidental regeneration of finalized schedules.
-- Add audit events for regenerate, manual override, availability change, and finalize.
+- Draft, finalized, and sent schedule transitions.
+- Finalize, reopen, and mark-sent actions.
+- Protection against accidental regeneration of finalized/sent schedules.
+- Audit events for schedule generation, item overrides, availability changes, finalization, reopening, and send state.
+- WhatsApp output tied to the reviewed schedule.
+
+Remaining:
+
+- Decide whether separate reviewed and archived states add operational value.
 - Add schedule notes and dispatcher owner.
 - Add print/export options beyond copyable WhatsApp text.
 
@@ -146,11 +152,11 @@ Goal: the app is safe and supportable for real JMI usage.
 
 Tasks:
 
-- Move production to PostgreSQL.
+- Provision and migrate the selected production PostgreSQL service (the production adapter/config is already PostgreSQL-only).
 - Add deployment documentation.
 - Add error monitoring and structured logs.
 - Add backup/restore plan.
-- Expand request/model tests around intake approval, audit history, and schedule finalization.
+- Expand failure/restore drills around the already-tested intake approval, lifecycle history, and schedule-finalization behavior.
 - Confirm production Clerk project settings, bootstrap admin email, frontend URL, and backend URL with JMI/Shimizu stakeholders.
 
 Acceptance criteria:
@@ -162,17 +168,15 @@ Acceptance criteria:
 
 ## Recommended Next PR Order
 
-1. Private S3 upload storage plus intake draft model.
-2. OpenRouter extraction service and review UI.
-3. Production deployment hardening and real JMI data loading.
-4. Technician-level service-line preferences if John needs person-specific contract affinity.
-5. Reporting for monthly client/KPI meetings.
+1. Complete the provider-owned production, privacy, backup, and history-remediation gates in `docs/PILOT_READINESS.md`.
+2. Validate SLA lifecycle behavior and report definitions with John using real examples.
+3. Run a limited synthetic/staging workflow pilot, then a controlled real-data pilot.
+4. Add technician-level service-line preferences only if John needs person-specific contract affinity.
+5. Add direct Excel PM import only if spreadsheet paste is insufficient in practice.
 
-## Current Milestone Branch
+## Completed continuity/capacity milestone
 
-Branch: `feature/dispatch-continuity-capacity`
-
-Scope implemented by this milestone:
+Scope already implemented:
 
 - Snapshot the assigned technicians for every generated/overridden dispatch stop so historical schedules do not change when default crews later change.
 - Add a person day view in Crews showing each technician's assigned dispatch stops for the selected date.
@@ -192,4 +196,4 @@ The app is ready for a limited pilot when:
 - Dispatch suggestions can be manually edited and finalized.
 - WhatsApp export matches the final schedule.
 - Changes are auditable.
-- The app is deployed with backups.
+- The app is deployed with private object storage, monitoring, automated backups, and a recorded restore test.

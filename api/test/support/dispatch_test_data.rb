@@ -2,7 +2,8 @@ module DispatchTestData
   DEFAULT_DATE = Date.new(2026, 5, 5)
 
   def reset_dispatch_records
-    [ AuditEvent, FollowUp, DispatchItemTechnician, DispatchItem, DispatchSchedule, WorkOrder, PmTask, PmTemplateItemLocation, PmTemplateItem, PmTemplateLocation, PmTemplate, TeamMembership, TeamDailyOverride, TechnicianAvailability, TechnicianSkill, Technician, Team, Location, Client, ServiceLine, User ].each do |model|
+    Current.reset
+    [ ActiveStorage::Attachment, ActiveStorage::Blob, WorkOrderImportItem, WorkOrderImport, WorkOrderStatusEvent, PmTaskStatusEvent, AuditEvent, FollowUp, DispatchItemTechnician, DispatchItem, DispatchSchedule, WorkOrder, PmTask, PmTemplateItemLocation, PmTemplateItem, PmTemplateLocation, PmTemplate, TeamMembership, TeamDailyOverride, TechnicianAvailability, TechnicianSkill, Technician, Team, Location, Client, ServiceLine, User ].each do |model|
       model.delete_all
       ActiveRecord::Base.connection.reset_pk_sequence!(model.table_name) if ActiveRecord::Base.connection.respond_to?(:reset_pk_sequence!)
     end

@@ -51,6 +51,12 @@ class WorkOrderImportsControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1, payload.size
     assert_equal "WO-900", payload.first.fetch("external_id")
     assert_equal "Sink leak", payload.first.fetch("title")
+    assert payload.first.fetch("import_item_id").positive?
+    work_order_import = WorkOrderImport.last
+    assert_equal "file", work_order_import.source_kind
+    assert_equal "work-order.png", work_order_import.source_filename
+    assert work_order_import.source_file.attached?
+    assert_equal 1, work_order_import.items.count
   end
 
   test "dispatcher previews pasted intake text" do
@@ -97,6 +103,87 @@ class WorkOrderImportsControllerTest < ActionDispatch::IntegrationTest
     payload = JSON.parse(response.body).fetch("work_orders")
     assert_equal "pasted_text", payload.first.fetch("source")
     assert_equal "Door closer broken", payload.first.fetch("title")
+    work_order_import = WorkOrderImport.last
+    assert_equal "Door closer broken at Dededo", work_order_import.source_text
+    assert_equal "pending", work_order_import.status
+  end
+
+  test "dispatcher reloads and rejects durable pending intake drafts" do
+    work_order_import = WorkOrderImport.create!(
+      user: dispatcher_user,
+      source_kind: "pasted_text",
+      source_text: "Leaking pipe",
+      source_sha256: "abc123",
+      extraction_model: "test-model",
+      extracted_at: Time.current
+    )
+    item = work_order_import.items.create!(position: 0, extracted_data: {
+      client: "Mobil", location: "Yigo", region: "North", source: "pasted_text",
+      title: "Pipe leak", description: "Leaking pipe", priority: "P2",
+      status: "needs_assessment", trade_category: "Plumbing", confidence: "medium", issues: []
+    })
+
+    with_auth_env do
+      get "/api/v1/work_order_imports", headers: auth_headers
+    end
+    assert_response :success
+    payload = JSON.parse(response.body).fetch("work_orders")
+    assert_equal [ item.id ], payload.map { |draft| draft.fetch("import_item_id") }
+
+    with_auth_env do
+      post "/api/v1/work_order_import_items/#{item.id}/reject", headers: auth_headers
+    end
+    assert_response :no_content
+    assert_equal "rejected", item.reload.status
+    assert_equal "rejected", work_order_import.reload.status
+
+    reviewed_at = item.reviewed_at
+    audit_scope = AuditEvent.where(action: "work_order_import.rejected", record_type: "WorkOrderImport", record_id: work_order_import.id)
+    assert_equal 1, audit_scope.count
+
+    with_auth_env do
+      post "/api/v1/work_order_import_items/#{item.id}/reject", headers: auth_headers
+    end
+    assert_response :not_found
+    assert_equal reviewed_at, item.reload.reviewed_at
+    assert_equal 1, audit_scope.count
+  end
+
+  test "dispatcher cannot list or reject another uploader's pending intake draft" do
+    owned_import = WorkOrderImport.create!(
+      user: dispatcher_user,
+      source_kind: "pasted_text",
+      source_text: "Owned request",
+      source_sha256: "owned-draft",
+      extraction_model: "test-model",
+      extracted_at: Time.current
+    )
+    owned_item = owned_import.items.create!(position: 0, extracted_data: { description: "Owned request" })
+    other_user = User.create!(clerk_id: "other_importer_123", email: "other-importer@example.com", role: "dispatcher")
+    other_import = WorkOrderImport.create!(
+      user: other_user,
+      source_kind: "pasted_text",
+      source_text: "Other request",
+      source_sha256: "other-draft",
+      extraction_model: "test-model",
+      extracted_at: Time.current
+    )
+    other_item = other_import.items.create!(position: 0, extracted_data: { description: "Other request" })
+
+    with_auth_env do
+      get "/api/v1/work_order_imports", headers: auth_headers
+    end
+    assert_response :success
+    payload = JSON.parse(response.body).fetch("work_orders")
+    assert_equal [ owned_item.id ], payload.map { |draft| draft.fetch("import_item_id") }
+
+    with_auth_env do
+      post "/api/v1/work_order_import_items/#{other_item.id}/reject", headers: auth_headers
+    end
+    assert_response :not_found
+    assert_equal "pending", other_item.reload.status
+    assert_equal "pending", other_import.reload.status
+    assert_equal 0, AuditEvent.where(record_type: "WorkOrderImport", record_id: other_import.id).count
   end
 
   test "viewer cannot preview work order uploads" do
@@ -122,6 +209,64 @@ class WorkOrderImportsControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ "OpenRouter API key not configured" ], JSON.parse(response.body).fetch("errors")
   end
 
+  test "does not persist an empty successful extraction" do
+    original_extract = WorkOrderOcrExtractor.method(:extract)
+    begin
+      WorkOrderOcrExtractor.define_singleton_method(:extract) { |_file = nil, **_kwargs| { success: true, work_orders: [], raw_response: "{\"work_orders\":[]}" } }
+      with_auth_env do
+        post "/api/v1/work_order_imports/preview", params: { file: image_upload }, headers: auth_headers
+      end
+    ensure
+      WorkOrderOcrExtractor.define_singleton_method(:extract, original_extract)
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal [ "No readable work-order requests were found in that source." ], JSON.parse(response.body).fetch("errors")
+    assert_equal 0, WorkOrderImport.count
+  end
+
+  test "transaction rollback does not persist or upload an attachment" do
+    extractor_response = {
+      success: true,
+      work_orders: [ { description: "Rollback this intake", title: "Rollback intake" } ],
+      raw_response: "{\"work_orders\":[{\"description\":\"Rollback this intake\"}]}"
+    }
+    original_extract = WorkOrderOcrExtractor.method(:extract)
+    original_record = AuditEvent.method(:record!)
+    files_before = stored_test_files
+    failure_record = AuditEvent.new
+    failure_record.errors.add(:base, "Forced audit failure")
+
+    begin
+      WorkOrderOcrExtractor.define_singleton_method(:extract) { |_file = nil, **_kwargs| extractor_response }
+      AuditEvent.define_singleton_method(:record!) { |**_kwargs| raise ActiveRecord::RecordInvalid.new(failure_record) }
+      with_auth_env do
+        post "/api/v1/work_order_imports/preview", params: { file: image_upload }, headers: auth_headers
+      end
+    ensure
+      WorkOrderOcrExtractor.define_singleton_method(:extract, original_extract)
+      AuditEvent.define_singleton_method(:record!, original_record)
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal [ "Forced audit failure" ], JSON.parse(response.body).fetch("errors")
+    assert_equal 0, WorkOrderImport.count
+    assert_equal 0, WorkOrderImportItem.count
+    assert_equal 0, ActiveStorage::Attachment.count
+    assert_equal 0, ActiveStorage::Blob.count
+    assert_equal files_before, stored_test_files
+  end
+
+  test "rejects ambiguous file and pasted text intake" do
+    with_auth_env do
+      post "/api/v1/work_order_imports/preview", params: { file: image_upload, text: "Use this instead" }, headers: auth_headers
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal [ "Choose either one file or pasted text for each intake." ], JSON.parse(response.body).fetch("errors")
+    assert_equal 0, WorkOrderImport.count
+  end
+
   private
 
   def image_upload
@@ -130,6 +275,10 @@ class WorkOrderImportsControllerTest < ActionDispatch::IntegrationTest
     file.write("\x89PNG\r\n\x1A\nfake image")
     file.rewind
     Rack::Test::UploadedFile.new(file.path, "image/png", true, original_filename: "work-order.png")
+  end
+
+  def stored_test_files
+    Dir.glob(Rails.root.join("tmp/storage/**/*")).select { |path| File.file?(path) }.sort
   end
 
   def with_auth_env
@@ -146,5 +295,12 @@ class WorkOrderImportsControllerTest < ActionDispatch::IntegrationTest
       user.role = email.start_with?("viewer") ? "viewer" : "dispatcher"
     end
     { "Authorization" => "Bearer test_token:#{clerk_id}:#{email}" }
+  end
+
+  def dispatcher_user
+    User.find_or_create_by!(clerk_id: "dispatcher_imports_123") do |user|
+      user.email = "dispatcher-imports@example.com"
+      user.role = "dispatcher"
+    end
   end
 end

@@ -1,26 +1,27 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { Activity, BarChart3, CalendarDays, ClipboardList, FolderKanban, LayoutDashboard, LockKeyhole, Menu, MessageSquareText, PanelLeftClose, PanelLeftOpen, RefreshCw, Settings2, UserCog, Users, Wrench, X } from 'lucide-react'
 import { SignInButton, UserButton } from '@clerk/react'
-import { ActivityPanel } from './components/ActivityPanel'
-import { DashboardMetrics } from './components/DashboardMetrics'
-import { DispatchBuilder } from './components/DispatchBuilder'
-import { PaProjectsPanel } from './components/PaProjectsPanel'
-import { PmTasksPanel } from './components/PmTasksPanel'
-import { ReportsPanel } from './components/ReportsPanel'
-import { ServiceLinesPanel } from './components/ServiceLinesPanel'
-import { TeamsPanel } from './components/TeamsPanel'
-import { UserManagementPanel } from './components/UserManagementPanel'
-import { WhatsAppExport } from './components/WhatsAppExport'
-import { WorkOrdersPanel } from './components/WorkOrdersPanel'
+import { SectionErrorBoundary } from './components/SectionErrorBoundary'
 import { useAuthContext } from './contexts/useAuthContext'
 import { deleteJson, getBlob, getJson, patchJson, postJson } from './lib/api'
+import { dateFromMonth, ROUTE_PATHS, routeForLocation, routeFromLegacyHash } from './lib/routes'
+import type { ActiveSection, AppRoute } from './lib/routes'
 import type { AuditEvent, Dashboard, DispatchOutcomeStatus, DispatchSchedule, ManagedUser, MonthlyReport, PaginationMeta, PmTask, PmTaskBulkCreatePayload, PmTaskInput, PmTemplate, PmTemplateGenerationPayload, PmTemplateInput, ServiceLine, ServiceLineInput, Team, TeamInput, Technician, TechnicianInput, WhatsAppCrewExport, WhatsAppExportPayload, WorkOrder, WorkOrderInput, WorkOrderListPayload, WorkOrderStatus } from './types'
 import './index.css'
 
-type ActiveSection = 'overview' | 'work-orders' | 'pm-tasks' | 'pa-projects' | 'dispatch' | 'teams' | 'reports' | 'whatsapp' | 'activity' | 'service-lines' | 'users'
-type AppRoute = { section: ActiveSection; path: string; search: string; date?: string; month?: string; workOrderId?: number }
+const ActivityPanel = lazy(() => import('./components/ActivityPanel').then((module) => ({ default: module.ActivityPanel })))
+const DashboardMetrics = lazy(() => import('./components/DashboardMetrics').then((module) => ({ default: module.DashboardMetrics })))
+const DispatchBuilder = lazy(() => import('./components/DispatchBuilder').then((module) => ({ default: module.DispatchBuilder })))
+const PaProjectsPanel = lazy(() => import('./components/PaProjectsPanel').then((module) => ({ default: module.PaProjectsPanel })))
+const PmTasksPanel = lazy(() => import('./components/PmTasksPanel').then((module) => ({ default: module.PmTasksPanel })))
+const ReportsPanel = lazy(() => import('./components/ReportsPanel').then((module) => ({ default: module.ReportsPanel })))
+const ServiceLinesPanel = lazy(() => import('./components/ServiceLinesPanel').then((module) => ({ default: module.ServiceLinesPanel })))
+const TeamsPanel = lazy(() => import('./components/TeamsPanel').then((module) => ({ default: module.TeamsPanel })))
+const UserManagementPanel = lazy(() => import('./components/UserManagementPanel').then((module) => ({ default: module.UserManagementPanel })))
+const WhatsAppExport = lazy(() => import('./components/WhatsAppExport').then((module) => ({ default: module.WhatsAppExport })))
+const WorkOrdersPanel = lazy(() => import('./components/WorkOrdersPanel').then((module) => ({ default: module.WorkOrdersPanel })))
 
 type SectionLink = {
   id: ActiveSection
@@ -32,24 +33,9 @@ type SectionLink = {
   group: 'operate' | 'manage' | 'admin'
 }
 
-const SECTION_IDS: ActiveSection[] = ['overview', 'work-orders', 'pm-tasks', 'pa-projects', 'dispatch', 'teams', 'reports', 'whatsapp', 'activity', 'service-lines', 'users']
 const SELECTED_DATE_STORAGE_KEY = 'dispatch-scheduler:selected-date'
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'dispatch-scheduler:sidebar-collapsed'
 const DEFAULT_WORK_ORDER_QUERY = 'archived=active&page=1&per_page=50&sort=scheduled_date&direction=asc'
-const ROUTE_PATHS: Record<ActiveSection, string> = {
-  overview: '/dashboard',
-  'work-orders': '/work-orders',
-  'pm-tasks': '/pm',
-  'pa-projects': '/pa-projects',
-  dispatch: '/dispatch/today',
-  teams: '/crews',
-  reports: '/reports',
-  whatsapp: '/whatsapp',
-  activity: '/activity',
-  'service-lines': '/admin/service-lines',
-  users: '/admin/users',
-}
-
 function localDateString(date = new Date()) {
   const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
   return offsetDate.toISOString().slice(0, 10)
@@ -61,50 +47,6 @@ function initialSelectedDate() {
 
 function initialSidebarCollapsed() {
   return window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === 'true'
-}
-
-function routeFromLegacyHash(hash: string): ActiveSection | null {
-  const value = hash.replace('#', '')
-  return SECTION_IDS.includes(value as ActiveSection) ? value as ActiveSection : null
-}
-
-function routeForLocation(location: Location = window.location): AppRoute {
-  const legacySection = routeFromLegacyHash(location.hash)
-  if (legacySection) return { section: legacySection, path: ROUTE_PATHS[legacySection], search: '' }
-
-  const path = location.pathname.replace(/\/$/, '') || '/'
-  const search = location.search
-  const dispatchDateMatch = path.match(/^\/dispatch\/(\d{4}-\d{2}-\d{2})$/)
-  if (dispatchDateMatch) return { section: 'dispatch', path, search, date: dispatchDateMatch[1] }
-  if (path === '/dispatch' || path === '/dispatch/today') return { section: 'dispatch', path, search }
-
-  const pmMonthMatch = path.match(/^\/pm\/month\/(\d{4}-\d{2})$/)
-  if (pmMonthMatch) return { section: 'pm-tasks', path, search, month: pmMonthMatch[1] }
-  if (path === '/pm' || path === '/pm/templates') return { section: 'pm-tasks', path, search }
-
-  const reportMonthMatch = path.match(/^\/reports\/monthly\/(\d{4}-\d{2})$/)
-  if (reportMonthMatch) return { section: 'reports', path, search, month: reportMonthMatch[1] }
-  if (path === '/reports') return { section: 'reports', path, search }
-
-  if (path === '/' || path === '/dashboard') return { section: 'overview', path, search }
-  const workOrderMatch = path.match(/^\/work-orders\/(\d+)$/)
-  if (workOrderMatch) return { section: 'work-orders', path, search, workOrderId: Number(workOrderMatch[1]) }
-  if (path === '/work-orders') return { section: 'work-orders', path, search }
-  if (path === '/pa-projects' || path.startsWith('/pa-projects/')) return { section: 'pa-projects', path, search }
-  if (path === '/crews' || path === '/teams') return { section: 'teams', path, search }
-  if (path === '/whatsapp' || path === '/dispatch/whatsapp') return { section: 'whatsapp', path, search }
-  if (path === '/activity') return { section: 'activity', path, search }
-  if (path === '/admin/service-lines' || path === '/service-lines') return { section: 'service-lines', path, search }
-  if (path === '/admin/users' || path === '/users') return { section: 'users', path, search }
-
-  return { section: 'overview', path: '/dashboard', search: '' }
-}
-
-function dateFromMonth(month: string, fallbackDay: string) {
-  const day = Number(fallbackDay.slice(8, 10) || '1')
-  const [year, monthNumber] = month.split('-').map(Number)
-  const lastDay = new Date(year, monthNumber, 0).getDate()
-  return `${month}-${String(Math.min(day || 1, lastDay)).padStart(2, '0')}`
 }
 
 function FloatingTooltip({ anchorRef, label, visible }: { anchorRef: RefObject<HTMLElement | null>; label: string; visible: boolean }) {
@@ -152,6 +94,10 @@ function SidebarLogo({ collapsed }: { collapsed: boolean }) {
       <span className="block truncate text-[0.64rem] font-extrabold uppercase tracking-[0.18em] text-[#64748b]">Management System</span>
     </span>
   </div>
+}
+
+function SectionLoading() {
+  return <div className="rounded-3xl border border-[rgba(23,32,51,0.1)] bg-white p-8 text-center text-sm font-bold text-[#64748b] shadow-sm">Loading workspace…</div>
 }
 
 function SidebarNavLink({ section, href, active, collapsed, onNavigate }: { section: SectionLink; href: string; active: boolean; collapsed: boolean; onNavigate: (section: ActiveSection) => void }) {
@@ -1370,27 +1316,31 @@ function DispatchApp() {
 
         {error && <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-800">{error}</div>}
 
-        {currentSection === 'overview' && <DashboardMetrics dashboard={dashboard} workOrders={workOrders.filter((workOrder) => !workOrder.archived)} teams={teams} technicians={technicians} pmTasks={pmTasks} schedule={schedule} auditEvents={auditEvents} canEdit={canEditDispatch} working={working} onGoToSection={goToSection} onSuggest={suggestSchedule} />}
+        <SectionErrorBoundary resetKey={currentSection}>
+          <Suspense fallback={<SectionLoading />}>
+            {currentSection === 'overview' && <DashboardMetrics dashboard={dashboard} workOrders={workOrders.filter((workOrder) => !workOrder.archived)} teams={teams} technicians={technicians} pmTasks={pmTasks} schedule={schedule} auditEvents={auditEvents} canEdit={canEditDispatch} working={working} onGoToSection={goToSection} onSuggest={suggestSchedule} />}
 
-        {currentSection === 'work-orders' && (user ? <WorkOrdersPanel workOrders={workOrders} meta={workOrderMeta} serviceLines={serviceLines} canEdit={canEditDispatch} saving={workOrderSaving} routeSearch={currentRoute.search} workOrderToEdit={workOrderToEdit} onEditConsumed={clearWorkOrderToEdit} onRouteQueryChange={updateWorkOrderRouteQuery} onFetch={fetchWorkOrders} onCreate={createWorkOrder} onUpdate={updateWorkOrder} onArchive={archiveWorkOrder} /> : <SignInRequiredPanel title="Sign in to review work orders" />)}
+            {currentSection === 'work-orders' && (user ? <WorkOrdersPanel workOrders={workOrders} meta={workOrderMeta} serviceLines={serviceLines} canEdit={canEditDispatch} saving={workOrderSaving} routeSearch={currentRoute.search} workOrderToEdit={workOrderToEdit} onEditConsumed={clearWorkOrderToEdit} onRouteQueryChange={updateWorkOrderRouteQuery} onFetch={fetchWorkOrders} onCreate={createWorkOrder} onUpdate={updateWorkOrder} onArchive={archiveWorkOrder} /> : <SignInRequiredPanel title="Sign in to review work orders" />)}
 
-        {currentSection === 'pa-projects' && (user ? <PaProjectsPanel workOrders={paProjectWorkOrders} meta={paProjectMeta} canEdit={canEditDispatch} onPage={fetchPaProjects} onEdit={openWorkOrderFromPaProject} /> : <SignInRequiredPanel title="Sign in to review PA Projects" />)}
+            {currentSection === 'pa-projects' && (user ? <PaProjectsPanel workOrders={paProjectWorkOrders} meta={paProjectMeta} canEdit={canEditDispatch} onPage={fetchPaProjects} onEdit={openWorkOrderFromPaProject} /> : <SignInRequiredPanel title="Sign in to review PA Projects" />)}
 
-        {currentSection === 'teams' && (user ? <TeamsPanel teams={teams} technicians={technicians} serviceLines={serviceLines} schedule={schedule} canEdit={canEditDispatch} savingTechnicianId={availabilitySavingId} savingTeamId={teamSavingId} onToggleAvailability={toggleAvailability} onUpdateDailyCrew={updateDailyCrew} onUpdateDefaultCrew={updateDefaultCrew} onCreateTeam={createTeam} onArchiveTeam={archiveTeam} onCreateTechnician={createTechnician} onUpdateTechnician={updateTechnician} onArchiveTechnician={archiveTechnician} /> : <SignInRequiredPanel title="Sign in to check crews" />)}
+            {currentSection === 'teams' && (user ? <TeamsPanel teams={teams} technicians={technicians} serviceLines={serviceLines} schedule={schedule} canEdit={canEditDispatch} savingTechnicianId={availabilitySavingId} savingTeamId={teamSavingId} onToggleAvailability={toggleAvailability} onUpdateDailyCrew={updateDailyCrew} onUpdateDefaultCrew={updateDefaultCrew} onCreateTeam={createTeam} onArchiveTeam={archiveTeam} onCreateTechnician={createTechnician} onUpdateTechnician={updateTechnician} onArchiveTechnician={archiveTechnician} /> : <SignInRequiredPanel title="Sign in to check crews" />)}
 
-        {currentSection === 'dispatch' && (user ? <DispatchBuilder schedule={schedule} teams={teams} technicians={technicians} working={working} canEdit={canEditDispatch} onSuggest={suggestSchedule} onUpdate={updateDispatchItem} onOutcome={updateDispatchItemOutcome} onWorkOrderStatus={updateWorkOrderStatus} onFinalize={finalizeSchedule} onReopen={reopenSchedule} /> : <SignInRequiredPanel title="Sign in to build today's dispatch" />)}
+            {currentSection === 'dispatch' && (user ? <DispatchBuilder schedule={schedule} teams={teams} technicians={technicians} working={working} canEdit={canEditDispatch} onSuggest={suggestSchedule} onUpdate={updateDispatchItem} onOutcome={updateDispatchItemOutcome} onWorkOrderStatus={updateWorkOrderStatus} onFinalize={finalizeSchedule} onReopen={reopenSchedule} /> : <SignInRequiredPanel title="Sign in to build today's dispatch" />)}
 
-        {currentSection === 'pm-tasks' && (user ? <PmTasksPanel key={selectedDate} pmTasks={pmTasks} pmTemplates={pmTemplates} serviceLines={serviceLines} canEdit={canEditDispatch} savingPmTaskId={pmTaskSavingId} selectedDate={selectedDate} onUpdate={updatePmTask} onCreate={createPmTask} onBulkCreate={bulkCreatePmTasks} onCompleteStation={completePmStation} onArchive={archivePmTask} onCreateTemplate={createPmTemplate} onUpdateTemplate={updatePmTemplate} onArchiveTemplate={archivePmTemplate} onPreviewTemplate={previewPmTemplate} onGenerateTemplate={generatePmTemplate} onMonthChange={(month) => handleSelectedDateChange(dateFromMonth(month, selectedDate))} /> : <SignInRequiredPanel title="Sign in to review PM tasks" />)}
+            {currentSection === 'pm-tasks' && (user ? <PmTasksPanel key={selectedDate} pmTasks={pmTasks} pmTemplates={pmTemplates} serviceLines={serviceLines} canEdit={canEditDispatch} savingPmTaskId={pmTaskSavingId} selectedDate={selectedDate} onUpdate={updatePmTask} onCreate={createPmTask} onBulkCreate={bulkCreatePmTasks} onCompleteStation={completePmStation} onArchive={archivePmTask} onCreateTemplate={createPmTemplate} onUpdateTemplate={updatePmTemplate} onArchiveTemplate={archivePmTemplate} onPreviewTemplate={previewPmTemplate} onGenerateTemplate={generatePmTemplate} onMonthChange={(month) => handleSelectedDateChange(dateFromMonth(month, selectedDate))} /> : <SignInRequiredPanel title="Sign in to review PM tasks" />)}
 
-        {currentSection === 'service-lines' && (user ? <ServiceLinesPanel serviceLines={serviceLines} canAdmin={Boolean(user.permissions.can_admin)} saving={serviceLineSaving} onCreate={createServiceLine} onUpdate={updateServiceLine} /> : <SignInRequiredPanel title="Sign in to review service lines" />)}
+            {currentSection === 'service-lines' && (user ? <ServiceLinesPanel serviceLines={serviceLines} canAdmin={Boolean(user.permissions.can_admin)} saving={serviceLineSaving} onCreate={createServiceLine} onUpdate={updateServiceLine} /> : <SignInRequiredPanel title="Sign in to review service lines" />)}
 
-        {currentSection === 'reports' && (user ? <ReportsPanel report={monthlyReport} loading={reportLoading} onDownloadCsv={downloadMonthlyReportCsv} /> : <SignInRequiredPanel title="Sign in to review monthly reports" />)}
+            {currentSection === 'reports' && (user ? <ReportsPanel report={monthlyReport} loading={reportLoading} onDownloadCsv={downloadMonthlyReportCsv} /> : <SignInRequiredPanel title="Sign in to review monthly reports" />)}
 
-        {currentSection === 'whatsapp' && (user ? <WhatsAppExport schedule={schedule} message={whatsApp} crews={whatsAppCrews} copied={copied} working={working} canEdit={canEditDispatch} onCopy={copyWhatsApp} onMarkSent={markScheduleSent} /> : <SignInRequiredPanel title="Sign in to copy WhatsApp output" />)}
+            {currentSection === 'whatsapp' && (user ? <WhatsAppExport schedule={schedule} message={whatsApp} crews={whatsAppCrews} copied={copied} working={working} canEdit={canEditDispatch} onCopy={copyWhatsApp} onMarkSent={markScheduleSent} /> : <SignInRequiredPanel title="Sign in to copy WhatsApp output" />)}
 
-        {currentSection === 'activity' && (user ? <ActivityPanel events={auditEvents} /> : <SignInRequiredPanel title="Sign in to review activity" />)}
+            {currentSection === 'activity' && (user ? <ActivityPanel events={auditEvents} /> : <SignInRequiredPanel title="Sign in to review activity" />)}
 
-        {currentSection === 'users' && user?.permissions.can_admin && <UserManagementPanel users={managedUsers} currentUserId={user.id} savingUserId={savingUserId} onCreate={createManagedUser} onUpdate={updateManagedUser} onResendInvitation={resendManagedUserInvitation} onDelete={deleteManagedUser} />}
+            {currentSection === 'users' && user?.permissions.can_admin && <UserManagementPanel users={managedUsers} currentUserId={user.id} savingUserId={savingUserId} onCreate={createManagedUser} onUpdate={updateManagedUser} onResendInvitation={resendManagedUserInvitation} onDelete={deleteManagedUser} />}
+          </Suspense>
+        </SectionErrorBoundary>
         </div>
       </div>
     </main>

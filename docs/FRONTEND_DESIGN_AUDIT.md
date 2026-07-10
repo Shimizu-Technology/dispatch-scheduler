@@ -59,6 +59,6 @@ The latest UI pass moves the app further from a demo-style dashboard toward a co
 
 - Confirm John’s real PM spreadsheet format and adapt the PM paste parser if needed.
 - Add a safe one-time location cleanup/merge task for existing production records with trailing spaces or duplicate capitalization.
-- Add richer parts-follow-up fields for PA Projects and waiting-parts work.
-- Add monthly reporting/export for KPI, PM completion, CM, estimates, and PA Projects.
-- Add upload/intake screens once private S3 storage and OCR review are implemented.
+- Validate the existing parts/follow-up fields and monthly report vocabulary with John during the pilot.
+- Run a mobile usability pass with real dispatcher volume and long source filenames.
+- Decide whether intake needs a dedicated queue page after real usage; durable review is currently embedded in Work Orders.

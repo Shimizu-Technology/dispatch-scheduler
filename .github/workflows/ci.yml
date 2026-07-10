@@ -47,7 +47,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v6
         with:
-          node-version: 22.12.0
+          node-version: 22.13.0
           cache: npm
           cache-dependency-path: web/package-lock.json
 
@@ -56,6 +56,9 @@ jobs:
 
       - name: Lint TypeScript
         run: npm run lint
+
+      - name: Run frontend tests
+        run: npm test
 
       - name: Build web app
         run: npm run build

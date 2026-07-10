@@ -1,105 +1,73 @@
-# Upload Storage Plan
+# Upload Storage And Intake
 
-Last updated: 2026-05-13
+Last updated: 2026-07-10
 
-This app does not need S3 for the current Dispatch Scheduler because users cannot upload production files yet. The importer reads local example files during development, and the live UI currently works from database records.
+## Current implementation
 
-S3 becomes necessary in the next upload/OCR phase, when a dispatcher can upload PDFs, screenshots, images, or text files that should become reviewable intake drafts.
+Work-order intake now persists every successful extraction as a
+`WorkOrderImport` with one or more reviewable `WorkOrderImportItem` records.
+Uploaded images, PDFs, and text files are attached to the import with Rails
+Active Storage. Pasted text is retained on the import, capped at 20,000
+characters. Pending drafts survive browser refreshes and can be approved or
+rejected; only approval creates a live work order.
 
-## Recommendation
+Local development uses private disk storage under `api/storage`. Production is
+configured for a private S3-compatible bucket. Active Storage object keys are
+opaque, and the app does not generate public bucket URLs.
 
-Use a private S3 bucket with presigned browser uploads.
-
-Why:
-
-- Work orders and attachments may contain customer, location, requester, vendor, and operational details.
-- Files should not be public or guessable.
-- The browser can upload large files directly to S3 without routing file bytes through Rails.
-- Rails can keep an audit trail of who uploaded the file, what draft it created, and when a reviewer approved it.
-
-## Future Flow
-
-1. User selects a PDF, image, or text file in the intake UI.
-2. React asks Rails for a presigned upload target.
-3. Rails verifies the user can create intake drafts and returns a short-lived presigned POST.
-4. React uploads the file directly to S3.
-5. React tells Rails the upload completed.
-6. Rails creates an intake draft linked to the S3 object key.
-7. The OCR/OpenRouter worker extracts suggested fields into the draft.
-8. A human reviews, edits, approves, or rejects the draft.
-9. Only approved drafts become dispatch-eligible work orders.
-
-## Bucket Shape
-
-Use one private bucket per environment.
-
-Example names:
-
-```text
-dispatch-scheduler-uploads-staging
-dispatch-scheduler-uploads-production
-```
-
-Suggested object prefixes:
-
-```text
-intake/raw/{environment}/{yyyy}/{mm}/{uuid}/{filename}
-intake/derived/{environment}/{yyyy}/{mm}/{uuid}/extraction.json
-```
-
-## Future Environment Variables
-
-Do not add these to local `.env` until upload intake is implemented.
+## Production environment
 
 ```bash
 AWS_REGION=ap-northeast-1
-AWS_S3_BUCKET=dispatch-scheduler-uploads-staging
+AWS_S3_BUCKET=dispatch-scheduler-uploads-production
+# Use an instance/task IAM role when the host supports one. Otherwise:
 AWS_ACCESS_KEY_ID=...
 AWS_SECRET_ACCESS_KEY=...
-AWS_S3_UPLOAD_PREFIX=intake/raw
-AWS_S3_PRESIGN_EXPIRES_SECONDS=900
-AWS_S3_MAX_UPLOAD_MB=25
 ```
 
-`ap-northeast-1` is a reasonable first copy-paste default for Guam because Tokyo is usually closer than Sydney. Confirm latency, data residency expectations, and deployment region before production.
+Keep one private bucket per environment. Block all public access, enable
+server-side encryption, enable object versioning if the selected backup policy
+requires it, and scope the runtime identity to the one environment bucket.
+Rails currently uploads through the API request; direct browser uploads can be
+added later if real files regularly approach the 10 MB application limit.
 
-## CORS
-
-When upload intake is added, configure bucket CORS for the exact frontend origins.
-
-```json
-[
-  {
-    "AllowedHeaders": ["*"],
-    "AllowedMethods": ["GET", "POST", "PUT", "HEAD"],
-    "AllowedOrigins": [
-      "http://localhost:5173",
-      "http://127.0.0.1:5173",
-      "https://your-production-domain.com"
-    ],
-    "ExposeHeaders": ["ETag"],
-    "MaxAgeSeconds": 3000
-  }
-]
-```
-
-## IAM Policy Direction
-
-Use least-privilege access scoped to the upload bucket and prefixes Rails owns.
-
-Required actions for the future backend:
+Minimum runtime permissions:
 
 - `s3:PutObject`
 - `s3:GetObject`
 - `s3:DeleteObject`
 - `s3:ListBucket`
 
-Avoid broad `AmazonS3FullAccess` in production.
+Do not grant broad `AmazonS3FullAccess`.
 
-## Product Rules
+## Intake and audit rules
 
-- Original uploaded files stay linked to the intake draft and eventual work order.
-- OCR output is never trusted directly.
-- Dispatch eligibility starts only after human approval.
-- Uploaded files should be visible only to authenticated users who are allowed to manage intake.
-- Every upload, extraction, approval, rejection, and work-order creation should be audit logged.
+1. Rails verifies the user has dispatcher/admin edit access.
+2. The extractor verifies file content by signature and enforces a 10 MB limit.
+3. Images are sent as image input; PDFs are sent through OpenRouter's file
+   parser, defaulting to the `mistral-ocr` engine; text is capped at 20,000
+   characters.
+4. Successful extraction and its original source are saved atomically.
+5. The source SHA-256, model, raw extraction response, uploader, and timestamps
+   are retained.
+6. AI fields remain a pending draft until a human edits and approves or rejects
+   each extracted request.
+7. Approval, rejection, and live work-order creation are audit logged.
+8. Pending drafts are visible and reviewable only by their uploader. This is the
+   least-privilege default until a shared queue or explicit assignment workflow
+   is approved.
+
+## Decisions still required
+
+- Approve OpenRouter for the customer data involved and confirm its current
+  retention/training/data-processing terms before real uploads.
+- Choose source-file and raw-response retention periods. The code deliberately
+  does not auto-delete operational evidence before the owner decides that rule.
+- Decide whether an assigned/shared intake queue should replace the current
+  uploader-only default.
+- Configure and test bucket backup/restore, lifecycle, encryption, and alerting
+  in the actual hosting account.
+- Decide which roles, beyond the uploader or a future explicitly assigned
+  reviewer, may download original sources if a download UI is added.
+
+See `docs/DATA_HANDLING.md` and `docs/PILOT_READINESS.md` for the release gates.

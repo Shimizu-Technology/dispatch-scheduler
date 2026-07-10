@@ -1,20 +1,20 @@
 require "base64"
 require "json"
 require "net/http"
-require "pdf/reader"
-require "stringio"
 require "uri"
 
 class WorkOrderOcrExtractor
   OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
   DEFAULT_MODEL = "google/gemini-2.5-flash"
   MAX_FILE_SIZE = 10.megabytes
+  MAX_TEXT_LENGTH = 20_000
   SUPPORTED_IMAGE_CONTENT_TYPES = %w[image/jpeg image/png image/webp].freeze
-  SUPPORTED_TEXT_CONTENT_TYPES = %w[application/pdf text/plain].freeze
-  SUPPORTED_CONTENT_TYPES = (SUPPORTED_IMAGE_CONTENT_TYPES + SUPPORTED_TEXT_CONTENT_TYPES).freeze
+  SUPPORTED_TEXT_CONTENT_TYPES = %w[text/plain].freeze
+  SUPPORTED_PDF_CONTENT_TYPES = %w[application/pdf].freeze
+  SUPPORTED_CONTENT_TYPES = (SUPPORTED_IMAGE_CONTENT_TYPES + SUPPORTED_TEXT_CONTENT_TYPES + SUPPORTED_PDF_CONTENT_TYPES).freeze
 
   PROMPT = <<~PROMPT
-    You are extracting JMI Guam facilities work orders from a work-order image, PDF text, pasted email, or WhatsApp message.
+    You are extracting JMI Guam facilities work orders from a work-order image, PDF, pasted email, or WhatsApp message.
     Extract every distinct work order request that is visible. Do not invent details.
 
     Return ONLY minified valid JSON with this exact shape:
@@ -45,11 +45,8 @@ class WorkOrderOcrExtractor
       content_type = detected_content_type(uploaded_file)
       if SUPPORTED_IMAGE_CONTENT_TYPES.include?(content_type)
         extract_from_image(uploaded_file, content_type)
-      elsif content_type == "application/pdf"
-        extracted_text = extract_pdf_text(uploaded_file)
-        return { success: false, error: "This PDF does not contain readable text. Upload a screenshot/image of the work order instead." } if extracted_text.blank?
-
-        extract_from_text(extracted_text, source_label: "PDF text from #{uploaded_file.original_filename}", default_source: "pdf_upload")
+      elsif SUPPORTED_PDF_CONTENT_TYPES.include?(content_type)
+        extract_from_pdf(uploaded_file)
       else
         uploaded_file.rewind if uploaded_file.respond_to?(:rewind)
         extract_from_text(uploaded_file.read.to_s, source_label: "uploaded text file", default_source: "text_upload")
@@ -58,6 +55,7 @@ class WorkOrderOcrExtractor
 
     def extract_from_text(text, source_label:, default_source: "pasted_text")
       return { success: false, error: "Paste work-order text before previewing intake." } if text.to_s.strip.blank?
+      return { success: false, error: "Pasted work-order text is limited to 20,000 characters." } if text.to_s.length > MAX_TEXT_LENGTH
 
       api_key = ENV["OPENROUTER_API_KEY"]
       return { success: false, error: "OpenRouter API key not configured" } if api_key.blank?
@@ -67,7 +65,7 @@ class WorkOrderOcrExtractor
         messages: [
           {
             role: "user",
-            content: "#{PROMPT}\n\nSource: #{source_label}\n\nDefault source value if no source is visible: #{default_source}\n\nWORK ORDER TEXT:\n#{text.to_s.first(20_000)}"
+            content: "#{PROMPT}\n\nSource: #{source_label}\n\nDefault source value if no source is visible: #{default_source}\n\nWORK ORDER TEXT:\n#{text}"
           }
         ],
         temperature: 0.05,
@@ -92,6 +90,41 @@ class WorkOrderOcrExtractor
               { type: "text", text: PROMPT },
               { type: "image_url", image_url: { url: data_url(uploaded_file, content_type) } }
             ]
+          }
+        ],
+        temperature: 0.05,
+        max_tokens: 5000
+      }
+
+      normalize_openrouter_response(perform_openrouter_request(payload, api_key))
+    end
+
+    def extract_from_pdf(uploaded_file)
+      api_key = ENV["OPENROUTER_API_KEY"]
+      return { success: false, error: "OpenRouter API key not configured" } if api_key.blank?
+
+      filename = uploaded_file.original_filename.to_s.presence || "work-order.pdf"
+      payload = {
+        model: ENV.fetch("OPENROUTER_WORK_ORDER_OCR_MODEL", DEFAULT_MODEL),
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: PROMPT },
+              {
+                type: "file",
+                file: {
+                  filename: filename,
+                  file_data: data_url(uploaded_file, "application/pdf")
+                }
+              }
+            ]
+          }
+        ],
+        plugins: [
+          {
+            id: "file-parser",
+            pdf: { engine: ENV.fetch("OPENROUTER_PDF_ENGINE", "mistral-ocr") }
           }
         ],
         temperature: 0.05,
@@ -144,16 +177,6 @@ class WorkOrderOcrExtractor
       elsif uploaded_file.respond_to?(:content_type) && uploaded_file.content_type == "text/plain"
         "text/plain"
       end
-    end
-
-    def extract_pdf_text(uploaded_file)
-      uploaded_file.rewind if uploaded_file.respond_to?(:rewind)
-      io = StringIO.new(uploaded_file.read)
-      uploaded_file.rewind if uploaded_file.respond_to?(:rewind)
-      PDF::Reader.new(io).pages.map(&:text).join("\n").squish
-    rescue PDF::Reader::MalformedPDFError, PDF::Reader::UnsupportedFeatureError, ArgumentError => e
-      Rails.logger.warn("[WorkOrderOcrExtractor] PDF text extraction failed: #{e.class}: #{e.message}")
-      ""
     end
 
     def perform_openrouter_request(payload, api_key)

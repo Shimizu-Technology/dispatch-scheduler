@@ -98,8 +98,8 @@ After the first admin is in, normal access changes should happen in the app:
 
 - Admin opens the `Users` section.
 - Admin invites a user by email and chooses `admin`, `dispatcher`, or `viewer`.
-- Admin can resend pending invitations, deactivate users, delete pending/inactive users, and change roles.
-- The API prevents removing the last admin, changing your own role, or deactivating/deleting yourself.
+- Admin can resend pending invitations, deactivate users, reactivate users, and change roles.
+- Access removal is a soft deactivation so audit and intake-review history remains intact. The API prevents removing the last admin, changing your own role, or deactivating yourself.
 
 Optional invite email delivery:
 

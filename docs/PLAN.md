@@ -24,20 +24,17 @@ Everything else supports that.
 
 See `docs/JMI_WORKFLOW_MODEL.md` for the current product/workflow model, including the important distinction between persistent default crews and selected-date daily crew overrides. See `docs/JOHN_MEETING_2026_05_26.md` for the latest John review notes and product implications.
 
-## 3. What John Sent Us
+## 3. Private source material
 
-Artifacts are stored locally in this repo at:
+John supplied representative external work-order, messaging, daily-schedule,
+roster, and monthly-PM artifacts. The source files are private local inputs and
+are not part of this repository. `docs/examples-from-john/README.md` documents
+the ignored local workflow without naming or committing customer files.
 
-`docs/examples-from-john/`
-
-Files:
-
-- `WORK ORDER 40787.pdf` — sample work order from external work-order workflow.
-- `Sodexo-sample.png` — sample WhatsApp/Sodexo request.
-- `MOBIL SCHEDULE - MAY2026.xlsx` — active schedule workbook. Includes team/trade tab, monthly daily schedule tabs, approved work order tab, landscaping/ACU PM tabs.
-- `PM SCHEDULE-ARPIL2026.xlsx` — PM schedule sample sent to Mobil. The filename is misspelled in the original attachment and the importer intentionally tolerates it.
-
-Important: John's email included external site credentials. Do **not** repeat them in notes/chat. Do **not** log into external systems without explicit Leon approval. Keep generated seed data sanitized even when the local examples remain available for development review.
+Important: external credentials and operational source material must not be
+repeated in notes, chat, fixtures, tests, or source code. Do not access external
+systems without explicit Leon approval. Only the pseudonymized synthetic seed
+may be committed; see `docs/DATA_HANDLING.md`.
 
 ## 4. POC Scope
 
@@ -146,10 +143,10 @@ Principles:
 
 ## 5. Current Implementation Snapshot
 
-Implemented as of June 15, 2026:
+Implemented as of July 10, 2026:
 
 - Rails API and React/Vite frontend monorepo.
-- Sanitized seed/import flow from John's Mobil workbook, PM workbook, Sodexo sample, and CBRE PDF sample.
+- Public-safe seed/import flow from private local schedule and PM artifacts, with customer-specific roster/region configuration kept outside Git.
 - Dashboard counts, work-order list, PA Projects workspace, team/technician availability, PM task view with reusable templates/station checklist, monthly reports, and dispatch builder.
 - Work-order operational tracking for PA Projects, corrective maintenance, estimate-required work, structured parts/ETA/follow-up owner/vendor references, and configurable service lines / contract lines.
 - SLA/KPI due-date modeling for reported time, assessment due time, assessed time, repair due time, Guam-local time, and dashboard SLA pressure counts.
@@ -158,18 +155,16 @@ Implemented as of June 15, 2026:
 - Idempotent draft regeneration by date with a configurable daily item cap.
 - Manual dispatch overrides for crew, per-stop technician assignment, scheduled time, order, and notes.
 - WhatsApp-ready schedule export with finalized-before-sent guard.
-- AI-assisted intake preview from screenshot/image upload, PDF text, text file, pasted request text, and pasted screenshots; extracted drafts require human review/edit before saving.
-- Monthly JSON/CSV report endpoint for Mobil/CBRE/JMI conversations covering KPI pressure, PM completion, CM, estimates, PA Projects, parts, and follow-ups.
+- Durable AI-assisted intake from screenshot/image upload, scanned or digital PDF, text file, pasted request text, and pasted screenshots; source evidence and pending items survive refresh and require explicit human approval or rejection.
+- Cutoff-aware monthly JSON/CSV reporting covering KPI pressure, PM completion, CM, estimates, PA Projects, parts, and follow-ups, backed by work-order and PM status-event history.
 - Clerk auth with JWT verification, `FRONTEND_URL` / `VITE_API_URL` wiring, bootstrap-admin setup, in-app user management, and role refresh on sign-in.
 - Viewer mode hides/disables mutating controls and Rails guards mutating endpoints.
 - CI for Rails tests/lint/security, frontend lint/build, and Python importer tests.
 
 Still not implemented / still evolving:
 
-- Source-file storage for uploaded intake files after preview/save.
-- Scanned-image PDF OCR beyond readable PDF text extraction.
 - Excel-file PM import beyond the current spreadsheet-paste month setup.
-- Deeper service-line-aware crew preferences/scheduler scoring.
+- Final validation of SLA lifecycle rules, report vocabulary, and intake retention/access with John.
 - Production deployment/backups/monitoring.
 
 ## 6. Tech Stack
@@ -216,7 +211,7 @@ dispatch-scheduler/
 ### AI/OCR
 
 Phase 1 POC:
-- OpenRouter-backed extraction for images/screenshots, PDF text, text files, pasted text, and pasted screenshots.
+- OpenRouter-backed extraction for images/screenshots, scanned or digital PDFs, text files, pasted text, and pasted screenshots.
 - Extracted drafts show confidence/issues and must be reviewed/edited before saving.
 - Intake defaults avoid forcing newly created work into today's dispatch unless the dispatcher explicitly sets a dispatch date.
 
@@ -423,13 +418,13 @@ remaining work.
 - Added docs, CI, and root setup guidance.
 
 ### Step 2 — Prepare Sanitized Seed Data
-- Parsed `MOBIL SCHEDULE - MAY2026.xlsx` into seed data:
+- Parsed the private daily schedule workbook into seed data:
   - technicians/skills from `Team` tab
   - work orders from `May2026`
   - approved/waiting parts from `Approved Work Orders`
-- Parsed `PM SCHEDULE-ARPIL2026.xlsx` into PM task seed data.
-- Added Sodexo and CBRE samples as seed work orders.
-- Do not commit external-system credentials. Keep generated seed data sanitized from the local review examples.
+- Parsed the private PM workbook into PM task seed data.
+- Removed hard-coded customer examples, people, site maps, and identifiers from the importer itself.
+- Do not commit credentials or private source artifacts. CI verifies that the committed seed uses only public-safe aliases.
 
 ### Step 3 — Backend Models/API
 - Implemented models, seed data, Clerk auth, and core endpoints:

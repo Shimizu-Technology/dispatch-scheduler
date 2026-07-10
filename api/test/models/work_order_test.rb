@@ -1,6 +1,25 @@
 require "test_helper"
 
 class WorkOrderTest < ActiveSupport::TestCase
+  test "records closure time and immutable status history" do
+    wo = nil
+    travel_to Time.zone.local(2026, 5, 1, 8, 0) do
+      wo = work_order(title: "Status history", status: "approved")
+    end
+
+    travel_to Time.zone.local(2026, 5, 2, 9, 0) do
+      wo.update!(status: "completed")
+    end
+
+    assert_equal Time.zone.local(2026, 5, 2, 9, 0), wo.closed_at
+    assert_equal [ "approved", "completed" ], wo.status_events.order(:occurred_at).pluck(:to_status)
+
+    travel_to Time.zone.local(2026, 5, 3, 10, 0) do
+      wo.update!(status: "in_progress")
+    end
+    assert_nil wo.closed_at
+    assert_equal "in_progress", wo.status_events.order(:occurred_at).last.to_status
+  end
   test "uses Guam local time for SLA calculations" do
     assert_equal "Guam", Time.zone.name
 

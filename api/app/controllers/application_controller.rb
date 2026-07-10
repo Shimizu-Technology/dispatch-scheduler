@@ -23,6 +23,7 @@ class ApplicationController < ActionController::API
     return render json: { errors: [ "Invalid bearer token" ] }, status: :unauthorized if payload.blank?
 
     @current_user = Auth::UserSync.call(payload)
+    Current.user = @current_user
   rescue Auth::UserSync::AccessDenied => e
     render json: { errors: [ e.message ] }, status: :forbidden
   rescue ActiveRecord::RecordInvalid => e

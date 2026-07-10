@@ -74,6 +74,9 @@ module Api
           result[:work_orders].each_with_index do |row, position|
             work_order_import.items.create!(position: position, extracted_data: row)
           end
+          # has_one_attached persists its rows in this transaction and defers the
+          # service upload until after commit, so a later rollback cannot orphan
+          # an object in local or S3 storage.
           attach_source_file!(work_order_import, upload) if upload.present?
           AuditEvent.record!(
             action: "work_order_import.previewed",

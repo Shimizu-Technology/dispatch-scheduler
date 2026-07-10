@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import { Archive, ArchiveRestore, ClipboardPaste, Edit3, FileUp, Plus, Search, Sparkles, X } from 'lucide-react'
 import { Badge, Card, PanelHeader } from './ui'
 import { getJson, postForm, postJson } from '../lib/api'
+import { mergeImportDrafts } from '../lib/importDrafts'
 import type { OcrWorkOrderDraft, PaginationMeta, ServiceLine, WorkOrder, WorkOrderImportPreview, WorkOrderInput, WorkOrderStatus } from '../types'
 
 const priorities = ['P1', 'P2', 'P3', 'P4']
@@ -592,7 +593,8 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, savin
     void getJson<WorkOrderImportPreview>('/work_order_imports')
       .then((payload) => {
         if (!active) return
-        setImportDrafts(payload.work_orders.map((draft, index) => ({ ...draft, draftId: draftId(draft, index) })))
+        const persistedDrafts = payload.work_orders.map((draft, index) => ({ ...draft, draftId: draftId(draft, index) }))
+        setImportDrafts((currentDrafts) => mergeImportDrafts(currentDrafts, persistedDrafts))
       })
       .catch((error) => {
         if (active) setImportError(error instanceof Error ? error.message : 'Unable to load pending intake drafts')
@@ -713,7 +715,7 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, savin
       data.append('file', file)
       const payload = await postForm<WorkOrderImportPreview>('/work_order_imports/preview', data)
       const newDrafts = payload.work_orders.map((draft, index) => ({ ...draft, draftId: draftId(draft, index) }))
-      setImportDrafts((currentDrafts) => [...currentDrafts.filter((current) => !newDrafts.some((draft) => draft.import_item_id === current.import_item_id)), ...newDrafts])
+      setImportDrafts((currentDrafts) => mergeImportDrafts(currentDrafts, newDrafts))
     } catch (err) {
       setImportError(err instanceof Error ? err.message : 'Unable to scan uploaded work order')
     } finally {
@@ -728,7 +730,7 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, savin
     try {
       const payload = await postJson<WorkOrderImportPreview>('/work_order_imports/preview', { text: pasteText })
       const newDrafts = payload.work_orders.map((draft, index) => ({ ...draft, draftId: draftId(draft, index) }))
-      setImportDrafts((currentDrafts) => [...currentDrafts.filter((current) => !newDrafts.some((draft) => draft.import_item_id === current.import_item_id)), ...newDrafts])
+      setImportDrafts((currentDrafts) => mergeImportDrafts(currentDrafts, newDrafts))
       setPasteText('')
     } catch (err) {
       setImportError(err instanceof Error ? err.message : 'Unable to preview pasted intake')

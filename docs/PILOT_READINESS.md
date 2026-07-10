@@ -37,10 +37,9 @@ Historical reports created after this change use the status at the selected
 month cutoff rather than today's status. Existing records receive a migration
 backfill from their available timestamps; because the old database never stored
 every transition, exact pre-migration lifecycle history cannot be reconstructed.
-When an exact open state cannot be reconstructed, CSV exports label it
-`Unknown (pre-migration)` instead of inventing a lifecycle state; JSON status
-counts use the machine key `unknown_pre_migration`. That limitation should be
-stated on any legacy report used operationally.
+When an exact open state cannot be reconstructed, CSV exports and JSON status
+counts label it `Unknown (pre-migration)` instead of inventing a lifecycle
+state. That limitation should be stated on any legacy report used operationally.
 
 ## Requires John confirmation
 

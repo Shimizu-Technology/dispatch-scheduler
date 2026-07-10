@@ -225,6 +225,38 @@ class WorkOrderImportsControllerTest < ActionDispatch::IntegrationTest
     assert_equal 0, WorkOrderImport.count
   end
 
+  test "transaction rollback does not persist or upload an attachment" do
+    extractor_response = {
+      success: true,
+      work_orders: [ { description: "Rollback this intake", title: "Rollback intake" } ],
+      raw_response: "{\"work_orders\":[{\"description\":\"Rollback this intake\"}]}"
+    }
+    original_extract = WorkOrderOcrExtractor.method(:extract)
+    original_record = AuditEvent.method(:record!)
+    files_before = stored_test_files
+    failure_record = AuditEvent.new
+    failure_record.errors.add(:base, "Forced audit failure")
+
+    begin
+      WorkOrderOcrExtractor.define_singleton_method(:extract) { |_file = nil, **_kwargs| extractor_response }
+      AuditEvent.define_singleton_method(:record!) { |**_kwargs| raise ActiveRecord::RecordInvalid.new(failure_record) }
+      with_auth_env do
+        post "/api/v1/work_order_imports/preview", params: { file: image_upload }, headers: auth_headers
+      end
+    ensure
+      WorkOrderOcrExtractor.define_singleton_method(:extract, original_extract)
+      AuditEvent.define_singleton_method(:record!, original_record)
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal [ "Forced audit failure" ], JSON.parse(response.body).fetch("errors")
+    assert_equal 0, WorkOrderImport.count
+    assert_equal 0, WorkOrderImportItem.count
+    assert_equal 0, ActiveStorage::Attachment.count
+    assert_equal 0, ActiveStorage::Blob.count
+    assert_equal files_before, stored_test_files
+  end
+
   test "rejects ambiguous file and pasted text intake" do
     with_auth_env do
       post "/api/v1/work_order_imports/preview", params: { file: image_upload, text: "Use this instead" }, headers: auth_headers
@@ -243,6 +275,10 @@ class WorkOrderImportsControllerTest < ActionDispatch::IntegrationTest
     file.write("\x89PNG\r\n\x1A\nfake image")
     file.rewind
     Rack::Test::UploadedFile.new(file.path, "image/png", true, original_filename: "work-order.png")
+  end
+
+  def stored_test_files
+    Dir.glob(Rails.root.join("tmp/storage/**/*")).select { |path| File.file?(path) }.sort
   end
 
   def with_auth_env

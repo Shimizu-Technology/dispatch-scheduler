@@ -45,7 +45,7 @@ class MonthlyReportService
           work_order.location.name,
           work_order.service_line&.name,
           work_order.normalized_priority,
-          csv_status_label(status_as_of),
+          report_status_label(status_as_of),
           sla_due_at_as_of(work_order, status_as_of)&.iso8601,
           work_order.reported_at&.iso8601,
           work_order.closed_at&.iso8601,
@@ -196,7 +196,7 @@ class MonthlyReportService
     work_order.reported_at || work_order.created_at
   end
 
-  def csv_status_label(status)
+  def report_status_label(status)
     status == UNKNOWN_PRE_MIGRATION_STATUS ? "Unknown (pre-migration)" : status
   end
 
@@ -240,7 +240,7 @@ class MonthlyReportService
       kpi_overdue: kpi_due_dates.count { |_id, due_at| due_at.present? && due_at < @as_of_time },
       kpi_due_soon: kpi_due_dates.count { |_id, due_at| due_at.present? && due_at >= @as_of_time && due_at <= due_soon_end },
       kpi_missing: kpi_due_dates.count { |_id, due_at| due_at.blank? },
-      by_status: status_counts,
+      by_status: status_counts.transform_keys { |status| report_status_label(status) },
       by_priority: reported_work_orders.group(:normalized_priority).count,
       by_service_line: reported_work_orders.left_joins(:service_line).group("service_lines.name").count.transform_keys { |key| key.presence || "Unassigned" }
     }

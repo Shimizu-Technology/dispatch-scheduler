@@ -142,8 +142,10 @@ class MonthlyReportServiceTest < ActiveSupport::TestCase
 
       assert_equal 1, payload.dig(:work_orders, :open_as_of)
       assert_equal({ MonthlyReportService::UNKNOWN_PRE_MIGRATION_STATUS => 1 }, payload.dig(:work_orders, :by_status))
-      assert_includes report.to_csv, MonthlyReportService::UNKNOWN_PRE_MIGRATION_STATUS
-      refute_includes report.to_csv, ",new,"
+      csv = report.to_csv
+      assert_includes csv, "Unknown (pre-migration)"
+      refute_includes csv, MonthlyReportService::UNKNOWN_PRE_MIGRATION_STATUS
+      refute_includes csv, ",new,"
     end
   end
 

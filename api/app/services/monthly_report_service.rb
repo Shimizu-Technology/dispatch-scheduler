@@ -38,14 +38,15 @@ class MonthlyReportService
       ]
 
       active_during_month.each do |work_order|
+        status_as_of = statuses.fetch(work_order.id, work_order.status)
         csv << [
           work_order.external_id,
           work_order.client.name,
           work_order.location.name,
           work_order.service_line&.name,
           work_order.normalized_priority,
-          statuses.fetch(work_order.id, work_order.status),
-          sla_due_at_as_of(work_order, statuses.fetch(work_order.id, work_order.status))&.iso8601,
+          csv_status_label(status_as_of),
+          sla_due_at_as_of(work_order, status_as_of)&.iso8601,
           work_order.reported_at&.iso8601,
           work_order.closed_at&.iso8601,
           work_order.scheduled_date&.iso8601,
@@ -179,6 +180,10 @@ class MonthlyReportService
 
   def effective_reported_at(work_order)
     work_order.reported_at || work_order.created_at
+  end
+
+  def csv_status_label(status)
+    status == UNKNOWN_PRE_MIGRATION_STATUS ? "Unknown (pre-migration)" : status
   end
 
   def sla_due_at_as_of(work_order, status)

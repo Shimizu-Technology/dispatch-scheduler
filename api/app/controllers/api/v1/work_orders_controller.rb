@@ -449,7 +449,10 @@ module Api
         return nil if import_item_id.blank?
 
         item = WorkOrderImportItem.owned_by(current_user).lock.find(import_item_id)
-        raise ArgumentError, "This intake draft has already been reviewed" unless item.status == "pending"
+        unless item.status == "pending"
+          item.errors.add(:base, "This intake draft has already been reviewed")
+          raise ActiveRecord::RecordInvalid.new(item)
+        end
 
         item
       end

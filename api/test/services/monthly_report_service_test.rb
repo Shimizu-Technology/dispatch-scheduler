@@ -59,7 +59,9 @@ class MonthlyReportServiceTest < ActiveSupport::TestCase
       assert_equal 2, payload.dig(:work_orders, :total)
       assert_equal 2, payload.dig(:work_orders, :reported)
       assert_equal 2, payload.dig(:work_orders, :active_during_month)
+      assert_equal payload.dig(:work_orders, :open_as_of), payload.dig(:work_orders, :open)
       assert_equal 1, payload.dig(:work_orders, :open_as_of)
+      assert_equal payload.dig(:work_orders, :closed_during_month), payload.dig(:work_orders, :completed_or_closed)
       assert_equal 1, payload.dig(:work_orders, :closed_during_month)
       assert_equal 1, payload.dig(:work_orders, :pa_projects)
       assert_equal 1, payload.dig(:work_orders, :corrective_maintenance)
@@ -117,6 +119,32 @@ class MonthlyReportServiceTest < ActiveSupport::TestCase
     assert_equal 0, payload.dig(:work_orders, :open_as_of)
     assert_equal 1, payload.dig(:work_orders, :closed_during_month)
     assert_equal 1, payload.dig(:work_orders, :active_during_month)
+  end
+
+  test "historical reports label an unknowable pre-migration open status instead of inventing one" do
+    wo = nil
+    travel_to Time.zone.local(2026, 5, 1, 8, 0) do
+      wo = work_order(title: "Legacy closed work", priority: "P3", status: "approved", date: nil, reported_at: Time.current)
+    end
+    closed_at = Time.zone.local(2026, 7, 1, 8, 0)
+    wo.update_columns(status: "completed", closed_at: closed_at, updated_at: closed_at)
+    wo.status_events.delete_all
+    wo.status_events.create!(
+      from_status: nil,
+      to_status: "completed",
+      source: "migration_backfill",
+      occurred_at: closed_at
+    )
+
+    travel_to Time.zone.local(2026, 7, 10, 8, 0) do
+      report = MonthlyReportService.new(month: "2026-05")
+      payload = report.payload
+
+      assert_equal 1, payload.dig(:work_orders, :open_as_of)
+      assert_equal({ MonthlyReportService::UNKNOWN_PRE_MIGRATION_STATUS => 1 }, payload.dig(:work_orders, :by_status))
+      assert_includes report.to_csv, MonthlyReportService::UNKNOWN_PRE_MIGRATION_STATUS
+      refute_includes report.to_csv, ",new,"
+    end
   end
 
   test "historical PM counts use status at the report cutoff" do

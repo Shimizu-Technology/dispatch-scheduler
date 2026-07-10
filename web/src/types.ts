@@ -121,11 +121,14 @@ export type MonthlyReport = {
   as_of: string
   period: { starts_on: string; ends_on: string }
   work_orders: {
+    /** @deprecated Use reported. */
     total: number
     reported: number
     active_during_month: number
+    /** @deprecated Use open_as_of. */
     open: number
     open_as_of: number
+    /** @deprecated Use closed_during_month. */
     completed_or_closed: number
     closed_during_month: number
     corrective_maintenance: number
@@ -153,6 +156,7 @@ export type MonthlyReport = {
     by_trade_actual_minutes?: Record<string, number>
   }
   follow_ups: {
+    /** @deprecated Use due_by_as_of. */
     due_today: number
     due_by_as_of: number
     due_this_month: number

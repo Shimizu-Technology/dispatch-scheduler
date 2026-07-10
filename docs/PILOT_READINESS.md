@@ -37,7 +37,9 @@ Historical reports created after this change use the status at the selected
 month cutoff rather than today's status. Existing records receive a migration
 backfill from their available timestamps; because the old database never stored
 every transition, exact pre-migration lifecycle history cannot be reconstructed.
-That limitation should be stated on any legacy report used operationally.
+When an exact open state cannot be reconstructed, the report labels it
+`unknown_pre_migration` instead of inventing a lifecycle state. That limitation
+should be stated on any legacy report used operationally.
 
 ## Requires John confirmation
 

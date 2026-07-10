@@ -136,6 +136,17 @@ class WorkOrderImportsControllerTest < ActionDispatch::IntegrationTest
     assert_response :no_content
     assert_equal "rejected", item.reload.status
     assert_equal "rejected", work_order_import.reload.status
+
+    reviewed_at = item.reviewed_at
+    audit_scope = AuditEvent.where(action: "work_order_import.rejected", record_type: "WorkOrderImport", record_id: work_order_import.id)
+    assert_equal 1, audit_scope.count
+
+    with_auth_env do
+      post "/api/v1/work_order_import_items/#{item.id}/reject", headers: auth_headers
+    end
+    assert_response :not_found
+    assert_equal reviewed_at, item.reload.reviewed_at
+    assert_equal 1, audit_scope.count
   end
 
   test "viewer cannot preview work order uploads" do

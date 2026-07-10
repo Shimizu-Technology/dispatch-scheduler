@@ -33,8 +33,8 @@ module Api
       end
 
       def reject_item
-        item = WorkOrderImportItem.pending_review.find(params[:id])
         ApplicationRecord.transaction do
+          item = WorkOrderImportItem.pending_review.lock.find(params[:id])
           item.reject!(user: current_user)
           AuditEvent.record!(
             action: "work_order_import.rejected",
@@ -105,7 +105,6 @@ module Api
           content_type: upload.content_type,
           identify: false
         )
-        upload.rewind if upload.respond_to?(:rewind)
       end
     end
   end

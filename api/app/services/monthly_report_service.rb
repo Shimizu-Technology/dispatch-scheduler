@@ -2,6 +2,8 @@ require "csv"
 require "set"
 
 class MonthlyReportService
+  UNKNOWN_PRE_MIGRATION_STATUS = "unknown_pre_migration".freeze
+
   def initialize(month:)
     @month = parse_month(month)
     @start_time = @month.beginning_of_month.beginning_of_day
@@ -168,7 +170,9 @@ class MonthlyReportService
     work_orders.each_with_object(latest_events) do |work_order, statuses|
       statuses[work_order.id] ||= next_known_events[work_order.id]
       statuses[work_order.id] ||= work_order.status if work_order.closed_at.present? && work_order.closed_at <= cutoff
-      statuses[work_order.id] ||= "new" if work_order.closed_at.present? && work_order.closed_at > cutoff
+      # A migration-backfilled closure proves the order was still open before
+      # closed_at, but it cannot prove which open lifecycle state it was in.
+      statuses[work_order.id] ||= UNKNOWN_PRE_MIGRATION_STATUS if work_order.closed_at.present? && work_order.closed_at > cutoff
       statuses[work_order.id] ||= work_order.status
     end
   end
@@ -195,15 +199,20 @@ class MonthlyReportService
     kpi_records = active_records.reject(&:pa_project?)
     kpi_due_dates = kpi_records.to_h { |work_order| [ work_order.id, sla_due_at_as_of(work_order, active_statuses.fetch(work_order.id, work_order.status)) ] }
     due_soon_end = @as_of_time + 24.hours
+    reported_count = reported_work_orders.count
+    open_as_of_count = active_records.count
+    closed_during_month = closed_during_month_count
 
     {
-      total: reported_work_orders.count,
-      reported: reported_work_orders.count,
+      # Keep the legacy names until API consumers have migrated to the more
+      # precise report vocabulary immediately following each alias.
+      total: reported_count,
+      reported: reported_count,
       active_during_month: active_during_month.length,
-      open: active_records.count,
-      open_as_of: active_records.count,
-      completed_or_closed: closed_during_month_count,
-      closed_during_month: closed_during_month_count,
+      open: open_as_of_count,
+      open_as_of: open_as_of_count,
+      completed_or_closed: closed_during_month,
+      closed_during_month: closed_during_month,
       corrective_maintenance: reported_work_orders.where(corrective_maintenance: true).count,
       estimate_required: reported_work_orders.where(estimate_required: true).count,
       pa_projects: active_records.count(&:pa_project?),
@@ -305,9 +314,11 @@ class MonthlyReportService
     active_scope = WorkOrder.where(id: active_during_month.map(&:id)).where.not(follow_up_due_on: nil)
     open_at_cutoff_scope = WorkOrder.where(id: active_as_of.map(&:id)).where.not(follow_up_due_on: nil)
     as_of_date = @as_of_time.to_date
+    due_by_as_of = open_at_cutoff_scope.where(follow_up_due_on: ..as_of_date).count
     {
-      due_today: open_at_cutoff_scope.where(follow_up_due_on: ..as_of_date).count,
-      due_by_as_of: open_at_cutoff_scope.where(follow_up_due_on: ..as_of_date).count,
+      # due_today is the legacy name; historical reports use their own cutoff.
+      due_today: due_by_as_of,
+      due_by_as_of: due_by_as_of,
       due_this_month: active_scope.where(follow_up_due_on: @month.beginning_of_month..@month.end_of_month).count,
       parts_eta_this_month: WorkOrder.where(id: active_during_month.map(&:id), parts_eta: @month.beginning_of_month..@month.end_of_month).count,
       pa_projects_due_this_month: active_scope.where(pa_project: true, follow_up_due_on: @month.beginning_of_month..@month.end_of_month).count

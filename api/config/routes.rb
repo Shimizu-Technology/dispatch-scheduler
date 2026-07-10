@@ -13,7 +13,12 @@ Rails.application.routes.draw do
       end
       resources :audit_events, only: [ :index ]
       resources :service_lines, only: [ :index, :create, :update ]
-      post "work_order_imports/preview", to: "work_order_imports#preview"
+      resources :work_order_imports, only: [ :index ] do
+        collection do
+          post :preview
+        end
+      end
+      post "work_order_import_items/:id/reject", to: "work_order_imports#reject_item"
       resources :work_orders, only: [ :index, :show, :create, :update ] do
         member do
           patch :archive

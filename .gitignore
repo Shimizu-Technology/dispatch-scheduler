@@ -22,3 +22,5 @@ web/dist/
 # Sensitive/raw customer artifacts
 john-ilao-artifacts/
 data/raw/
+docs/examples-from-john/*
+!docs/examples-from-john/README.md

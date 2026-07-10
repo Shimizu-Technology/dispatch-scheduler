@@ -76,6 +76,29 @@ class WorkOrderOcrExtractorTest < ActiveSupport::TestCase
     assert_equal "2026-06-15", row.fetch(:follow_up_due_on)
   end
 
+  test "rejects oversized pasted text before calling OpenRouter" do
+    result = WorkOrderOcrExtractor.extract(nil, text: "x" * (WorkOrderOcrExtractor::MAX_TEXT_LENGTH + 1))
+
+    assert_equal false, result[:success]
+    assert_includes result[:error], "20,000 characters"
+  end
+
+  test "pdf uploads use OpenRouter file parsing instead of embedded text extraction" do
+    seen_payload = nil
+    result = nil
+    with_openrouter_response({ work_orders: [ { title: "Encoded PDF issue", description: "Readable through OCR", priority: "P4", status: "approved", trade_category: "Painting" } ] }.to_json, on_request: ->(request) { seen_payload = JSON.parse(request.body) }) do
+      result = WorkOrderOcrExtractor.extract(pdf_upload)
+    end
+
+    assert_equal true, result[:success], result.inspect
+    content = seen_payload.dig("messages", 0, "content")
+    file_part = content.find { |part| part["type"] == "file" }
+    assert_equal "work-order.pdf", file_part.dig("file", "filename")
+    assert_match %r{\Adata:application/pdf;base64,}, file_part.dig("file", "file_data")
+    assert_equal "file-parser", seen_payload.dig("plugins", 0, "id")
+    assert_equal "mistral-ocr", seen_payload.dig("plugins", 0, "pdf", "engine")
+  end
+
   test "rejects spoofed image content type" do
     file = Tempfile.new([ "spoofed", ".jpg" ])
     file.write("not actually an image")
@@ -98,13 +121,16 @@ class WorkOrderOcrExtractorTest < ActiveSupport::TestCase
     Rack::Test::UploadedFile.new(file.path, "image/png", true, original_filename: "work-order.png")
   end
 
-  def with_openrouter_response(content)
+  def with_openrouter_response(content, on_request: nil)
     response = Struct.new(:code, :body).new("200", { choices: [ { message: { content: content } } ] }.to_json)
     fake_http = Object.new
     fake_http.define_singleton_method(:use_ssl=) { |_value| }
     fake_http.define_singleton_method(:open_timeout=) { |_value| }
     fake_http.define_singleton_method(:read_timeout=) { |_value| }
-    fake_http.define_singleton_method(:request) { |_request| response }
+    fake_http.define_singleton_method(:request) do |request|
+      on_request&.call(request)
+      response
+    end
 
     previous_key = ENV["OPENROUTER_API_KEY"]
     ENV["OPENROUTER_API_KEY"] = "test-key"
@@ -123,6 +149,14 @@ class WorkOrderOcrExtractorTest < ActiveSupport::TestCase
     file.write("not image")
     file.rewind
     Rack::Test::UploadedFile.new(file.path, "text/plain", false, original_filename: "work-order.txt")
+  end
+
+  def pdf_upload
+    file = Tempfile.new([ "work-order", ".pdf" ])
+    file.binmode
+    file.write("%PDF-1.6\nencoded work order")
+    file.rewind
+    Rack::Test::UploadedFile.new(file.path, "application/pdf", true, original_filename: "work-order.pdf")
   end
 
   def binary_upload

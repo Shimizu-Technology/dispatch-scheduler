@@ -3,7 +3,7 @@ require "test_helper"
 class TeamsControllerTest < ActionDispatch::IntegrationTest
   test "index separates default crew name from today's daily crew" do
     crew = team(name: "ANTON / RONEL", skills: [ "General" ], driver: false)
-    driver = Technician.create!(name: "RONALD", primary_trade: "General", is_driver: true, active: true)
+    driver = Technician.create!(name: "Relief Driver", primary_trade: "General", is_driver: true, active: true)
     driver.technician_skills.create!(skill: "General")
 
     with_auth_env do
@@ -14,7 +14,7 @@ class TeamsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     payload = JSON.parse(response.body).find { |candidate| candidate.fetch("id") == crew.id }
     assert_equal "ANTON / RONEL", payload.fetch("name")
-    assert_equal "#{crew.technicians.first.name} / RONALD", payload.fetch("today_crew_name")
+    assert_equal "#{crew.technicians.first.name} / Relief Driver", payload.fetch("today_crew_name")
     assert_equal [ crew.technicians.first.name ], payload.fetch("default_technicians").map { |tech| tech.fetch("name") }
     assert_equal true, payload.fetch("daily_override")
   end

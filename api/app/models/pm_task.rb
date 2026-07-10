@@ -5,6 +5,10 @@ class PmTask < ApplicationRecord
   belongs_to :location
   belongs_to :pm_template, optional: true
   belongs_to :pm_template_item, optional: true
+  has_many :status_events, class_name: "PmTaskStatusEvent", dependent: :destroy
+
+  after_create :record_initial_status_event
+  after_update :record_status_change, if: :saved_change_to_status?
 
   validates :task_name, :scheduled_date, :trade_category, presence: true
   validates :status, inclusion: { in: STATUSES }
@@ -43,6 +47,27 @@ class PmTask < ApplicationRecord
   end
 
   private
+
+  def record_initial_status_event
+    status_events.create!(
+      user: Current.user,
+      from_status: nil,
+      to_status: status,
+      source: "application",
+      occurred_at: created_at || Time.current
+    )
+  end
+
+  def record_status_change
+    previous_status, next_status = saved_change_to_status
+    status_events.create!(
+      user: Current.user,
+      from_status: previous_status,
+      to_status: next_status,
+      source: "application",
+      occurred_at: updated_at || Time.current
+    )
+  end
 
   def time_out_after_time_in
     return if time_in_at.blank? || time_out_at.blank? || time_out_at >= time_in_at

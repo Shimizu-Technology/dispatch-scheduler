@@ -22,7 +22,7 @@ npm run dev -- --port 5173
 
 Open http://127.0.0.1:5173.
 
-Use Node `22.12.0` or newer. The repo includes `web/.node-version` so local
+Use Node `22.13.0` or newer. The repo includes `web/.node-version` so local
 version managers can pick the same minimum runtime Vite expects.
 
 Set `VITE_CLERK_PUBLISHABLE_KEY` and `VITE_API_URL` in `web/.env.local`, then
@@ -35,4 +35,4 @@ npm run lint
 npm run build
 ```
 
-If local Vite warns about Node, use Node `22.12+`.
+If local Vite warns about Node, use Node `22.13+`.

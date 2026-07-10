@@ -56,6 +56,7 @@ function Breakdown({ title, values, formatValue = (value: number) => value.toStr
 }
 
 export function ReportsPanel({ report, loading, onDownloadCsv }: ReportsPanelProps) {
+  const reportCutoffLabel = report ? new Date(report.as_of).toLocaleString() : ''
   return <Card className="overflow-hidden">
     <PanelHeader
       eyebrow="Monthly reporting"
@@ -69,10 +70,10 @@ export function ReportsPanel({ report, loading, onDownloadCsv }: ReportsPanelPro
 
     {report && <div className="space-y-4 p-3 sm:p-4">
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Metric label="Work orders" value={report.work_orders.total} detail={`${report.work_orders.open} open · ${report.work_orders.completed_or_closed} closed`} />
+        <Metric label="Work orders reported" value={report.work_orders.reported} detail={`${report.work_orders.active_during_month} active during month · ${report.work_orders.closed_during_month} closed`} />
         <Metric label="KPI overdue" value={report.work_orders.kpi_overdue} detail={`${report.work_orders.kpi_due_soon} due soon · ${report.work_orders.kpi_missing} missing`} tone={report.work_orders.kpi_overdue > 0 ? 'red' : 'green'} />
         <Metric label="PM month" value={`${report.pm_tasks.completed}/${report.pm_tasks.total}`} detail={`${report.pm_tasks.incomplete} incomplete · ${report.pm_tasks.deferred} deferred · ${report.pm_tasks.timed_visits ?? report.pm_tasks.timed ?? 0} timed visits`} tone={report.pm_tasks.incomplete > 0 ? 'amber' : 'green'} />
-        <Metric label="Follow-ups due" value={report.follow_ups.due_this_month} detail={`${report.follow_ups.due_today} due today · ${report.follow_ups.parts_eta_this_month} parts ETA`} tone={report.follow_ups.due_today > 0 ? 'amber' : 'slate'} />
+        <Metric label="Follow-ups due" value={report.follow_ups.due_this_month} detail={`${report.follow_ups.due_by_as_of} due by cutoff · ${report.follow_ups.parts_eta_this_month} parts ETA`} tone={report.follow_ups.due_by_as_of > 0 ? 'amber' : 'slate'} />
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -99,7 +100,10 @@ export function ReportsPanel({ report, loading, onDownloadCsv }: ReportsPanelPro
         </div>
       </div>
 
-      <p className="inline-flex items-center gap-2 rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white px-4 py-2 text-xs font-bold uppercase tracking-[0.12em] text-[#64748b]"><FileText size={14} /> Generated {new Date(report.generated_at).toLocaleString()}</p>
+      <div className="flex flex-wrap gap-2">
+        <p className="inline-flex items-center gap-2 rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white px-4 py-2 text-xs font-bold uppercase tracking-[0.12em] text-[#64748b]"><FileText size={14} /> As of {reportCutoffLabel}</p>
+        <p className="inline-flex items-center gap-2 rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white px-4 py-2 text-xs font-bold uppercase tracking-[0.12em] text-[#64748b]"><FileText size={14} /> Generated {new Date(report.generated_at).toLocaleString()}</p>
+      </div>
     </div>}
   </Card>
 }

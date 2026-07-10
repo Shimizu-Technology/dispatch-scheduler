@@ -3,14 +3,14 @@ import type { ClipboardEvent, FormEvent, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Archive, ArchiveRestore, ClipboardPaste, Edit3, FileUp, Plus, Search, Sparkles, X } from 'lucide-react'
 import { Badge, Card, PanelHeader } from './ui'
-import { postForm, postJson } from '../lib/api'
+import { getJson, postForm, postJson } from '../lib/api'
 import type { OcrWorkOrderDraft, PaginationMeta, ServiceLine, WorkOrder, WorkOrderImportPreview, WorkOrderInput, WorkOrderStatus } from '../types'
 
 const priorities = ['P1', 'P2', 'P3', 'P4']
 const statuses: WorkOrderStatus[] = ['new', 'needs_assessment', 'approved', 'scheduled', 'in_progress', 'carry_over', 'waiting_for_parts', 'waiting_for_approval', 'completed', 'closed', 'cancelled']
 const trades = ['General', 'Plumbing', 'HVAC', 'Electrical', 'Carpentry', 'Painting', 'Landscaping', 'Masonry']
 const regions = ['North', 'Central', 'South', 'Islandwide', 'Unknown']
-const sources = ['whatsapp', 'phone', 'email', 'mywork', 'sodexo', 'manual', 'upload']
+const sources = ['whatsapp', 'phone', 'email', 'mywork', 'sodexo', 'manual', 'upload', 'pasted_text', 'text_upload']
 const DEFAULT_WORK_ORDER_QUERY = 'archived=active&page=1&per_page=50&sort=scheduled_date&direction=asc'
 
 type ImportDraft = OcrWorkOrderDraft & { draftId: string }
@@ -34,6 +34,7 @@ type WorkOrderFilterState = {
 }
 
 function draftId(draft: OcrWorkOrderDraft, index: number) {
+  if (draft.import_item_id) return `import-item-${draft.import_item_id}`
   if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID()
   return `${draft.external_id || draft.title || draft.description}-${index}-${Date.now()}`
 }
@@ -585,6 +586,20 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, savin
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routeSearch])
 
+  useEffect(() => {
+    if (!canEdit) return
+    let active = true
+    void getJson<WorkOrderImportPreview>('/work_order_imports')
+      .then((payload) => {
+        if (!active) return
+        setImportDrafts(payload.work_orders.map((draft, index) => ({ ...draft, draftId: draftId(draft, index) })))
+      })
+      .catch((error) => {
+        if (active) setImportError(error instanceof Error ? error.message : 'Unable to load pending intake drafts')
+      })
+    return () => { active = false }
+  }, [canEdit])
+
   function queryFor(page = 1) {
     const params = new URLSearchParams()
     params.set('archived', archiveFilter === 'archived' ? 'only' : archiveFilter === 'all' ? 'all' : 'active')
@@ -659,7 +674,7 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, savin
     if (activeEditing) {
       await onUpdate(activeEditing.id, values)
     } else {
-      await onCreate(values)
+      await onCreate(reviewDraft ? { ...values, work_order_import_item_id: reviewDraft.import_item_id } : values)
       if (reviewDraft) setImportDrafts((currentDrafts) => currentDrafts.filter((draft) => draft.draftId !== reviewDraft.draftId))
     }
     setEditing(null)
@@ -698,7 +713,7 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, savin
       data.append('file', file)
       const payload = await postForm<WorkOrderImportPreview>('/work_order_imports/preview', data)
       const newDrafts = payload.work_orders.map((draft, index) => ({ ...draft, draftId: draftId(draft, index) }))
-      setImportDrafts((currentDrafts) => [...currentDrafts, ...newDrafts])
+      setImportDrafts((currentDrafts) => [...currentDrafts.filter((current) => !newDrafts.some((draft) => draft.import_item_id === current.import_item_id)), ...newDrafts])
     } catch (err) {
       setImportError(err instanceof Error ? err.message : 'Unable to scan uploaded work order')
     } finally {
@@ -713,7 +728,7 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, savin
     try {
       const payload = await postJson<WorkOrderImportPreview>('/work_order_imports/preview', { text: pasteText })
       const newDrafts = payload.work_orders.map((draft, index) => ({ ...draft, draftId: draftId(draft, index) }))
-      setImportDrafts((currentDrafts) => [...currentDrafts, ...newDrafts])
+      setImportDrafts((currentDrafts) => [...currentDrafts.filter((current) => !newDrafts.some((draft) => draft.import_item_id === current.import_item_id)), ...newDrafts])
       setPasteText('')
     } catch (err) {
       setImportError(err instanceof Error ? err.message : 'Unable to preview pasted intake')
@@ -727,6 +742,18 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, savin
     if (file) {
       event.preventDefault()
       void previewUpload(file)
+    }
+  }
+
+  async function rejectImportDraft(draft: ImportDraft) {
+    if (!window.confirm('Reject this intake draft? The source remains in the audit record, but this request will not become a work order.')) return
+    setImportError('')
+    try {
+      await postJson<void>(`/work_order_import_items/${draft.import_item_id}/reject`, {})
+      setImportDrafts((currentDrafts) => currentDrafts.filter((candidate) => candidate.import_item_id !== draft.import_item_id))
+      if (reviewDraft?.import_item_id === draft.import_item_id) closeEditor()
+    } catch (error) {
+      setImportError(error instanceof Error ? error.message : 'Unable to reject intake draft')
     }
   }
 
@@ -782,9 +809,9 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, savin
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="font-display text-sm font-extrabold uppercase tracking-[0.16em] text-[#244393]">AI intake preview</p>
-          <p className="mt-1 text-sm text-[#526071]">Open each extracted request, correct the fields, then save it as a work order. Nothing enters dispatch until reviewed.</p>
+          <p className="mt-1 text-sm text-[#526071]">Open each extracted request, correct the fields, then save or reject it. Pending drafts and their private source attachments survive refreshes.</p>
         </div>
-        <button type="button" onClick={() => setImportDrafts([])} className="rounded-2xl border border-[rgba(23,32,51,0.12)] bg-white px-3 py-2 font-display text-xs font-extrabold uppercase tracking-[0.12em] text-[#334155]">Clear</button>
+        <button type="button" onClick={() => setImportDrafts([])} className="rounded-2xl border border-[rgba(23,32,51,0.12)] bg-white px-3 py-2 font-display text-xs font-extrabold uppercase tracking-[0.12em] text-[#334155]">Hide for now</button>
       </div>
       <div className="grid gap-3 lg:grid-cols-2">
         {importDrafts.map((draft) => <article key={draft.draftId} className="rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white p-4 shadow-[0_10px_26px_rgba(23,32,51,0.05)]">
@@ -797,10 +824,13 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, savin
               </div>
               <h3 className="font-display mt-2 font-extrabold text-[#172033]">{draft.location} - {draft.title}</h3>
             </div>
-            <button type="button" disabled={saving} onClick={() => { setReviewDraft(draft); setShowForm(false); setEditing(null); onEditConsumed?.() }} className="shrink-0 rounded-2xl bg-[#16835f] px-3 py-2 font-display text-xs font-extrabold uppercase tracking-[0.12em] text-white transition hover:-translate-y-0.5 hover:bg-[#106a4c] disabled:cursor-wait disabled:opacity-60">Review/Edit</button>
+            <div className="flex shrink-0 flex-col gap-2">
+              <button type="button" disabled={saving} onClick={() => { setReviewDraft(draft); setShowForm(false); setEditing(null); onEditConsumed?.() }} className="rounded-2xl bg-[#16835f] px-3 py-2 font-display text-xs font-extrabold uppercase tracking-[0.12em] text-white transition hover:-translate-y-0.5 hover:bg-[#106a4c] disabled:cursor-wait disabled:opacity-60">Review/Edit</button>
+              <button type="button" disabled={saving} onClick={() => void rejectImportDraft(draft)} className="rounded-2xl border border-red-200 bg-red-50 px-3 py-2 font-display text-xs font-extrabold uppercase tracking-[0.12em] text-red-700 transition hover:bg-red-100 disabled:opacity-60">Reject</button>
+            </div>
           </div>
           <p className="mt-2 text-sm leading-6 text-[#526071]">{draft.description}</p>
-          <p className="mt-2 text-xs font-semibold text-[#7b8798]">{draft.client} • {draft.region} • {draft.trade_category} • WO #{draft.external_id || 'N/A'}</p>
+          <p className="mt-2 text-xs font-semibold text-[#7b8798]">{draft.client} • {draft.region} • {draft.trade_category} • WO #{draft.external_id || 'N/A'}{draft.source_filename ? ` • ${draft.source_filename}` : ' • Pasted text'}</p>
           {draft.notes && <p className="mt-2 text-xs font-semibold text-[#526071]">Notes: {draft.notes}</p>}
           {draft.issues.length > 0 && <p className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900">Review: {draft.issues.join(', ')}</p>}
         </article>)}

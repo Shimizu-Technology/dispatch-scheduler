@@ -31,6 +31,40 @@ class WorkOrdersControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1.5, payload.fetch("estimated_hours")
   end
 
+  test "creating a reviewed work order atomically approves its durable intake item" do
+    reviewer = User.create!(clerk_id: "dispatcher_123", email: "dispatcher@example.com", role: "dispatcher")
+    work_order_import = WorkOrderImport.create!(
+      user: reviewer,
+      source_kind: "pasted_text",
+      source_text: "Bathroom sink is leaking",
+      source_sha256: "reviewed-draft",
+      extraction_model: "test-model",
+      extracted_at: Time.current
+    )
+    item = work_order_import.items.create!(position: 0, extracted_data: { description: "Bathroom sink is leaking" })
+
+    with_auth_env do
+      post "/api/v1/work_orders", params: {
+        client: "Mobil",
+        location: "Yigo",
+        region: "North",
+        source: "pasted_text",
+        description: "Bathroom sink is leaking",
+        priority: "P2",
+        status: "approved",
+        trade_category: "Plumbing",
+        work_order_import_item_id: item.id
+      }, headers: auth_headers
+    end
+
+    assert_response :created
+    created = WorkOrder.find(JSON.parse(response.body).fetch("id"))
+    assert_equal "approved", item.reload.status
+    assert_equal created, item.work_order
+    assert_equal "completed", work_order_import.reload.status
+    assert_equal 1, AuditEvent.where(action: "work_order_import.approved", record_type: "WorkOrderImport", record_id: work_order_import.id).count
+  end
+
   test "invalid scheduled date rolls back client and location writes" do
     with_auth_env do
       post "/api/v1/work_orders", params: {
@@ -295,14 +329,14 @@ class WorkOrdersControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "duplicate source and external id is rejected" do
-    work_order(title: "Existing", status: "approved").update!(source: "mywork", external_id: "40787")
+    work_order(title: "Existing", status: "approved").update!(source: "mywork", external_id: "WO-123")
 
     with_auth_env do
       post "/api/v1/work_orders", params: {
         client: "Mobil",
         location: "Yigo",
         source: "mywork",
-        external_id: "40787",
+        external_id: "WO-123",
         description: "Duplicate request"
       }, headers: auth_headers
     end
@@ -374,6 +408,7 @@ class WorkOrdersControllerTest < ActionDispatch::IntegrationTest
     assert_equal "work_order.status_updated", AuditEvent.last.action
     assert_equal "needs_assessment", AuditEvent.last.metadata_hash.fetch("previous_status")
     assert_equal "in_progress", AuditEvent.last.metadata_hash.fetch("new_status")
+    assert_equal "dispatcher_work_orders_123", wo.status_events.order(:occurred_at, :id).last.user.clerk_id
   end
 
   test "rejects invalid work order status" do

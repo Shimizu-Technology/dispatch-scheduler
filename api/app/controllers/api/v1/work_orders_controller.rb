@@ -63,8 +63,18 @@ module Api
 
         wo = nil
         ApplicationRecord.transaction do
+          import_item = pending_import_item
           wo = WorkOrder.create!(work_order_record_attributes(attrs))
-          AuditEvent.record!(action: "work_order.created", record: wo, user: current_user, metadata: work_order_audit_metadata(wo))
+          import_item&.approve!(work_order: wo, user: current_user)
+          if import_item
+            AuditEvent.record!(
+              action: "work_order_import.approved",
+              record: import_item.work_order_import,
+              user: current_user,
+              metadata: { import_item_id: import_item.id, work_order_id: wo.id, position: import_item.position }
+            )
+          end
+          AuditEvent.record!(action: "work_order.created", record: wo, user: current_user, metadata: work_order_audit_metadata(wo).merge(work_order_import_item_id: import_item&.id))
         end
         render json: Serializers.work_order(wo), status: :created
       rescue ActiveRecord::RecordNotFound => e
@@ -429,8 +439,19 @@ module Api
           :follow_up_due_on,
           :follow_up_owner,
           :vendor_reference,
-          :latest_follow_up_note
+          :latest_follow_up_note,
+          :work_order_import_item_id
         )
+      end
+
+      def pending_import_item
+        import_item_id = params[:work_order_import_item_id]
+        return nil if import_item_id.blank?
+
+        item = WorkOrderImportItem.lock.find(import_item_id)
+        raise ArgumentError, "This intake draft has already been reviewed" unless item.status == "pending"
+
+        item
       end
     end
   end

@@ -27,6 +27,7 @@ export type WorkOrder = {
   response_due_at: string | null
   repair_due_at: string | null
   assessed_at: string | null
+  closed_at: string | null
   sla_due_at: string | null
   sla_status: 'missing' | 'overdue' | 'due_soon' | 'on_track'
   scheduled_date: string | null
@@ -60,6 +61,12 @@ export type WorkOrder = {
 export type OcrWorkOrderDraft = WorkOrderInput & {
   confidence: 'high' | 'medium' | 'low'
   issues: string[]
+  import_id: number
+  import_item_id: number
+  import_status: 'pending' | 'approved' | 'rejected'
+  source_kind: 'file' | 'pasted_text'
+  source_filename?: string | null
+  imported_at: string
 }
 
 export type WorkOrderImportPreview = {
@@ -105,16 +112,22 @@ export type WorkOrderInput = {
   follow_up_owner?: string
   vendor_reference?: string
   latest_follow_up_note?: string
+  work_order_import_item_id?: number
 }
 
 export type MonthlyReport = {
   month: string
   generated_at: string
+  as_of: string
   period: { starts_on: string; ends_on: string }
   work_orders: {
     total: number
+    reported: number
+    active_during_month: number
     open: number
+    open_as_of: number
     completed_or_closed: number
+    closed_during_month: number
     corrective_maintenance: number
     estimate_required: number
     pa_projects: number
@@ -141,6 +154,7 @@ export type MonthlyReport = {
   }
   follow_ups: {
     due_today: number
+    due_by_as_of: number
     due_this_month: number
     parts_eta_this_month: number
     pa_projects_due_this_month: number

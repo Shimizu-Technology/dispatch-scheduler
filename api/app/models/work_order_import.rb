@@ -12,6 +12,7 @@ class WorkOrderImport < ApplicationRecord
   validates :source_sha256, presence: true
   validates :source_text, length: { maximum: WorkOrderOcrExtractor::MAX_TEXT_LENGTH }, if: -> { source_kind == "pasted_text" }
 
+  scope :owned_by, ->(user) { where(user: user) }
   scope :with_pending_items, -> { where(id: WorkOrderImportItem.pending_review.select(:work_order_import_id)) }
 
   def refresh_status!

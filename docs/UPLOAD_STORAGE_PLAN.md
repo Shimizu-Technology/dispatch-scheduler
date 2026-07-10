@@ -53,6 +53,9 @@ Do not grant broad `AmazonS3FullAccess`.
 6. AI fields remain a pending draft until a human edits and approves or rejects
    each extracted request.
 7. Approval, rejection, and live work-order creation are audit logged.
+8. Pending drafts are visible and reviewable only by their uploader. This is the
+   least-privilege default until a shared queue or explicit assignment workflow
+   is approved.
 
 ## Decisions still required
 
@@ -60,9 +63,11 @@ Do not grant broad `AmazonS3FullAccess`.
   retention/training/data-processing terms before real uploads.
 - Choose source-file and raw-response retention periods. The code deliberately
   does not auto-delete operational evidence before the owner decides that rule.
+- Decide whether an assigned/shared intake queue should replace the current
+  uploader-only default.
 - Configure and test bucket backup/restore, lifecycle, encryption, and alerting
   in the actual hosting account.
-- Decide which roles, beyond the current dispatcher/admin intake queue, may
-  download original sources if a download UI is added.
+- Decide which roles, beyond the uploader or a future explicitly assigned
+  reviewer, may download original sources if a download UI is added.
 
 See `docs/DATA_HANDLING.md` and `docs/PILOT_READINESS.md` for the release gates.

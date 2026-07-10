@@ -10,6 +10,7 @@ class WorkOrderImportItem < ApplicationRecord
   validates :position, uniqueness: { scope: :work_order_import_id }
   validate :review_state_is_consistent
 
+  scope :owned_by, ->(user) { where(work_order_import_id: WorkOrderImport.owned_by(user).select(:id)) }
   scope :pending_review, -> { where(status: "pending") }
 
   def approve!(work_order:, user:)

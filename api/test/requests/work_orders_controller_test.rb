@@ -32,7 +32,7 @@ class WorkOrdersControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "creating a reviewed work order atomically approves its durable intake item" do
-    reviewer = User.create!(clerk_id: "dispatcher_123", email: "dispatcher@example.com", role: "dispatcher")
+    reviewer = User.create!(clerk_id: "dispatcher_work_orders_123", email: "dispatcher-work-orders@example.com", role: "dispatcher")
     work_order_import = WorkOrderImport.create!(
       user: reviewer,
       source_kind: "pasted_text",
@@ -63,6 +63,39 @@ class WorkOrdersControllerTest < ActionDispatch::IntegrationTest
     assert_equal created, item.work_order
     assert_equal "completed", work_order_import.reload.status
     assert_equal 1, AuditEvent.where(action: "work_order_import.approved", record_type: "WorkOrderImport", record_id: work_order_import.id).count
+  end
+
+  test "dispatcher cannot approve another uploader's intake item" do
+    uploader = User.create!(clerk_id: "other_dispatcher_123", email: "other-dispatcher@example.com", role: "dispatcher")
+    work_order_import = WorkOrderImport.create!(
+      user: uploader,
+      source_kind: "pasted_text",
+      source_text: "Bathroom sink is leaking",
+      source_sha256: "other-review-draft",
+      extraction_model: "test-model",
+      extracted_at: Time.current
+    )
+    item = work_order_import.items.create!(position: 0, extracted_data: { description: "Bathroom sink is leaking" })
+
+    with_auth_env do
+      post "/api/v1/work_orders", params: {
+        client: "Mobil",
+        location: "Yigo",
+        region: "North",
+        source: "pasted_text",
+        description: "Bathroom sink is leaking",
+        priority: "P2",
+        status: "approved",
+        trade_category: "Plumbing",
+        work_order_import_item_id: item.id
+      }, headers: auth_headers
+    end
+
+    assert_response :not_found
+    assert_equal "pending", item.reload.status
+    assert_nil item.work_order
+    assert_equal 0, WorkOrder.count
+    assert_equal 0, AuditEvent.where(record_type: "WorkOrderImport", record_id: work_order_import.id).count
   end
 
   test "invalid scheduled date rolls back client and location writes" do

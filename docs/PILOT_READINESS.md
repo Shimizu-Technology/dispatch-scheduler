@@ -23,8 +23,8 @@ choices:
 ## Code-complete pilot protections
 
 - Clerk-backed authentication and server-enforced admin/dispatcher/viewer roles.
-- Durable AI intake drafts, private source attachment storage, explicit approve
-  or reject actions, and approval/rejection audit events.
+- Durable AI intake drafts isolated to their uploader by default, private source
+  attachment storage, explicit approve or reject actions, and review audit events.
 - Scanned and digital PDF extraction through OpenRouter file parsing; no local
   embedded-text-only PDF assumption.
 - Work-order and PM status-event history for month-end cutoff reporting.
@@ -55,8 +55,8 @@ These are product-policy questions, not safe implementation guesses:
    closed, scheduled, billed, or customer-accepted.
 4. Required source/AI-response retention period and which roles may retrieve an
    original attachment.
-5. Whether a shared intake queue is desired or drafts should be private to the
-   uploader until assigned.
+5. Whether a shared/assigned intake queue should replace the current safe
+   default, which keeps drafts private to their uploader.
 
 ## Requires owner/provider setup
 

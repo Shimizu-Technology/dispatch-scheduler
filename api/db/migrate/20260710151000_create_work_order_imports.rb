@@ -5,7 +5,7 @@ class CreateWorkOrderImports < ActiveRecord::Migration[8.1]
       t.string :source_kind, null: false
       t.string :source_filename
       t.string :source_content_type
-      t.string :source_sha256
+      t.string :source_sha256, null: false
       t.text :source_text
       t.text :raw_response
       t.string :extraction_model

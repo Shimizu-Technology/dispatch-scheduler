@@ -448,7 +448,7 @@ module Api
         import_item_id = params[:work_order_import_item_id]
         return nil if import_item_id.blank?
 
-        item = WorkOrderImportItem.lock.find(import_item_id)
+        item = WorkOrderImportItem.owned_by(current_user).lock.find(import_item_id)
         raise ArgumentError, "This intake draft has already been reviewed" unless item.status == "pending"
 
         item

@@ -149,6 +149,43 @@ class WorkOrderImportsControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1, audit_scope.count
   end
 
+  test "dispatcher cannot list or reject another uploader's pending intake draft" do
+    owned_import = WorkOrderImport.create!(
+      user: dispatcher_user,
+      source_kind: "pasted_text",
+      source_text: "Owned request",
+      source_sha256: "owned-draft",
+      extraction_model: "test-model",
+      extracted_at: Time.current
+    )
+    owned_item = owned_import.items.create!(position: 0, extracted_data: { description: "Owned request" })
+    other_user = User.create!(clerk_id: "other_importer_123", email: "other-importer@example.com", role: "dispatcher")
+    other_import = WorkOrderImport.create!(
+      user: other_user,
+      source_kind: "pasted_text",
+      source_text: "Other request",
+      source_sha256: "other-draft",
+      extraction_model: "test-model",
+      extracted_at: Time.current
+    )
+    other_item = other_import.items.create!(position: 0, extracted_data: { description: "Other request" })
+
+    with_auth_env do
+      get "/api/v1/work_order_imports", headers: auth_headers
+    end
+    assert_response :success
+    payload = JSON.parse(response.body).fetch("work_orders")
+    assert_equal [ owned_item.id ], payload.map { |draft| draft.fetch("import_item_id") }
+
+    with_auth_env do
+      post "/api/v1/work_order_import_items/#{other_item.id}/reject", headers: auth_headers
+    end
+    assert_response :not_found
+    assert_equal "pending", other_item.reload.status
+    assert_equal "pending", other_import.reload.status
+    assert_equal 0, AuditEvent.where(record_type: "WorkOrderImport", record_id: other_import.id).count
+  end
+
   test "viewer cannot preview work order uploads" do
     with_auth_env do
       post "/api/v1/work_order_imports/preview", params: { file: image_upload }, headers: auth_headers("viewer_imports_123", "viewer-imports@example.com")

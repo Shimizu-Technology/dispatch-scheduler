@@ -6,7 +6,8 @@ module Api
       before_action :require_dispatch_edit!
 
       def index
-        imports = WorkOrderImport.with_pending_items
+        imports = WorkOrderImport.owned_by(current_user)
+          .with_pending_items
           .includes(:items)
           .order(created_at: :desc)
           .limit(50)
@@ -34,7 +35,7 @@ module Api
 
       def reject_item
         ApplicationRecord.transaction do
-          item = WorkOrderImportItem.pending_review.lock.find(params[:id])
+          item = WorkOrderImportItem.owned_by(current_user).pending_review.lock.find(params[:id])
           item.reject!(user: current_user)
           AuditEvent.record!(
             action: "work_order_import.rejected",

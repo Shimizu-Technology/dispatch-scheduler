@@ -155,6 +155,22 @@ class MonthlyReportServiceTest < ActiveSupport::TestCase
     end
   end
 
+  test "work order summary reuses each resolved status snapshot" do
+    work_order(title: "Snapshot reuse", status: "approved", date: nil, reported_at: Time.zone.local(2026, 6, 2, 8, 0))
+    report = MonthlyReportService.new(month: "2026-06")
+    original_statuses_as_of = report.method(:statuses_as_of)
+    calls = []
+    report.define_singleton_method(:statuses_as_of) do |records, *cutoffs|
+      calls << [ records.map(&:id).sort, cutoffs.empty? ? :report_cutoff : cutoffs.first.to_i ]
+      cutoffs.empty? ? original_statuses_as_of.call(records) : original_statuses_as_of.call(records, *cutoffs)
+    end
+
+    report.send(:work_order_summary)
+
+    assert_equal 1, calls.count { |_record_ids, cutoff| cutoff == :report_cutoff }
+    assert_equal calls.uniq, calls
+  end
+
   test "historical reports label an unknowable pre-migration open status instead of inventing one" do
     wo = nil
     travel_to Time.zone.local(2026, 5, 1, 8, 0) do

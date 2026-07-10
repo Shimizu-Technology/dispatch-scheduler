@@ -148,11 +148,16 @@ class MonthlyReportService
   def active_as_of
     @active_as_of ||= begin
       records = active_as_of_candidates.to_a
-      statuses = statuses_as_of(records)
+      @active_as_of_statuses = statuses_as_of(records)
       records.reject do |work_order|
-        WorkOrder::CLOSED_STATUSES.include?(statuses.fetch(work_order.id, work_order.status))
+        WorkOrder::CLOSED_STATUSES.include?(@active_as_of_statuses.fetch(work_order.id, work_order.status))
       end
     end
+  end
+
+  def active_as_of_statuses
+    active_as_of
+    @active_as_of_statuses
   end
 
   def closed_during_month_count
@@ -211,7 +216,7 @@ class MonthlyReportService
 
   def work_order_summary
     active_records = active_as_of
-    active_statuses = statuses_as_of(active_records)
+    active_statuses = active_as_of_statuses
     status_counts = active_records.each_with_object(Hash.new(0)) do |work_order, counts|
       counts[active_statuses.fetch(work_order.id, work_order.status)] += 1
     end

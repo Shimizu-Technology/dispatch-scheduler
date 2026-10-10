@@ -23,10 +23,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_130000) do
     t.string "record_type", null: false
     t.datetime "updated_at", null: false
     t.integer "user_id"
-    t.index ["action"], name: "index_audit_events_on_action"
-    t.index ["occurred_at"], name: "index_audit_events_on_occurred_at"
-    t.index ["record_type", "record_id"], name: "index_audit_events_on_record_type_and_record_id"
-    t.index ["user_id"], name: "index_audit_events_on_user_id"
+    t.index [ "action" ], name: "index_audit_events_on_action"
+    t.index [ "occurred_at" ], name: "index_audit_events_on_occurred_at"
+    t.index [ "record_type", "record_id" ], name: "index_audit_events_on_record_type_and_record_id"
+    t.index [ "user_id" ], name: "index_audit_events_on_user_id"
   end
 
   create_table "clients", force: :cascade do |t|
@@ -44,10 +44,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_130000) do
     t.bigint "technician_id", null: false
     t.string "technician_name", null: false
     t.datetime "updated_at", null: false
-    t.index ["dispatch_item_id", "technician_id"], name: "index_dispatch_item_technicians_unique_assignment", unique: true
-    t.index ["dispatch_item_id"], name: "index_dispatch_item_technicians_on_dispatch_item_id"
-    t.index ["technician_id", "position"], name: "index_dispatch_item_technicians_on_technician_id_and_position"
-    t.index ["technician_id"], name: "index_dispatch_item_technicians_on_technician_id"
+    t.index [ "dispatch_item_id", "technician_id" ], name: "index_dispatch_item_technicians_unique_assignment", unique: true
+    t.index [ "dispatch_item_id" ], name: "index_dispatch_item_technicians_on_dispatch_item_id"
+    t.index [ "technician_id", "position" ], name: "index_dispatch_item_technicians_on_technician_id_and_position"
+    t.index [ "technician_id" ], name: "index_dispatch_item_technicians_on_technician_id"
   end
 
   create_table "dispatch_items", force: :cascade do |t|
@@ -69,12 +69,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_130000) do
     t.integer "team_id", null: false
     t.datetime "updated_at", null: false
     t.integer "work_order_id"
-    t.index ["carried_over_to_date"], name: "index_dispatch_items_on_carried_over_to_date"
-    t.index ["dispatch_schedule_id"], name: "index_dispatch_items_on_dispatch_schedule_id"
-    t.index ["outcome_status"], name: "index_dispatch_items_on_outcome_status"
-    t.index ["pm_task_id"], name: "index_dispatch_items_on_pm_task_id"
-    t.index ["team_id"], name: "index_dispatch_items_on_team_id"
-    t.index ["work_order_id"], name: "index_dispatch_items_on_work_order_id"
+    t.index [ "carried_over_to_date" ], name: "index_dispatch_items_on_carried_over_to_date"
+    t.index [ "dispatch_schedule_id" ], name: "index_dispatch_items_on_dispatch_schedule_id"
+    t.index [ "outcome_status" ], name: "index_dispatch_items_on_outcome_status"
+    t.index [ "pm_task_id" ], name: "index_dispatch_items_on_pm_task_id"
+    t.index [ "team_id" ], name: "index_dispatch_items_on_team_id"
+    t.index [ "work_order_id" ], name: "index_dispatch_items_on_work_order_id"
   end
 
   create_table "dispatch_schedules", force: :cascade do |t|
@@ -87,9 +87,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_130000) do
     t.integer "sent_by_user_id"
     t.string "status"
     t.datetime "updated_at", null: false
-    t.index ["date", "status"], name: "index_dispatch_schedules_on_date_and_status"
-    t.index ["finalized_by_user_id"], name: "index_dispatch_schedules_on_finalized_by_user_id"
-    t.index ["sent_by_user_id"], name: "index_dispatch_schedules_on_sent_by_user_id"
+    t.index [ "date", "status" ], name: "index_dispatch_schedules_on_date_and_status"
+    t.index [ "finalized_by_user_id" ], name: "index_dispatch_schedules_on_finalized_by_user_id"
+    t.index [ "sent_by_user_id" ], name: "index_dispatch_schedules_on_sent_by_user_id"
   end
 
   create_table "follow_ups", force: :cascade do |t|
@@ -100,7 +100,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_130000) do
     t.string "status"
     t.datetime "updated_at", null: false
     t.integer "work_order_id", null: false
-    t.index ["work_order_id"], name: "index_follow_ups_on_work_order_id"
+    t.index [ "work_order_id" ], name: "index_follow_ups_on_work_order_id"
   end
 
   create_table "locations", force: :cascade do |t|
@@ -111,7 +111,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_130000) do
     t.text "notes"
     t.string "region"
     t.datetime "updated_at", null: false
-    t.index ["client_id"], name: "index_locations_on_client_id"
+    t.index [ "client_id" ], name: "index_locations_on_client_id"
   end
 
   create_table "pm_tasks", force: :cascade do |t|
@@ -140,16 +140,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_130000) do
     t.datetime "updated_at", null: false
     t.index "COALESCE(period_end, scheduled_date)", name: "index_pm_tasks_on_effective_period_end"
     t.index "COALESCE(period_start, scheduled_date)", name: "index_pm_tasks_on_effective_period_start"
-    t.index ["archived_at"], name: "index_pm_tasks_on_archived_at"
-    t.index ["client_id"], name: "index_pm_tasks_on_client_id"
-    t.index ["deferred_until"], name: "index_pm_tasks_on_deferred_until"
-    t.index ["due_on"], name: "index_pm_tasks_on_due_on"
-    t.index ["location_id"], name: "index_pm_tasks_on_location_id"
-    t.index ["pm_template_id"], name: "index_pm_tasks_on_pm_template_id"
-    t.index ["pm_template_item_id", "location_id", "period_start"], name: "index_pm_tasks_on_template_item_location_period", unique: true, where: "((pm_template_item_id IS NOT NULL) AND (period_start IS NOT NULL) AND (archived_at IS NULL))"
-    t.index ["pm_template_item_id"], name: "index_pm_tasks_on_pm_template_item_id"
-    t.index ["scheduled_date", "status"], name: "index_pm_tasks_on_scheduled_date_and_status"
-    t.index ["status"], name: "index_pm_tasks_on_status"
+    t.index [ "archived_at" ], name: "index_pm_tasks_on_archived_at"
+    t.index [ "client_id" ], name: "index_pm_tasks_on_client_id"
+    t.index [ "deferred_until" ], name: "index_pm_tasks_on_deferred_until"
+    t.index [ "due_on" ], name: "index_pm_tasks_on_due_on"
+    t.index [ "location_id" ], name: "index_pm_tasks_on_location_id"
+    t.index [ "pm_template_id" ], name: "index_pm_tasks_on_pm_template_id"
+    t.index [ "pm_template_item_id", "location_id", "period_start" ], name: "index_pm_tasks_on_template_item_location_period", unique: true, where: "((pm_template_item_id IS NOT NULL) AND (period_start IS NOT NULL) AND (archived_at IS NULL))"
+    t.index [ "pm_template_item_id" ], name: "index_pm_tasks_on_pm_template_item_id"
+    t.index [ "scheduled_date", "status" ], name: "index_pm_tasks_on_scheduled_date_and_status"
+    t.index [ "status" ], name: "index_pm_tasks_on_status"
   end
 
   create_table "pm_template_item_locations", force: :cascade do |t|
@@ -158,9 +158,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_130000) do
     t.bigint "location_id", null: false
     t.bigint "pm_template_item_id", null: false
     t.datetime "updated_at", null: false
-    t.index ["location_id"], name: "index_pm_template_item_locations_on_location_id"
-    t.index ["pm_template_item_id", "location_id"], name: "index_pm_template_item_locations_unique", unique: true
-    t.index ["pm_template_item_id"], name: "index_pm_template_item_locations_on_pm_template_item_id"
+    t.index [ "location_id" ], name: "index_pm_template_item_locations_on_location_id"
+    t.index [ "pm_template_item_id", "location_id" ], name: "index_pm_template_item_locations_unique", unique: true
+    t.index [ "pm_template_item_id" ], name: "index_pm_template_item_locations_on_pm_template_item_id"
   end
 
   create_table "pm_template_items", force: :cascade do |t|
@@ -174,10 +174,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_130000) do
     t.string "task_name", null: false
     t.string "trade_category", default: "General", null: false
     t.datetime "updated_at", null: false
-    t.index ["pm_template_id", "frequency"], name: "index_pm_template_items_on_pm_template_id_and_frequency"
-    t.index ["pm_template_id", "position"], name: "index_pm_template_items_on_pm_template_id_and_position"
-    t.index ["pm_template_id", "task_name"], name: "index_pm_template_items_on_pm_template_id_and_task_name", unique: true
-    t.index ["pm_template_id"], name: "index_pm_template_items_on_pm_template_id"
+    t.index [ "pm_template_id", "frequency" ], name: "index_pm_template_items_on_pm_template_id_and_frequency"
+    t.index [ "pm_template_id", "position" ], name: "index_pm_template_items_on_pm_template_id_and_position"
+    t.index [ "pm_template_id", "task_name" ], name: "index_pm_template_items_on_pm_template_id_and_task_name", unique: true
+    t.index [ "pm_template_id" ], name: "index_pm_template_items_on_pm_template_id"
   end
 
   create_table "pm_template_locations", force: :cascade do |t|
@@ -187,10 +187,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_130000) do
     t.bigint "pm_template_id", null: false
     t.integer "position", default: 0, null: false
     t.datetime "updated_at", null: false
-    t.index ["location_id"], name: "index_pm_template_locations_on_location_id"
-    t.index ["pm_template_id", "location_id"], name: "index_pm_template_locations_on_pm_template_id_and_location_id", unique: true
-    t.index ["pm_template_id", "position"], name: "index_pm_template_locations_on_pm_template_id_and_position"
-    t.index ["pm_template_id"], name: "index_pm_template_locations_on_pm_template_id"
+    t.index [ "location_id" ], name: "index_pm_template_locations_on_location_id"
+    t.index [ "pm_template_id", "location_id" ], name: "index_pm_template_locations_on_pm_template_id_and_location_id", unique: true
+    t.index [ "pm_template_id", "position" ], name: "index_pm_template_locations_on_pm_template_id_and_position"
+    t.index [ "pm_template_id" ], name: "index_pm_template_locations_on_pm_template_id"
   end
 
   create_table "pm_templates", force: :cascade do |t|
@@ -201,10 +201,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_130000) do
     t.text "notes"
     t.bigint "service_line_id"
     t.datetime "updated_at", null: false
-    t.index ["active", "name"], name: "index_pm_templates_on_active_and_name"
-    t.index ["client_id", "name"], name: "index_pm_templates_on_client_id_and_name", unique: true
-    t.index ["client_id"], name: "index_pm_templates_on_client_id"
-    t.index ["service_line_id"], name: "index_pm_templates_on_service_line_id"
+    t.index [ "active", "name" ], name: "index_pm_templates_on_active_and_name"
+    t.index [ "client_id", "name" ], name: "index_pm_templates_on_client_id_and_name", unique: true
+    t.index [ "client_id" ], name: "index_pm_templates_on_client_id"
+    t.index [ "service_line_id" ], name: "index_pm_templates_on_service_line_id"
   end
 
   create_table "service_lines", force: :cascade do |t|
@@ -214,8 +214,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_130000) do
     t.text "notes"
     t.integer "position", default: 0, null: false
     t.datetime "updated_at", null: false
-    t.index ["active", "position"], name: "index_service_lines_on_active_and_position"
-    t.index ["name"], name: "index_service_lines_on_name", unique: true
+    t.index [ "active", "position" ], name: "index_service_lines_on_active_and_position"
+    t.index [ "name" ], name: "index_service_lines_on_name", unique: true
   end
 
   create_table "team_daily_overrides", force: :cascade do |t|
@@ -223,8 +223,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_130000) do
     t.date "date", null: false
     t.integer "team_id", null: false
     t.datetime "updated_at", null: false
-    t.index ["team_id", "date"], name: "index_team_daily_overrides_on_team_id_and_date", unique: true
-    t.index ["team_id"], name: "index_team_daily_overrides_on_team_id"
+    t.index [ "team_id", "date" ], name: "index_team_daily_overrides_on_team_id_and_date", unique: true
+    t.index [ "team_id" ], name: "index_team_daily_overrides_on_team_id"
   end
 
   create_table "team_memberships", force: :cascade do |t|
@@ -233,10 +233,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_130000) do
     t.integer "team_id", null: false
     t.integer "technician_id", null: false
     t.datetime "updated_at", null: false
-    t.index ["team_id", "technician_id", "date"], name: "index_team_memberships_unique_daily", unique: true, where: "(date IS NOT NULL)"
-    t.index ["team_id", "technician_id"], name: "index_team_memberships_unique_default", unique: true, where: "(date IS NULL)"
-    t.index ["team_id"], name: "index_team_memberships_on_team_id"
-    t.index ["technician_id"], name: "index_team_memberships_on_technician_id"
+    t.index [ "team_id", "technician_id", "date" ], name: "index_team_memberships_unique_daily", unique: true, where: "(date IS NOT NULL)"
+    t.index [ "team_id", "technician_id" ], name: "index_team_memberships_unique_default", unique: true, where: "(date IS NULL)"
+    t.index [ "team_id" ], name: "index_team_memberships_on_team_id"
+    t.index [ "technician_id" ], name: "index_team_memberships_on_technician_id"
   end
 
   create_table "team_service_line_preferences", force: :cascade do |t|
@@ -244,9 +244,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_130000) do
     t.bigint "service_line_id", null: false
     t.bigint "team_id", null: false
     t.datetime "updated_at", null: false
-    t.index ["service_line_id"], name: "index_team_service_line_preferences_on_service_line_id"
-    t.index ["team_id", "service_line_id"], name: "index_team_service_line_preferences_unique", unique: true
-    t.index ["team_id"], name: "index_team_service_line_preferences_on_team_id"
+    t.index [ "service_line_id" ], name: "index_team_service_line_preferences_on_service_line_id"
+    t.index [ "team_id", "service_line_id" ], name: "index_team_service_line_preferences_unique", unique: true
+    t.index [ "team_id" ], name: "index_team_service_line_preferences_on_team_id"
   end
 
   create_table "teams", force: :cascade do |t|
@@ -258,8 +258,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_130000) do
     t.text "notes"
     t.string "region_preference"
     t.datetime "updated_at", null: false
-    t.index ["active"], name: "index_teams_on_active"
-    t.index ["archived_at"], name: "index_teams_on_archived_at"
+    t.index [ "active" ], name: "index_teams_on_active"
+    t.index [ "archived_at" ], name: "index_teams_on_archived_at"
   end
 
   create_table "technician_availabilities", force: :cascade do |t|
@@ -269,8 +269,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_130000) do
     t.string "status"
     t.integer "technician_id", null: false
     t.datetime "updated_at", null: false
-    t.index ["technician_id", "date"], name: "index_technician_availabilities_unique_tech_date", unique: true
-    t.index ["technician_id"], name: "index_technician_availabilities_on_technician_id"
+    t.index [ "technician_id", "date" ], name: "index_technician_availabilities_unique_tech_date", unique: true
+    t.index [ "technician_id" ], name: "index_technician_availabilities_on_technician_id"
   end
 
   create_table "technician_skills", force: :cascade do |t|
@@ -278,8 +278,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_130000) do
     t.string "skill"
     t.integer "technician_id", null: false
     t.datetime "updated_at", null: false
-    t.index ["technician_id", "skill"], name: "index_technician_skills_on_technician_id_and_skill", unique: true
-    t.index ["technician_id"], name: "index_technician_skills_on_technician_id"
+    t.index [ "technician_id", "skill" ], name: "index_technician_skills_on_technician_id_and_skill", unique: true
+    t.index [ "technician_id" ], name: "index_technician_skills_on_technician_id"
   end
 
   create_table "technicians", force: :cascade do |t|
@@ -306,13 +306,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_130000) do
     t.string "name"
     t.string "role", default: "viewer", null: false
     t.datetime "updated_at", null: false
-    t.index ["active"], name: "index_users_on_active"
-    t.index ["clerk_id"], name: "index_users_on_clerk_id", unique: true
-    t.index ["clerk_invitation_id"], name: "index_users_on_clerk_invitation_id"
-    t.index ["email"], name: "index_users_on_email", unique: true
-    t.index ["invitation_status"], name: "index_users_on_invitation_status"
-    t.index ["invited_by_id"], name: "index_users_on_invited_by_id"
-    t.index ["role"], name: "index_users_on_role"
+    t.index [ "active" ], name: "index_users_on_active"
+    t.index [ "clerk_id" ], name: "index_users_on_clerk_id", unique: true
+    t.index [ "clerk_invitation_id" ], name: "index_users_on_clerk_invitation_id"
+    t.index [ "email" ], name: "index_users_on_email", unique: true
+    t.index [ "invitation_status" ], name: "index_users_on_invitation_status"
+    t.index [ "invited_by_id" ], name: "index_users_on_invited_by_id"
+    t.index [ "role" ], name: "index_users_on_role"
   end
 
   create_table "work_orders", force: :cascade do |t|
@@ -356,20 +356,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_130000) do
     t.string "trade_category"
     t.datetime "updated_at", null: false
     t.string "vendor_reference"
-    t.index ["archived_at"], name: "index_work_orders_on_archived_at"
-    t.index ["assessment_due_at"], name: "index_work_orders_on_assessment_due_at"
-    t.index ["client_id"], name: "index_work_orders_on_client_id"
-    t.index ["corrective_maintenance"], name: "index_work_orders_on_corrective_maintenance"
-    t.index ["estimate_number"], name: "index_work_orders_on_estimate_number"
-    t.index ["estimate_required"], name: "index_work_orders_on_estimate_required"
-    t.index ["follow_up_due_on"], name: "index_work_orders_on_follow_up_due_on"
-    t.index ["location_id"], name: "index_work_orders_on_location_id"
-    t.index ["pa_project"], name: "index_work_orders_on_pa_project"
-    t.index ["parts_eta"], name: "index_work_orders_on_parts_eta"
-    t.index ["repair_due_at"], name: "index_work_orders_on_repair_due_at"
-    t.index ["reported_at"], name: "index_work_orders_on_reported_at"
-    t.index ["service_line_id"], name: "index_work_orders_on_service_line_id"
-    t.index ["team_id"], name: "index_work_orders_on_team_id"
+    t.index [ "archived_at" ], name: "index_work_orders_on_archived_at"
+    t.index [ "assessment_due_at" ], name: "index_work_orders_on_assessment_due_at"
+    t.index [ "client_id" ], name: "index_work_orders_on_client_id"
+    t.index [ "corrective_maintenance" ], name: "index_work_orders_on_corrective_maintenance"
+    t.index [ "estimate_number" ], name: "index_work_orders_on_estimate_number"
+    t.index [ "estimate_required" ], name: "index_work_orders_on_estimate_required"
+    t.index [ "follow_up_due_on" ], name: "index_work_orders_on_follow_up_due_on"
+    t.index [ "location_id" ], name: "index_work_orders_on_location_id"
+    t.index [ "pa_project" ], name: "index_work_orders_on_pa_project"
+    t.index [ "parts_eta" ], name: "index_work_orders_on_parts_eta"
+    t.index [ "repair_due_at" ], name: "index_work_orders_on_repair_due_at"
+    t.index [ "reported_at" ], name: "index_work_orders_on_reported_at"
+    t.index [ "service_line_id" ], name: "index_work_orders_on_service_line_id"
+    t.index [ "team_id" ], name: "index_work_orders_on_team_id"
   end
 
   add_foreign_key "audit_events", "users"

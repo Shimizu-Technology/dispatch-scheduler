@@ -31,6 +31,23 @@ class WorkOrdersControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1.5, payload.fetch("estimated_hours")
   end
 
+  test "quick intake preserves an existing location region when unknown" do
+    site = location(name: "Demo North Site", region: "North")
+    with_auth_env do
+      post "/api/v1/work_orders", params: {
+        client: site.client.name, location: "demo north site", region: "Unknown",
+        description: "New intake request", source: "whatsapp", priority: "P3",
+        status: "needs_assessment", reported_at: "2026-10-10T08:00:00+10:00"
+      }, headers: auth_headers
+    end
+    assert_response :created
+    assert_equal "North", JSON.parse(response.body).fetch("region")
+    assert_equal "North", site.reload.region
+    assert_equal "Demo North Site", site.name
+    assert_equal "Demo North Site", JSON.parse(response.body).fetch("location")
+    assert_nil JSON.parse(response.body).fetch("scheduled_date")
+  end
+
   test "invalid scheduled date rolls back client and location writes" do
     with_auth_env do
       post "/api/v1/work_orders", params: {

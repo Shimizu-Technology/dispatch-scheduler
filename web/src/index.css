@@ -134,3 +134,14 @@ textarea:focus-visible {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Keep work-order field boundaries and focus visible on light surfaces. */
+.work-order-workspace .field-control,
+.work-order-editor .field-control {
+  border-color: #7b8798;
+}
+
+.work-order-workspace .field-control:focus,
+.work-order-editor .field-control:focus {
+  border-color: #244393;
+}

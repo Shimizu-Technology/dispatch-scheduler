@@ -1,23 +1,25 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { Activity, BarChart3, CalendarDays, ClipboardList, FolderKanban, LayoutDashboard, LockKeyhole, Menu, MessageSquareText, PanelLeftClose, PanelLeftOpen, RefreshCw, Settings2, UserCog, Users, Wrench, X } from 'lucide-react'
 import { SignInButton, UserButton } from '@clerk/react'
-import { ActivityPanel } from './components/ActivityPanel'
-import { DashboardMetrics } from './components/DashboardMetrics'
-import { DispatchBuilder } from './components/DispatchBuilder'
-import { PaProjectsPanel } from './components/PaProjectsPanel'
-import { PmTasksPanel } from './components/PmTasksPanel'
-import { ReportsPanel } from './components/ReportsPanel'
-import { ServiceLinesPanel } from './components/ServiceLinesPanel'
-import { TeamsPanel } from './components/TeamsPanel'
-import { UserManagementPanel } from './components/UserManagementPanel'
-import { WhatsAppExport } from './components/WhatsAppExport'
 import { WorkOrdersPanel } from './components/WorkOrdersPanel'
+import { SectionErrorBoundary } from './components/SectionErrorBoundary'
 import { useAuthContext } from './contexts/useAuthContext'
 import { deleteJson, getBlob, getJson, patchJson, postJson } from './lib/api'
 import type { AuditEvent, Dashboard, DispatchOutcomeStatus, DispatchSchedule, ManagedUser, MonthlyReport, PaginationMeta, PmTask, PmTaskBulkCreatePayload, PmTaskInput, PmTemplate, PmTemplateGenerationPayload, PmTemplateInput, ServiceLine, ServiceLineInput, Team, TeamInput, Technician, TechnicianInput, WhatsAppCrewExport, WhatsAppExportPayload, WorkOrder, WorkOrderInput, WorkOrderListPayload, WorkOrderStatus } from './types'
 import './index.css'
+
+const ActivityPanel = lazy(() => import('./components/ActivityPanel').then((module) => ({ default: module.ActivityPanel })))
+const DashboardMetrics = lazy(() => import('./components/DashboardMetrics').then((module) => ({ default: module.DashboardMetrics })))
+const DispatchBuilder = lazy(() => import('./components/DispatchBuilder').then((module) => ({ default: module.DispatchBuilder })))
+const PaProjectsPanel = lazy(() => import('./components/PaProjectsPanel').then((module) => ({ default: module.PaProjectsPanel })))
+const PmTasksPanel = lazy(() => import('./components/PmTasksPanel').then((module) => ({ default: module.PmTasksPanel })))
+const ReportsPanel = lazy(() => import('./components/ReportsPanel').then((module) => ({ default: module.ReportsPanel })))
+const ServiceLinesPanel = lazy(() => import('./components/ServiceLinesPanel').then((module) => ({ default: module.ServiceLinesPanel })))
+const TeamsPanel = lazy(() => import('./components/TeamsPanel').then((module) => ({ default: module.TeamsPanel })))
+const UserManagementPanel = lazy(() => import('./components/UserManagementPanel').then((module) => ({ default: module.UserManagementPanel })))
+const WhatsAppExport = lazy(() => import('./components/WhatsAppExport').then((module) => ({ default: module.WhatsAppExport })))
 
 type ActiveSection = 'overview' | 'work-orders' | 'pm-tasks' | 'pa-projects' | 'dispatch' | 'teams' | 'reports' | 'whatsapp' | 'activity' | 'service-lines' | 'users'
 type AppRoute = { section: ActiveSection; path: string; search: string; date?: string; month?: string; workOrderId?: number }
@@ -35,7 +37,7 @@ type SectionLink = {
 const SECTION_IDS: ActiveSection[] = ['overview', 'work-orders', 'pm-tasks', 'pa-projects', 'dispatch', 'teams', 'reports', 'whatsapp', 'activity', 'service-lines', 'users']
 const SELECTED_DATE_STORAGE_KEY = 'dispatch-scheduler:selected-date'
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'dispatch-scheduler:sidebar-collapsed'
-const DEFAULT_WORK_ORDER_QUERY = 'archived=active&page=1&per_page=50&sort=scheduled_date&direction=asc'
+const DEFAULT_WORK_ORDER_QUERY = 'archived=active&page=1&per_page=50&sort=created_at&direction=desc'
 const ROUTE_PATHS: Record<ActiveSection, string> = {
   overview: '/dashboard',
   'work-orders': '/work-orders',
@@ -86,7 +88,8 @@ function routeForLocation(location: Location = window.location): AppRoute {
   if (reportMonthMatch) return { section: 'reports', path, search, month: reportMonthMatch[1] }
   if (path === '/reports') return { section: 'reports', path, search }
 
-  if (path === '/' || path === '/dashboard') return { section: 'overview', path, search }
+  if (path === '/') return { section: 'work-orders', path: '/work-orders', search }
+  if (path === '/dashboard') return { section: 'overview', path, search }
   const workOrderMatch = path.match(/^\/work-orders\/(\d+)$/)
   if (workOrderMatch) return { section: 'work-orders', path, search, workOrderId: Number(workOrderMatch[1]) }
   if (path === '/work-orders') return { section: 'work-orders', path, search }
@@ -556,25 +559,23 @@ function DispatchApp() {
     setPaProjectMeta(payload.meta)
   }
 
-  async function createWorkOrder(values: WorkOrderInput) {
+  async function createWorkOrder(values: WorkOrderInput): Promise<WorkOrder> {
     if (!canEditDispatch) {
-      setError('Viewer access cannot add work orders.')
-      return
+      throw new Error('Viewer access cannot add work orders.')
     }
 
+    const queueQuery = currentRoute.section === 'work-orders' ? currentRoute.search.replace(/^\?/, '') || DEFAULT_WORK_ORDER_QUERY : DEFAULT_WORK_ORDER_QUERY
     setWorkOrderSaving(true)
     setError('')
     try {
       const created = await postJson<WorkOrder>('/work_orders', values)
       setWorkOrders((current) => [created, ...current.filter((workOrder) => workOrder.id !== created.id)])
-      goToSection('work-orders')
-      await afterAuditedChange()
-
       try {
-        await refreshWorkOrderContext()
+        await Promise.all([afterAuditedChange(), refreshWorkOrderContext(queueQuery)])
       } catch (refreshError) {
         setError(refreshError instanceof Error ? `Work order saved, but the dashboard did not refresh: ${refreshError.message}` : 'Work order saved, but the dashboard did not refresh.')
       }
+      return created
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to create work order')
       throw err
@@ -583,24 +584,23 @@ function DispatchApp() {
     }
   }
 
-  async function updateWorkOrder(workOrderId: number, values: WorkOrderInput) {
+  async function updateWorkOrder(workOrderId: number, values: WorkOrderInput): Promise<WorkOrder> {
     if (!canEditDispatch) {
-      setError('Viewer access cannot update work orders.')
-      return
+      throw new Error('Viewer access cannot update work orders.')
     }
 
+    const queueQuery = currentRoute.section === 'work-orders' ? currentRoute.search.replace(/^\?/, '') || DEFAULT_WORK_ORDER_QUERY : DEFAULT_WORK_ORDER_QUERY
     setWorkOrderSaving(true)
     setError('')
     try {
       const updated = await patchJson<WorkOrder>(`/work_orders/${workOrderId}`, values)
       setWorkOrders((current) => current.map((workOrder) => workOrder.id === updated.id ? updated : workOrder))
-      await afterAuditedChange()
-
       try {
-        await refreshWorkOrderContext()
+        await Promise.all([afterAuditedChange(), refreshWorkOrderContext(queueQuery)])
       } catch (refreshError) {
         setError(refreshError instanceof Error ? `Work order updated, but the dashboard did not refresh: ${refreshError.message}` : 'Work order updated, but the dashboard did not refresh.')
       }
+      return updated
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to update work order')
       throw err
@@ -1221,8 +1221,8 @@ function DispatchApp() {
 
   const currentSection = currentRoute.section === 'users' && !user?.permissions.can_admin ? 'overview' : currentRoute.section
   const sections: SectionLink[] = [
+    { id: 'work-orders', label: 'Work Orders', mobileLabel: 'WOs', description: 'Requests, status and follow-up', icon: <Wrench size={18} />, count: dashboard?.counts.open_work_orders ?? workOrderMeta?.total_count ?? workOrders.filter((workOrder) => !workOrder.archived).length, group: 'operate' },
     { id: 'overview', label: 'Dashboard', mobileLabel: 'Home', description: 'Operations health', icon: <LayoutDashboard size={18} />, group: 'operate' },
-    { id: 'work-orders', label: 'Work Orders', mobileLabel: 'WOs', description: 'Open, closed, blocked, and KPI work', icon: <Wrench size={18} />, count: dashboard?.counts.open_work_orders ?? workOrderMeta?.total_count ?? workOrders.filter((workOrder) => !workOrder.archived).length, group: 'operate' },
     { id: 'pm-tasks', label: 'PMs', description: 'Monthly station obligations', icon: <CalendarDays size={18} />, count: pmTasks.length, group: 'operate' },
     { id: 'pa-projects', label: 'PA Projects', mobileLabel: 'PA', description: 'Parts, estimates, and follow-up', icon: <FolderKanban size={18} />, count: dashboard?.counts.pa_projects ?? paProjectMeta?.total_count ?? workOrders.filter((workOrder) => !workOrder.archived && workOrder.pa_project).length, group: 'operate' },
     { id: 'dispatch', label: "Today’s Dispatch", mobileLabel: 'Dispatch', description: 'Build, finalize, and send crews', icon: <ClipboardList size={18} />, count: schedule?.items.length, group: 'manage' },
@@ -1267,7 +1267,7 @@ function DispatchApp() {
 
         <div className="flex min-w-0 flex-col gap-3">
         <header className="soft-reveal overflow-hidden rounded-[1.05rem] border border-[#1d336c]/12 bg-white/96 shadow-[0_12px_34px_rgba(23,32,51,0.08)] backdrop-blur sm:rounded-[1.2rem]">
-          <div className="grid gap-0 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,28rem)]">
+          <div className={`grid gap-0 ${currentSection === 'work-orders' && user ? '' : 'xl:grid-cols-[minmax(0,1fr)_minmax(20rem,28rem)]'}`}>
             <div className="relative border-b border-[rgba(23,32,51,0.1)] bg-[#172b63] px-3 py-3 text-white sm:px-4 xl:border-b-0 xl:border-r xl:border-white/10 xl:px-5">
               <div className="absolute inset-y-0 left-0 w-1 bg-[#d84332]" />
               <div className="flex flex-col justify-between gap-2 pl-2">
@@ -1275,10 +1275,10 @@ function DispatchApp() {
                   <button type="button" onClick={() => setMobileNavOpen(true)} className="inline-flex items-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-3 py-2 font-display text-xs font-extrabold uppercase tracking-[0.14em] text-white shadow-[0_10px_24px_rgba(0,0,0,0.12)] backdrop-blur transition hover:bg-white/16 xl:hidden" aria-label="Open navigation" aria-expanded={mobileNavOpen}>
                     <Menu size={17} /> Menu
                   </button>
-                  {schedule && <span className={`inline-flex items-center rounded-full border px-3 py-1.5 font-display text-[0.66rem] font-extrabold uppercase tracking-[0.14em] ${schedule.status === 'sent' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : schedule.status === 'finalized' ? 'border-blue-200 bg-blue-50 text-blue-900' : 'border-white/15 bg-white/10 text-blue-50'}`}>{schedule.status}</span>}
+                  {schedule && currentSection !== 'work-orders' && <span className={`inline-flex items-center rounded-full border px-3 py-1.5 font-display text-[0.66rem] font-extrabold uppercase tracking-[0.14em] ${schedule.status === 'sent' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : schedule.status === 'finalized' ? 'border-blue-200 bg-blue-50 text-blue-900' : 'border-white/15 bg-white/10 text-blue-50'}`}>{schedule.status}</span>}
                 </div>
                 <div>
-                  <p className="font-display text-[0.68rem] font-extrabold uppercase tracking-[0.28em] text-blue-100/80">Operations management board</p>
+                  <p className="font-display text-[0.68rem] font-extrabold uppercase tracking-[0.28em] text-blue-100/80">{currentSection === 'work-orders' ? 'JMI work order tracking' : 'Operations management board'}</p>
                   <div className="mt-1 flex flex-wrap items-end gap-x-3 gap-y-1">
                     <h1 className="font-display text-xl font-black tracking-[-0.03em] sm:text-2xl md:text-3xl">{activeSectionMeta?.label || 'Daily Dispatch'}</h1>
                     <p className="pb-1 text-xs font-semibold leading-5 text-blue-50/72 sm:text-sm">{activeSectionMeta?.description || 'Daily dispatch command center'}</p>
@@ -1288,7 +1288,7 @@ function DispatchApp() {
               </div>
             </div>
 
-            <div className="grid gap-2 bg-white px-3 py-3 sm:grid-cols-2 sm:gap-3 sm:px-4 xl:grid-cols-1 xl:px-4">
+            <div className={`${currentSection === 'work-orders' && user ? 'xl:hidden' : ''} grid gap-2 bg-white px-3 py-3 sm:grid-cols-2 sm:gap-3 sm:px-4 xl:grid-cols-1 xl:px-4`}>
               {!user && isSignedIn ? <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
                 <div className="flex items-start gap-3">
                   <span className="rounded-xl bg-amber-100 p-2 text-amber-800">{isVerifyingApi ? <RefreshCw className="animate-spin" size={18} /> : <LockKeyhole size={18} />}</span>
@@ -1301,13 +1301,13 @@ function DispatchApp() {
                 <div className="flex items-start gap-3">
                   <span className="rounded-xl bg-[#e8eefc] p-2 text-[#244393]"><LockKeyhole size={18} /></span>
                   <div>
-                    <span className="font-display block font-extrabold text-[#172033]">Sign in to work the schedule</span>
-                    <span className="text-[#526071]">Live JMI data and dispatch actions require Clerk.</span>
+                    <span className="font-display block font-extrabold text-[#172033]">Sign in to JMI</span>
+                    <span className="text-[#526071]">Sign in to access work orders and operations.</span>
                   </div>
                 </div>
               </div> : null}
 
-              {user && <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 sm:col-span-2 xl:col-span-1">
+              {user && currentSection !== 'work-orders' && <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 sm:col-span-2 xl:col-span-1">
                 <label className="rounded-2xl border border-[rgba(23,32,51,0.1)] bg-[#f8faff] px-3 py-2">
                   <span className="font-display block text-[0.64rem] font-extrabold uppercase tracking-[0.16em] text-[#64748b]">Schedule date</span>
                   <input
@@ -1328,7 +1328,7 @@ function DispatchApp() {
               </div>}
 
               <div className="flex flex-col gap-2 sm:col-span-2 sm:flex-row sm:flex-wrap sm:items-center xl:col-span-1">
-                {canEditDispatch && currentSection !== 'overview' && <button disabled={working || Boolean(schedule && schedule.status !== 'draft')} onClick={suggestSchedule} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#d84332] px-4 py-2.5 font-display text-sm font-extrabold text-white shadow-[0_10px_22px_rgba(216,67,50,0.18)] transition hover:-translate-y-0.5 hover:bg-[#bf3228] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:flex-none">
+                {canEditDispatch && currentSection !== 'overview' && currentSection !== 'work-orders' && <button disabled={working || Boolean(schedule && schedule.status !== 'draft')} onClick={suggestSchedule} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#d84332] px-4 py-2.5 font-display text-sm font-extrabold text-white shadow-[0_10px_22px_rgba(216,67,50,0.18)] transition hover:-translate-y-0.5 hover:bg-[#bf3228] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:flex-none">
                   <ClipboardList size={17} /> {scheduleActionLabel}
                 </button>}
                 {user && <div className="inline-flex w-full items-center gap-3 rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white px-3 py-2 text-sm text-[#526071] shadow-sm sm:w-auto sm:flex-none xl:hidden">
@@ -1370,6 +1370,8 @@ function DispatchApp() {
 
         {error && <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-800">{error}</div>}
 
+        <SectionErrorBoundary resetKey={currentSection}>
+        <Suspense fallback={<section role="status" className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-[#526071]">Loading workspace...</section>}>
         {currentSection === 'overview' && <DashboardMetrics dashboard={dashboard} workOrders={workOrders.filter((workOrder) => !workOrder.archived)} teams={teams} technicians={technicians} pmTasks={pmTasks} schedule={schedule} auditEvents={auditEvents} canEdit={canEditDispatch} working={working} onGoToSection={goToSection} onSuggest={suggestSchedule} />}
 
         {currentSection === 'work-orders' && (user ? <WorkOrdersPanel workOrders={workOrders} meta={workOrderMeta} serviceLines={serviceLines} canEdit={canEditDispatch} saving={workOrderSaving} routeSearch={currentRoute.search} workOrderToEdit={workOrderToEdit} onEditConsumed={clearWorkOrderToEdit} onRouteQueryChange={updateWorkOrderRouteQuery} onFetch={fetchWorkOrders} onCreate={createWorkOrder} onUpdate={updateWorkOrder} onArchive={archiveWorkOrder} /> : <SignInRequiredPanel title="Sign in to review work orders" />)}
@@ -1391,6 +1393,8 @@ function DispatchApp() {
         {currentSection === 'activity' && (user ? <ActivityPanel events={auditEvents} /> : <SignInRequiredPanel title="Sign in to review activity" />)}
 
         {currentSection === 'users' && user?.permissions.can_admin && <UserManagementPanel users={managedUsers} currentUserId={user.id} savingUserId={savingUserId} onCreate={createManagedUser} onUpdate={updateManagedUser} onResendInvitation={resendManagedUserInvitation} onDelete={deleteManagedUser} />}
+        </Suspense>
+        </SectionErrorBoundary>
         </div>
       </div>
     </main>

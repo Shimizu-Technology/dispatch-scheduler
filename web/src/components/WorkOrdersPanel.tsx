@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ClipboardEvent, FormEvent, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Archive, ArchiveRestore, ClipboardPaste, Edit3, FileUp, Plus, Search, Sparkles, X } from 'lucide-react'
@@ -11,7 +11,7 @@ const statuses: WorkOrderStatus[] = ['new', 'needs_assessment', 'approved', 'sch
 const trades = ['General', 'Plumbing', 'HVAC', 'Electrical', 'Carpentry', 'Painting', 'Landscaping', 'Masonry']
 const regions = ['North', 'Central', 'South', 'Islandwide', 'Unknown']
 const sources = ['whatsapp', 'phone', 'email', 'mywork', 'sodexo', 'manual', 'upload']
-const DEFAULT_WORK_ORDER_QUERY = 'archived=active&page=1&per_page=50&sort=scheduled_date&direction=asc'
+const DEFAULT_WORK_ORDER_QUERY = 'archived=active&page=1&per_page=50&sort=created_at&direction=desc'
 
 type ImportDraft = OcrWorkOrderDraft & { draftId: string }
 type SlaStatusFilter = '' | 'overdue' | 'due_soon' | 'missing' | 'on_track'
@@ -50,7 +50,7 @@ function shortDate(value?: string | null) {
 function workOrderFiltersFromQuery(queryString?: string): WorkOrderFilterState {
   const params = new URLSearchParams((queryString || '').replace(/^\?/, ''))
   const archived = params.get('archived')
-  const direction = params.get('direction') === 'desc' ? 'desc' : 'asc'
+  const direction = params.get('direction') === 'asc' ? 'asc' : 'desc'
   const slaStatus = params.get('sla_status') || ''
   return {
     query: params.get('q') || '',
@@ -66,7 +66,7 @@ function workOrderFiltersFromQuery(queryString?: string): WorkOrderFilterState {
     openOnly: params.get('open') === 'true',
     closed: params.get('closed') === 'true',
     slaStatus: ['overdue', 'due_soon', 'missing', 'on_track'].includes(slaStatus) ? slaStatus as SlaStatusFilter : '',
-    sort: params.get('sort') || 'scheduled_date',
+    sort: params.get('sort') || 'created_at',
     direction,
   }
 }
@@ -76,8 +76,8 @@ function normalizedWorkOrderQuery(queryString?: string) {
   if (!params.get('archived')) params.set('archived', 'active')
   if (!params.get('page')) params.set('page', '1')
   if (!params.get('per_page')) params.set('per_page', '50')
-  if (!params.get('sort')) params.set('sort', 'scheduled_date')
-  if (!params.get('direction')) params.set('direction', 'asc')
+  if (!params.get('sort')) params.set('sort', 'created_at')
+  if (!params.get('direction')) params.set('direction', 'desc')
   return params.toString()
 }
 
@@ -124,17 +124,6 @@ function slaBadgeKind(workOrder: WorkOrder) {
   return 'closed'
 }
 
-function statusTone(status: string) {
-  if (status === 'needs_assessment') return 'border-blue-200 bg-blue-50 text-blue-900'
-  if (status === 'scheduled') return 'border-indigo-200 bg-indigo-50 text-indigo-900'
-  if (status === 'in_progress') return 'border-[#244393]/25 bg-[#eef3ff] text-[#172b63]'
-  if (status === 'carry_over') return 'border-purple-200 bg-purple-50 text-purple-900'
-  if (status === 'waiting_for_parts' || status === 'waiting_for_approval') return 'border-amber-200 bg-amber-50 text-amber-900'
-  if (status === 'completed') return 'border-emerald-200 bg-emerald-50 text-emerald-900'
-  if (status === 'closed') return 'border-slate-300 bg-slate-100 text-slate-800'
-  if (status === 'cancelled') return 'border-slate-200 bg-slate-100 text-slate-700'
-  return 'border-slate-200 bg-slate-50 text-slate-700'
-}
 
 function statusSummary(status: string) {
   const summaries: Record<string, string> = {
@@ -194,8 +183,8 @@ function formFromImportDraft(draft: ImportDraft): WorkOrderInput {
     normalized_priority: draft.priority,
     original_status_text: draft.original_status_text || draft.status,
     scheduled_date: draft.scheduled_date || '',
-    reported_at: draft.reported_at ? datetimeLocalValue(draft.reported_at) : datetimeLocalNow(),
-    assessed_at: draft.assessed_at ? datetimeLocalValue(draft.assessed_at) : '',
+    reported_at: draft.reported_at || datetimeLocalNow(),
+    assessed_at: draft.assessed_at || '',
     estimated_hours: draft.estimated_hours ?? '',
     required_technician_count: draft.required_technician_count || 1,
     pa_project: Boolean(draft.pa_project),
@@ -205,7 +194,7 @@ function formFromImportDraft(draft: ImportDraft): WorkOrderInput {
     estimate_number: draft.estimate_number || '',
     parts_status: draft.parts_status || '',
     parts_ordered: Boolean(draft.parts_ordered),
-    parts_ordered_at: draft.parts_ordered_at ? datetimeLocalValue(draft.parts_ordered_at) : '',
+    parts_ordered_at: draft.parts_ordered_at || '',
     parts_eta: draft.parts_eta || '',
     follow_up_due_on: draft.follow_up_due_on || '',
     follow_up_owner: draft.follow_up_owner || '',
@@ -230,8 +219,8 @@ function formFromWorkOrder(workOrder: WorkOrder): WorkOrderInput {
     trade_category: workOrder.trade_category || 'General',
     scheduled_date: workOrder.scheduled_date || '',
     notes: workOrder.notes || '',
-    reported_at: datetimeLocalValue(workOrder.reported_at),
-    assessed_at: datetimeLocalValue(workOrder.assessed_at),
+    reported_at: workOrder.reported_at || '',
+    assessed_at: workOrder.assessed_at || '',
     estimated_hours: workOrder.estimated_hours ?? '',
     required_technician_count: workOrder.required_technician_count || 1,
     service_line_id: workOrder.service_line_id || '',
@@ -242,7 +231,7 @@ function formFromWorkOrder(workOrder: WorkOrder): WorkOrderInput {
     estimate_number: workOrder.estimate_number || '',
     parts_status: workOrder.parts_status || '',
     parts_ordered: workOrder.parts_ordered,
-    parts_ordered_at: datetimeLocalValue(workOrder.parts_ordered_at),
+    parts_ordered_at: workOrder.parts_ordered_at || '',
     parts_eta: workOrder.parts_eta || '',
     follow_up_due_on: workOrder.follow_up_due_on || '',
     follow_up_owner: workOrder.follow_up_owner || '',
@@ -252,60 +241,96 @@ function formFromWorkOrder(workOrder: WorkOrder): WorkOrderInput {
 }
 
 function WorkOrderRow({ workOrder, canEdit, onEdit, onArchive }: { workOrder: WorkOrder; canEdit: boolean; onEdit: (workOrder: WorkOrder) => void; onArchive: (workOrderId: number, archived: boolean) => Promise<void> }) {
-  const isBlocked = workOrder.status === 'waiting_for_parts' || workOrder.status === 'waiting_for_approval'
-  return <article className="group rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white/96 shadow-[0_8px_22px_rgba(23,32,51,0.045)] transition hover:border-[#244393]/22 hover:shadow-[0_14px_32px_rgba(23,32,51,0.075)]">
-    <div className="grid gap-3 p-3 sm:p-4 xl:grid-cols-[minmax(0,1fr)_13rem_8rem] xl:items-start">
-      <div className="min-w-0">
+  const [archiveError, setArchiveError] = useState('')
+  const [archiving, setArchiving] = useState(false)
+  async function archive() {
+    if (archiving) return
+    setArchiving(true)
+    setArchiveError('')
+    try { await onArchive(workOrder.id, !workOrder.archived) }
+    catch (error) { setArchiveError(error instanceof Error ? error.message : 'Unable to archive this work order.') }
+    finally { setArchiving(false) }
+  }
+  const details = [
+    ['Client', workOrder.client], ['Service line', workOrder.service_line || 'Unassigned'],
+    ['Trade / region', `${workOrder.trade_category} / ${workOrder.region || 'Unknown'}`],
+    ['Source', workOrder.source], ['Reported', shortDateTime(workOrder.reported_at)],
+    ['Scheduled', shortDate(workOrder.scheduled_date)], ['KPI due', shortDateTime(workOrder.sla_due_at)],
+    ['Assessed', shortDateTime(workOrder.assessed_at)], ['Estimated hours', workOrder.estimated_hours ?? 'Not set'],
+    ['Required crew size', workOrder.required_technician_count], ['Parts status', workOrder.parts_status || 'Not set'],
+    ['Parts ordered', workOrder.parts_ordered ? shortDateTime(workOrder.parts_ordered_at) : 'No'],
+    ['Parts ETA', shortDate(workOrder.parts_eta)], ['Follow-up owner', workOrder.follow_up_owner || 'Unassigned'],
+    ['Follow-up due', shortDate(workOrder.follow_up_due_on)], ['Vendor reference', workOrder.vendor_reference || 'Not set'],
+  ]
+  return <article className="rounded-xl border border-slate-200 bg-white p-4">
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge kind={workOrder.normalized_priority}>{workOrder.normalized_priority}</Badge>
+          <span className="tabular text-sm font-bold text-[#172033]">WO #{workOrder.external_id || 'N/A'}</span>
           <Badge kind={workOrder.status}>{statusLabel(workOrder.status)}</Badge>
-          <Badge kind={slaBadgeKind(workOrder)}>{slaLabel(workOrder)}</Badge>
+          <Badge kind={workOrder.normalized_priority}>{workOrder.normalized_priority}</Badge>
           {workOrder.archived && <Badge kind="waiting">Archived</Badge>}
           {workOrder.pa_project && <Badge kind="waiting">PA Project</Badge>}
-          {workOrder.corrective_maintenance && <Badge kind="approved">CM</Badge>}
-          {workOrder.estimate_required && <Badge kind="scheduled">Estimate{workOrder.estimate_number ? ` #${workOrder.estimate_number}` : ''}</Badge>}
-          {workOrder.follow_up_due_on && <Badge kind={new Date(workOrder.follow_up_due_on) <= new Date() ? 'waiting' : 'closed'}>Follow-up {shortDate(workOrder.follow_up_due_on)}</Badge>}
-          {workOrder.parts_eta && <Badge kind="waiting">Parts ETA {shortDate(workOrder.parts_eta)}</Badge>}
-          {workOrder.required_technician_count > 1 && <Badge kind="approved">{workOrder.required_technician_count} techs</Badge>}
-          <span className="font-display tabular text-[0.68rem] font-extrabold uppercase tracking-[0.14em] text-[#7b8798]">WO #{workOrder.external_id || 'N/A'}</span>
         </div>
-        <h3 className="font-display mt-2 line-clamp-2 text-base font-black tracking-tight text-[#172033] sm:line-clamp-1 sm:text-lg">{workOrder.location} <span className="font-semibold text-[#64748b]">—</span> {workOrder.title}</h3>
-        <p className="mt-1 line-clamp-3 max-w-5xl text-sm leading-5 text-[#526071] sm:line-clamp-2">{workOrder.description}</p>
-        <div className={`mt-3 inline-flex rounded-xl border px-3 py-1.5 text-xs font-extrabold ${statusTone(workOrder.status)}`}>
-          {statusSummary(workOrder.status)}{isBlocked ? ' · follow-up required' : ''}
-        </div>
-        {(workOrder.parts_status || workOrder.latest_follow_up_note) && <p className="mt-2 line-clamp-2 rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs font-semibold leading-5 text-amber-950">{workOrder.parts_status ? `Parts: ${workOrder.parts_status}` : ''}{workOrder.parts_status && workOrder.latest_follow_up_note ? ' · ' : ''}{workOrder.latest_follow_up_note || ''}</p>}
+        <h3 className="mt-2 break-words text-base font-bold text-[#172033]">{workOrder.location}</h3>
+        <p className="mt-1 line-clamp-2 break-words text-sm leading-5 text-[#526071]">{workOrder.description || workOrder.title}</p>
+        <p className="mt-2 text-xs text-[#64748b]">{workOrder.client} · {statusSummary(workOrder.status)}</p>
+        {(workOrder.latest_follow_up_note || workOrder.parts_status || workOrder.follow_up_due_on) && <p className="mt-2 break-words text-xs leading-5 text-amber-900">
+          {workOrder.latest_follow_up_note || (workOrder.parts_status ? `Parts: ${workOrder.parts_status}` : 'Follow-up required')}
+          {workOrder.follow_up_due_on ? ` · Follow up ${shortDate(workOrder.follow_up_due_on)}` : ''}
+        </p>}
       </div>
-
-      <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs font-semibold text-[#64748b] sm:grid-cols-4 xl:grid-cols-1">
-        <span className="min-w-0"><strong className="block text-[0.62rem] uppercase tracking-[0.12em] text-[#94a0b5]">Scheduled</strong><span className="block truncate">{shortDate(workOrder.scheduled_date)}</span></span>
-        <span className="min-w-0"><strong className="block text-[0.62rem] uppercase tracking-[0.12em] text-[#94a0b5]">KPI due</strong><span className="block truncate">{shortDateTime(workOrder.sla_due_at)}</span></span>
-        <span className="min-w-0"><strong className="block text-[0.62rem] uppercase tracking-[0.12em] text-[#94a0b5]">Service line</strong><span className="block truncate">{workOrder.service_line || 'Unassigned'}</span></span>
-        <span className="min-w-0"><strong className="block text-[0.62rem] uppercase tracking-[0.12em] text-[#94a0b5]">Source</strong><span className="block truncate">{workOrder.source}</span></span>
-      </div>
-
-      <div className="flex flex-row flex-wrap gap-2 xl:flex-col xl:items-end">
-        <span className="font-display rounded-full bg-[#e8eefc] px-3 py-1 text-xs font-extrabold uppercase tracking-[0.1em] text-[#244393]">{workOrder.trade_category}</span>
-        <span className="rounded-full border border-[rgba(23,32,51,0.1)] bg-[#f8faff] px-3 py-1 text-xs font-extrabold text-[#526071]">{workOrder.region || 'Unknown'}</span>
-        {canEdit && <button type="button" onClick={() => onEdit(workOrder)} className="inline-flex min-h-9 flex-1 items-center justify-center gap-1 rounded-full border border-[rgba(36,67,147,0.18)] bg-white px-3 py-1 text-xs font-extrabold text-[#244393] transition hover:-translate-y-0.5 hover:bg-[#e8eefc] sm:flex-none"><Edit3 size={13} /> Edit</button>}
-        {canEdit && <button type="button" onClick={() => void onArchive(workOrder.id, !workOrder.archived)} className="inline-flex min-h-9 flex-1 items-center justify-center gap-1 rounded-full border border-[rgba(23,32,51,0.14)] bg-white px-3 py-1 text-xs font-extrabold text-[#526071] transition hover:-translate-y-0.5 hover:bg-slate-50 sm:flex-none">{workOrder.archived ? <ArchiveRestore size={13} /> : <Archive size={13} />} {workOrder.archived ? 'Restore' : 'Archive'}</button>}
-      </div>
+      {canEdit && <button type="button" onClick={() => onEdit(workOrder)} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-[#244393]/20 px-3 py-2 text-sm font-bold text-[#244393] hover:bg-blue-50"><Edit3 size={15} /> Edit</button>}
     </div>
+    <details className="mt-3 border-t border-slate-100 pt-2">
+      <summary className="cursor-pointer text-sm font-semibold text-[#244393]">Details and notes</summary>
+      <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-[#334155]">{workOrder.description || workOrder.title}</p>
+      <div className="my-3 flex flex-wrap gap-2">
+        <Badge kind={slaBadgeKind(workOrder)}>{slaLabel(workOrder)}</Badge>
+        {workOrder.corrective_maintenance && <Badge kind="approved">Corrective maintenance</Badge>}
+        {workOrder.estimate_required && <Badge kind="scheduled">Estimate{workOrder.estimate_number ? ` #${workOrder.estimate_number}` : ' required'}</Badge>}
+      </div>
+      <dl className="grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-4">{details.map(([label, value]) => <div key={label} className="min-w-0"><dt className="text-xs text-[#64748b]">{label}</dt><dd className="mt-1 break-words text-[#172033]">{value}</dd></div>)}</dl>
+      {workOrder.pa_project_notes && <p className="mt-3 whitespace-pre-wrap break-words text-sm text-[#334155]"><strong>PA Project: </strong>{workOrder.pa_project_notes}</p>}
+      {workOrder.notes && <p className="mt-3 whitespace-pre-wrap break-words text-sm text-[#334155]"><strong>Notes: </strong>{workOrder.notes}</p>}
+      {archiveError && <p role="alert" className="mt-3 text-sm text-red-800">{archiveError}</p>}
+      {canEdit && <button type="button" disabled={archiving} onClick={() => void archive()} className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm text-[#526071] disabled:opacity-50">{workOrder.archived ? <ArchiveRestore size={15} /> : <Archive size={15} />}{archiving ? 'Saving...' : workOrder.archived ? 'Restore' : 'Archive'}</button>}
+    </details>
   </article>
 }
 
-function WorkOrderForm({ initialValues, serviceLines, saving, onCancel, onSubmit }: { initialValues: WorkOrderInput; serviceLines: ServiceLine[]; saving: boolean; onCancel: () => void; onSubmit: (values: WorkOrderInput) => Promise<void> }) {
+function WorkOrderForm({ initialValues, serviceLines, saving, notice, allowAddAnother, onDirty, onCancel, onSubmit }: { initialValues: WorkOrderInput; serviceLines: ServiceLine[]; saving: boolean; notice: string; allowAddAnother: boolean; onDirty: () => void; onCancel: () => void; onSubmit: (values: WorkOrderInput, addAnother: boolean) => Promise<void> }) {
   const [values, setValues] = useState<WorkOrderInput>(initialValues)
+  const [saveError, setSaveError] = useState('')
+  const submittingRef = useRef(false)
+  const formRef = useRef<HTMLFormElement>(null)
+  const saveErrorRef = useRef<HTMLParagraphElement>(null)
+  useEffect(() => {
+    formRef.current?.querySelector<HTMLElement>('[data-autofocus]')?.focus()
+  }, [allowAddAnother])
+  useEffect(() => {
+    if (saveError) {
+      saveErrorRef.current?.scrollIntoView?.({ block: 'nearest' })
+      saveErrorRef.current?.focus()
+    }
+  }, [saveError])
   const selectedServiceLineId = values.service_line_id ? String(values.service_line_id) : ''
   const serviceLineOptions = useMemo(() => serviceLines.filter((line) => line.active || String(line.id) === selectedServiceLineId), [selectedServiceLineId, serviceLines])
 
   function updateField<K extends keyof WorkOrderInput>(field: K, value: WorkOrderInput[K]) {
+    onDirty()
     setValues((current) => ({ ...current, [field]: value }))
   }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault()
-    await onSubmit({
+    if (saving || submittingRef.current) return
+    submittingRef.current = true
+    setSaveError('')
+    const submitter = (event.nativeEvent as SubmitEvent).submitter
+    const addAnother = allowAddAnother && submitter instanceof HTMLButtonElement && submitter.value === 'another'
+    try {
+      await onSubmit({
       ...values,
       normalized_priority: values.priority,
       original_status_text: values.original_status_text || values.status,
@@ -315,11 +340,19 @@ function WorkOrderForm({ initialValues, serviceLines, saving, onCancel, onSubmit
       parts_ordered_at: datetimeLocalToIso(values.parts_ordered_at),
       estimated_hours: values.estimated_hours === '' || values.estimated_hours === undefined ? null : values.estimated_hours,
       required_technician_count: values.required_technician_count || 1,
-    })
+    }, addAnother)
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Unable to save. Your entries are still here; please try again.')
+    } finally {
+      submittingRef.current = false
+    }
   }
 
-  return <form onSubmit={(event) => void handleSubmit(event)} className="flex min-h-0 flex-1 flex-col bg-[#f8faff]">
-    <div className="min-h-0 flex-1 overflow-y-auto p-4 pb-6">
+  return <form ref={formRef} onInvalidCapture={(event) => { if (event.target instanceof HTMLElement) event.target.closest('details')?.setAttribute('open', '') }} onSubmit={(event) => void handleSubmit(event)} className="work-order-editor flex min-h-0 flex-1 flex-col bg-[#f8faff]">
+    <fieldset disabled={saving} className="min-h-0 min-w-0 flex-1 overflow-y-auto border-0 p-4 pb-6">
+    {notice && <p role="status" className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-900">{notice}</p>}
+    {saveError && <p ref={saveErrorRef} tabIndex={-1} role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-900">{saveError}</p>}
+    <p className="mb-4 text-sm text-[#526071]">Capture the request below. Expand the other sections when you need to schedule work or track a follow-up.</p>
     <div className="grid gap-3 lg:grid-cols-4">
       <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
         Client
@@ -327,7 +360,7 @@ function WorkOrderForm({ initialValues, serviceLines, saving, onCancel, onSubmit
       </label>
       <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
         Location
-        <input required value={values.location} onChange={(event) => updateField('location', event.target.value)} placeholder="Station, site, or building" className="field-control mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]" />
+        <input data-autofocus={allowAddAnother ? '' : undefined} required value={values.location} onChange={(event) => updateField('location', event.target.value)} placeholder="Station, site, or building" className="field-control mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]" />
       </label>
       <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
         Region
@@ -343,7 +376,7 @@ function WorkOrderForm({ initialValues, serviceLines, saving, onCancel, onSubmit
 
     <label className="mt-3 block text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
       Description
-      <textarea required value={values.description} onChange={(event) => updateField('description', event.target.value)} placeholder="Paste or summarize the incoming request" className="field-control mt-1 min-h-24 w-full rounded-xl px-3 py-2 text-sm text-[#334155]" />
+      <textarea data-autofocus={!allowAddAnother ? '' : undefined} required value={values.description} onChange={(event) => updateField('description', event.target.value)} placeholder="Paste or summarize the incoming request" className="field-control mt-1 min-h-24 w-full rounded-xl px-3 py-2 text-sm text-[#334155]" />
     </label>
 
     <div className="mt-3 grid gap-3 lg:grid-cols-6">
@@ -371,11 +404,7 @@ function WorkOrderForm({ initialValues, serviceLines, saving, onCancel, onSubmit
           {sources.map((source) => <option key={source} value={source}>{source}</option>)}
         </select>
       </label>
-      <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
-        Force dispatch date
-        <input type="date" value={values.scheduled_date || ''} onChange={(event) => updateField('scheduled_date', event.target.value)} className="field-control tabular mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]" />
-        <span className="mt-1 block text-xs font-semibold normal-case tracking-normal text-[#64748b]">Leave blank so KPI timing decides when it appears in dispatch.</span>
-      </label>
+
       <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
         Service line
         <select value={values.service_line_id || ''} onChange={(event) => updateField('service_line_id', event.target.value)} className="field-control mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]">
@@ -385,15 +414,25 @@ function WorkOrderForm({ initialValues, serviceLines, saving, onCancel, onSubmit
       </label>
     </div>
 
-    <div className="mt-3 grid gap-3 lg:grid-cols-4">
+    <div className="mt-3 max-w-sm">
       <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
         Reported at
-        <input required type="datetime-local" value={values.reported_at || ''} onChange={(event) => updateField('reported_at', event.target.value)} className="field-control tabular mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]" />
+        <input required type="datetime-local" value={datetimeLocalValue(values.reported_at)} onChange={(event) => updateField('reported_at', event.target.value)} className="field-control tabular mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]" />
         <span className="mt-1 block text-xs font-semibold normal-case tracking-normal text-[#64748b]">Used to calculate assessment and repair KPI due times.</span>
       </label>
+    </div>
+    <details className="mt-4 rounded-xl border border-slate-200 bg-white p-3" open={Boolean(initialValues.scheduled_date || initialValues.assessed_at || initialValues.estimated_hours || Number(initialValues.required_technician_count) > 1)}>
+      <summary className="cursor-pointer font-bold text-[#172033]">Scheduling and assessment</summary>
+    <div className="mt-3 grid gap-3 lg:grid-cols-4">
+      <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
+        Force dispatch date
+        <input type="date" value={values.scheduled_date || ''} onChange={(event) => updateField('scheduled_date', event.target.value)} className="field-control tabular mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]" />
+        <span className="mt-1 block text-xs font-semibold normal-case tracking-normal text-[#64748b]">Leave blank so KPI timing decides when it appears in dispatch.</span>
+      </label>
+
       <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
         Assessed at
-        <input type="datetime-local" value={values.assessed_at || ''} onChange={(event) => updateField('assessed_at', event.target.value)} className="field-control tabular mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]" />
+        <input type="datetime-local" value={datetimeLocalValue(values.assessed_at)} onChange={(event) => updateField('assessed_at', event.target.value)} className="field-control tabular mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]" />
         <span className="mt-1 block text-xs font-semibold normal-case tracking-normal text-[#64748b]">Optional. Once assessed, repair due time becomes the scheduling pressure.</span>
       </label>
       <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
@@ -408,6 +447,9 @@ function WorkOrderForm({ initialValues, serviceLines, saving, onCancel, onSubmit
       </label>
     </div>
 
+    </details>
+    <details className="mt-4 rounded-xl border border-slate-200 bg-white p-3" open={Boolean(initialValues.pa_project || initialValues.corrective_maintenance || initialValues.estimate_required || initialValues.parts_status || initialValues.parts_ordered || initialValues.parts_eta || initialValues.follow_up_due_on || initialValues.follow_up_owner || initialValues.latest_follow_up_note || initialValues.vendor_reference || initialValues.estimate_number)}>
+      <summary className="cursor-pointer font-bold text-[#172033]">Parts, estimates and follow-up</summary>
     <div className="mt-3 grid gap-3 lg:grid-cols-3">
       <label className="rounded-2xl border border-[rgba(36,67,147,0.12)] bg-white p-3 text-sm font-bold text-[#172033]">
         <input type="checkbox" checked={Boolean(values.pa_project)} onChange={(event) => updateField('pa_project', event.target.checked)} className="mr-2 accent-[#244393]" />
@@ -453,11 +495,11 @@ function WorkOrderForm({ initialValues, serviceLines, saving, onCancel, onSubmit
       </label>
       <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
         Ordered at
-        <input type="datetime-local" value={values.parts_ordered_at || ''} onChange={(event) => updateField('parts_ordered_at', event.target.value)} className="field-control mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]" />
+        <input type="datetime-local" value={datetimeLocalValue(values.parts_ordered_at)} onChange={(event) => updateField('parts_ordered_at', event.target.value)} className="field-control mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]" />
       </label>
       <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
         Follow-up owner
-        <input value={values.follow_up_owner || ''} onChange={(event) => updateField('follow_up_owner', event.target.value)} placeholder="John, George, vendor..." className="field-control mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]" />
+        <input value={values.follow_up_owner || ''} onChange={(event) => updateField('follow_up_owner', event.target.value)} placeholder="Dispatcher or vendor" className="field-control mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]" />
       </label>
       <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
         Vendor ref
@@ -475,16 +517,18 @@ function WorkOrderForm({ initialValues, serviceLines, saving, onCancel, onSubmit
       <textarea value={values.latest_follow_up_note || ''} onChange={(event) => updateField('latest_follow_up_note', event.target.value)} placeholder="Last call, vendor update, ordering note, CBRE update..." className="field-control mt-1 min-h-16 w-full rounded-xl px-3 py-2 text-sm text-[#334155]" />
     </label>
 
+    </details>
     <label className="mt-3 block text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
       Notes
       <textarea value={values.notes || ''} onChange={(event) => updateField('notes', event.target.value)} placeholder="Gate code, requester, parts note, manager instructions, etc." className="field-control mt-1 min-h-16 w-full rounded-xl px-3 py-2 text-sm text-[#334155]" />
     </label>
 
-    </div>
+    </fieldset>
     <div className="sticky bottom-0 z-10 flex flex-col gap-2 border-t border-[rgba(23,32,51,0.1)] bg-white/95 p-4 shadow-[0_-14px_30px_rgba(23,32,51,0.08)] backdrop-blur sm:flex-row sm:flex-wrap sm:justify-end">
       <button disabled={saving} type="button" onClick={onCancel} className="w-full rounded-2xl border border-[rgba(23,32,51,0.12)] bg-white px-4 py-2.5 font-display text-sm font-extrabold text-[#334155] transition hover:-translate-y-0.5 hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60 sm:w-auto">
         Cancel
       </button>
+      {allowAddAnother && <button disabled={saving} type="submit" name="intent" value="another" className="rounded-xl border border-[#244393]/25 bg-white px-4 py-2.5 font-bold text-[#244393] disabled:opacity-50">Save and add another</button>}
       <button disabled={saving} type="submit" className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#244393] px-4 py-2.5 font-display text-sm font-extrabold text-white shadow-[0_12px_26px_rgba(36,67,147,0.18)] transition hover:-translate-y-0.5 hover:bg-[#172b63] disabled:cursor-wait disabled:opacity-60 sm:w-auto">
         {saving ? 'Saving...' : 'Save Work Order'}
       </button>
@@ -493,34 +537,57 @@ function WorkOrderForm({ initialValues, serviceLines, saving, onCancel, onSubmit
 }
 
 function WorkOrderEditorDrawer({ open, title, subtitle, saving, onClose, children }: { open: boolean; title: string; subtitle: string; saving: boolean; onClose: () => void; children: ReactNode }) {
-  useEffect(() => {
+  const dialogRef = useRef<HTMLElement>(null)
+  const closeRef = useRef(onClose)
+  const savingRef = useRef(saving)
+  useEffect(() => { closeRef.current = onClose; savingRef.current = saving }, [onClose, saving])
+  useLayoutEffect(() => {
     if (!open) return
-
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
+    const focusable = () => Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), summary, [tabindex="0"]') || []).filter((element) => element.getClientRects().length > 0)
+    const firstInput = dialogRef.current?.querySelector<HTMLElement>('[data-autofocus]') || dialogRef.current?.querySelector<HTMLElement>('input:not(:disabled)')
+    ;(firstInput || focusable()[0] || dialogRef.current)?.focus()
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !saving) onClose()
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        if (!savingRef.current) closeRef.current()
+      }
+      if (event.key === 'Tab') {
+        const items = focusable()
+        const first = items[0]
+        const last = items[items.length - 1]
+        if (!first) { event.preventDefault(); dialogRef.current?.focus(); return }
+        if (event.shiftKey && (document.activeElement === first || !dialogRef.current?.contains(document.activeElement))) {
+          event.preventDefault(); last.focus()
+        } else if (!event.shiftKey && (document.activeElement === last || !dialogRef.current?.contains(document.activeElement))) {
+          event.preventDefault(); first.focus()
+        }
+      }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => {
       document.body.style.overflow = previousOverflow
       window.removeEventListener('keydown', handleKeyDown)
+      if (previousFocus?.isConnected && previousFocus !== document.body) previousFocus.focus()
+      else document.querySelector<HTMLElement>('[aria-label="Search work orders"]')?.focus()
     }
-  }, [open, onClose, saving])
+  }, [open])
 
   if (!open || typeof document === 'undefined') return null
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex justify-end">
-      <button type="button" aria-label="Close work order editor" disabled={saving} onClick={onClose} className="absolute inset-0 bg-[#07111f]/48 backdrop-blur-sm transition disabled:cursor-wait" />
-      <aside role="dialog" aria-modal="true" aria-labelledby="work-order-editor-title" className="relative flex h-full w-full max-w-5xl flex-col overflow-hidden border-l border-white/20 bg-[#f8faff] shadow-[-28px_0_60px_rgba(7,17,31,0.26)] sm:w-[92vw] xl:w-[78vw]">
+      <button type="button" aria-hidden="true" tabIndex={-1} aria-label="Close work order editor" disabled={saving} onClick={onClose} className="absolute inset-0 bg-[#07111f]/48 backdrop-blur-sm transition disabled:cursor-wait" />
+      <aside ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="work-order-editor-title" className="relative flex h-full w-full max-w-5xl flex-col overflow-hidden border-l border-white/20 bg-[#f8faff] shadow-[-28px_0_60px_rgba(7,17,31,0.26)] sm:w-[92vw] xl:w-[78vw]">
         <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[rgba(23,32,51,0.1)] bg-white px-4 py-4 sm:px-5">
           <div>
             <p className="font-display text-xs font-extrabold uppercase tracking-[0.16em] text-[#244393]">Work order editor</p>
             <h2 id="work-order-editor-title" className="font-display mt-1 text-xl font-black tracking-tight text-[#172033]">{title}</h2>
             <p className="mt-1 text-sm font-semibold leading-5 text-[#64748b]">{subtitle}</p>
           </div>
-          <button type="button" disabled={saving} onClick={onClose} className="rounded-2xl border border-[rgba(23,32,51,0.12)] bg-white p-2 text-[#526071] transition hover:-translate-y-0.5 hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60"><X size={18} /></button>
+          <button type="button" aria-label="Close work order editor" disabled={saving} onClick={onClose} className="rounded-2xl border border-[rgba(23,32,51,0.12)] bg-white p-2 text-[#526071] transition hover:-translate-y-0.5 hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60"><X size={18} /></button>
         </div>
         {children}
       </aside>
@@ -529,9 +596,14 @@ function WorkOrderEditorDrawer({ open, title, subtitle, saving, onClose, childre
   )
 }
 
-export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, saving, routeSearch = '', workOrderToEdit, onEditConsumed, onRouteQueryChange, onFetch, onCreate, onUpdate, onArchive }: { workOrders: WorkOrder[]; meta: PaginationMeta | null; serviceLines: ServiceLine[]; canEdit: boolean; saving: boolean; routeSearch?: string; workOrderToEdit?: WorkOrder | null; onEditConsumed?: () => void; onRouteQueryChange?: (query: string) => void; onFetch: (query: string) => Promise<void>; onCreate: (values: WorkOrderInput) => Promise<void>; onUpdate: (id: number, values: WorkOrderInput) => Promise<void>; onArchive: (workOrderId: number, archived: boolean) => Promise<void> }) {
+export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, saving, routeSearch = '', workOrderToEdit, onEditConsumed, onRouteQueryChange, onFetch, onCreate, onUpdate, onArchive }: { workOrders: WorkOrder[]; meta: PaginationMeta | null; serviceLines: ServiceLine[]; canEdit: boolean; saving: boolean; routeSearch?: string; workOrderToEdit?: WorkOrder | null; onEditConsumed?: () => void; onRouteQueryChange?: (query: string) => void; onFetch: (query: string) => Promise<void>; onCreate: (values: WorkOrderInput) => Promise<WorkOrder>; onUpdate: (id: number, values: WorkOrderInput) => Promise<WorkOrder>; onArchive: (workOrderId: number, archived: boolean) => Promise<void> }) {
   const initialFilters = workOrderFiltersFromQuery(routeSearch)
   const [showForm, setShowForm] = useState(false)
+  const [editorInstance, setEditorInstance] = useState(0)
+  const [newDefaults, setNewDefaults] = useState<Partial<WorkOrderInput>>({})
+  const [saveNotice, setSaveNotice] = useState('')
+  const [savedRecord, setSavedRecord] = useState<WorkOrder | null>(null)
+  const editorDirty = useRef(false)
   const [showPasteIntake, setShowPasteIntake] = useState(false)
   const [editing, setEditing] = useState<WorkOrder | null>(null)
   const [reviewDraft, setReviewDraft] = useState<ImportDraft | null>(null)
@@ -559,7 +631,7 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, savin
   const filteredWorkOrders = workOrders
   const hasActiveFilters = Boolean(query || archiveFilter !== 'active' || statusFilter || priorityFilter || regionFilter || serviceLineFilter || paProjectFilter || correctiveMaintenanceFilter || estimateRequiredFilter || followUpDueFilter || openOnlyFilter || closedFilter || slaStatusFilter)
   const activeEditing = editing ?? workOrderToEdit ?? null
-  const isFormOpen = showForm || Boolean(workOrderToEdit) || Boolean(reviewDraft)
+  const isFormOpen = canEdit && (showForm || Boolean(workOrderToEdit) || Boolean(reviewDraft))
 
   useEffect(() => {
     const normalized = normalizedWorkOrderQuery(routeSearch || DEFAULT_WORK_ORDER_QUERY)
@@ -614,6 +686,7 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, savin
   }
 
   function goToQuery(nextQuery: string) {
+    setSaveNotice('')
     const normalized = normalizedWorkOrderQuery(nextQuery)
     setAppliedQuery(normalized)
     if (onRouteQueryChange) onRouteQueryChange(normalized)
@@ -642,25 +715,36 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, savin
     setOpenOnlyFilter(false)
     setClosedFilter(false)
     setSlaStatusFilter('')
-    setSort('scheduled_date')
-    setDirection('asc')
+    setSort('created_at')
+    setDirection('desc')
     goToQuery(DEFAULT_WORK_ORDER_QUERY)
   }
 
-  const formInitialValues = activeEditing ? formFromWorkOrder(activeEditing) : reviewDraft ? formFromImportDraft(reviewDraft) : emptyForm()
+  const formInitialValues = activeEditing ? formFromWorkOrder(activeEditing) : reviewDraft ? formFromImportDraft(reviewDraft) : { ...emptyForm(), ...newDefaults }
   const editorTitle = activeEditing ? `Edit ${activeEditing.location}` : reviewDraft ? 'Review scanned intake' : 'New work order'
   const editorSubtitle = activeEditing
     ? `WO #${activeEditing.external_id || 'N/A'} · ${statusLabel(activeEditing.status)} · ${activeEditing.normalized_priority}`
     : reviewDraft
       ? 'Confirm the AI/OCR fields before this becomes a live dispatch record.'
-      : 'Create an intake record without accidentally forcing it into dispatch.'
+      : 'Add the request now. Scheduling and follow-up details can be updated later.'
 
-  async function submitForm(values: WorkOrderInput) {
+  async function submitForm(values: WorkOrderInput, addAnother: boolean) {
+    if (!canEdit) throw new Error('Viewer access cannot save work orders.')
     if (activeEditing) {
-      await onUpdate(activeEditing.id, values)
+      const saved = await onUpdate(activeEditing.id, values)
+      setSavedRecord(saved || null)
     } else {
-      await onCreate(values)
+      const saved = await onCreate(values)
+      setSavedRecord(saved || null)
       if (reviewDraft) setImportDrafts((currentDrafts) => currentDrafts.filter((draft) => draft.draftId !== reviewDraft.draftId))
+    }
+    editorDirty.current = false
+    const savedLabel = values.external_id ? `Work order #${values.external_id}` : `Work order for ${values.location}`
+    setSaveNotice(`${savedLabel} ${activeEditing ? 'updated' : 'saved'}. Your queue view has been kept.`)
+    if (addAnother && !activeEditing && !reviewDraft) {
+      setNewDefaults({ client: values.client, source: values.source, service_line_id: values.service_line_id })
+      setEditorInstance((current) => current + 1)
+      return
     }
     setEditing(null)
     setReviewDraft(null)
@@ -669,6 +753,11 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, savin
   }
 
   function startCreate() {
+    setSaveNotice('')
+    setSavedRecord(null)
+    editorDirty.current = false
+    setNewDefaults({})
+    setEditorInstance((current) => current + 1)
     onEditConsumed?.()
     setEditing(null)
     setReviewDraft(null)
@@ -676,6 +765,8 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, savin
   }
 
   function startEdit(workOrder: WorkOrder) {
+    setSaveNotice('')
+    editorDirty.current = false
     onEditConsumed?.()
     setEditing(workOrder)
     setReviewDraft(null)
@@ -683,6 +774,9 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, savin
   }
 
   function closeEditor() {
+    if (saving) return
+    if (editorDirty.current && !window.confirm('Discard the unsaved changes to this work order?')) return
+    editorDirty.current = false
     setShowForm(false)
     setEditing(null)
     setReviewDraft(null)
@@ -746,21 +840,26 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, savin
   ]
   const normalizedAppliedQuery = normalizedWorkOrderQuery(appliedQuery)
 
-  return <Card className="overflow-hidden">
+  return <Card className="work-order-workspace overflow-hidden">
     <PanelHeader
       eyebrow="Work orders"
-      title="Work Order Management"
-      description="Review open and closed jobs, dispatch-ready work, blocked follow-ups, PA Projects, KPI pressure, and incoming requests from WhatsApp, email, phone, or work-order systems."
+      title="Work orders"
+      description="Capture incoming requests, find existing work, and keep follow-ups moving."
       action={canEdit ? <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
+        <button type="button" onClick={startCreate} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#d84332] px-4 py-2.5 font-display text-sm font-extrabold text-white shadow-[0_12px_26px_rgba(216,67,50,0.2)] transition hover:-translate-y-0.5 hover:bg-[#bf3228] sm:w-auto"><Plus size={16} /> New Work Order</button>
         <button type="button" onClick={() => setShowPasteIntake((current) => !current)} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-[#244393]/15 bg-white px-4 py-2.5 font-display text-sm font-extrabold text-[#244393] transition hover:-translate-y-0.5 hover:bg-[#e8eefc] sm:w-auto"><ClipboardPaste size={16} /> Paste Intake</button>
         <label className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-[#244393]/15 bg-[#e8eefc] px-4 py-2.5 font-display text-sm font-extrabold text-[#244393] transition hover:-translate-y-0.5 hover:bg-[#dfe8ff] sm:w-auto">
           <FileUp size={16} /> {uploading ? 'Scanning...' : 'Scan File'}
           <input type="file" accept="image/png,image/jpeg,image/webp,application/pdf,text/plain" disabled={uploading} onChange={(event) => { const file = event.target.files?.[0] || null; event.target.value = ''; void previewUpload(file) }} className="sr-only" />
         </label>
-        <button type="button" onClick={startCreate} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#d84332] px-4 py-2.5 font-display text-sm font-extrabold text-white shadow-[0_12px_26px_rgba(216,67,50,0.2)] transition hover:-translate-y-0.5 hover:bg-[#bf3228] sm:w-auto"><Plus size={16} /> New Work Order</button>
+
       </div> : <span className="tabular rounded-full bg-[#172b63] px-3 py-1.5 font-display text-xs font-extrabold uppercase tracking-[0.14em] text-white">{workOrders.length} records</span>}
     />
 
+    {saveNotice && !isFormOpen && <div className="flex flex-wrap items-center justify-between gap-2 border-b border-emerald-100 bg-emerald-50 px-4 py-3">
+      <p role="status" className="text-sm font-semibold text-emerald-900">{saveNotice}</p>
+      {savedRecord && <button type="button" onClick={() => startEdit(savedRecord)} className="min-h-10 rounded-xl border border-emerald-800 px-3 py-2 text-sm font-bold text-emerald-900">View saved work order</button>}
+    </div>}
     {importError && <div className="border-b border-red-100 bg-red-50 p-4 text-sm font-bold text-red-800">{importError}</div>}
 
     {showPasteIntake && <div className="border-b border-[rgba(23,32,51,0.1)] bg-[#f8faff] p-4">
@@ -807,14 +906,18 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, savin
       </div>
     </div>}
 
+    <WorkOrderEditorDrawer open={!canEdit && Boolean(activeEditing)} title={`Work order #${activeEditing?.external_id || activeEditing?.id || ''}`} subtitle="Read-only work-order details" saving={false} onClose={closeEditor}>
+      {activeEditing && <div className="min-h-0 flex-1 overflow-y-auto p-4"><WorkOrderRow workOrder={activeEditing} canEdit={false} onEdit={() => undefined} onArchive={onArchive} /></div>}
+    </WorkOrderEditorDrawer>
+
     <WorkOrderEditorDrawer open={isFormOpen} title={editorTitle} subtitle={editorSubtitle} saving={saving} onClose={closeEditor}>
-      <WorkOrderForm key={activeEditing?.id || reviewDraft?.draftId || 'new'} initialValues={formInitialValues} serviceLines={serviceLines} saving={saving} onCancel={closeEditor} onSubmit={submitForm} />
+      <WorkOrderForm key={activeEditing?.id || reviewDraft?.draftId || `new-${editorInstance}`} initialValues={formInitialValues} serviceLines={serviceLines} saving={saving} notice={saveNotice} allowAddAnother={!activeEditing && !reviewDraft} onDirty={() => { editorDirty.current = true }} onCancel={closeEditor} onSubmit={submitForm} />
     </WorkOrderEditorDrawer>
 
     <div className="border-b border-[rgba(23,32,51,0.1)] bg-[#f8faff] p-3 sm:p-4">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <p className="font-display text-xs font-extrabold uppercase tracking-[0.16em] text-[#244393]">Queue views</p>
-        <span className="text-xs font-bold text-[#64748b]">These are saved in the URL for bookmarks and back-button navigation.</span>
+        <span className="text-xs font-bold text-[#64748b]">Choose a view, or search for a specific request.</span>
       </div>
       <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1">
         {quickFilters.map((filter) => {
@@ -825,33 +928,41 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, savin
     </div>
 
     <div className="border-b border-[rgba(23,32,51,0.1)] bg-white p-3 sm:p-4">
-      <div className="grid gap-2 sm:gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-[1fr_150px_160px_150px_150px_180px_150px]">
+      <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_12rem_auto]">
         <label className="relative block">
           <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#7b8798]" size={16} />
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search WO #, location, description, notes..." className="field-control w-full rounded-xl py-2 pl-9 pr-3 text-sm font-semibold text-[#172033]" />
+          <input value={query} onChange={(event) => setQuery(event.target.value)} aria-label="Search work orders" onKeyDown={(event) => { if (event.key === 'Enter') applyFilters() }} placeholder="Search WO #, site, description or notes" className="field-control w-full rounded-xl py-2 pl-9 pr-3 text-sm font-semibold text-[#172033]" />
         </label>
-        <select value={archiveFilter} onChange={(event) => setArchiveFilter(event.target.value as 'active' | 'archived' | 'all')} className="field-control rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]">
+        <select aria-label="Status filter" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="field-control rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]">
+          <option value="">All statuses</option>
+          {statuses.map((status) => <option key={status} value={status}>{statusLabel(status)}</option>)}
+        </select>
+        <button type="button" onClick={applyFilters} className="min-h-10 rounded-xl bg-[#244393] px-4 py-2 text-sm font-bold text-white">Search</button>
+      </div>
+      <details className="mt-3" open={Boolean(initialFilters.archive !== 'active' || initialFilters.priority || initialFilters.region || initialFilters.serviceLine || initialFilters.slaStatus || initialFilters.paProject || initialFilters.correctiveMaintenance || initialFilters.estimateRequired || initialFilters.followUpDue || initialFilters.openOnly || initialFilters.closed || (initialFilters.sort !== 'created_at') || (initialFilters.direction !== 'desc'))}>
+        <summary className="cursor-pointer text-sm font-semibold text-[#244393]">More filters and sorting{hasActiveFilters ? ' · filters selected' : ''}</summary>
+
+      <div className="grid gap-2 sm:gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-[1fr_150px_160px_150px_150px_180px_150px]">
+
+        <select aria-label="Archive filter" value={archiveFilter} onChange={(event) => setArchiveFilter(event.target.value as 'active' | 'archived' | 'all')} className="field-control rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]">
           <option value="active">Active queue</option>
           <option value="archived">Archived</option>
           <option value="all">All records</option>
         </select>
-        <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="field-control rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]">
-          <option value="">All statuses</option>
-          {statuses.map((status) => <option key={status} value={status}>{statusLabel(status)}</option>)}
-        </select>
-        <select value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)} className="field-control rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]">
+
+        <select aria-label="Priority filter" value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)} className="field-control rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]">
           <option value="">All priority</option>
           {priorities.map((priority) => <option key={priority} value={priority}>{priority}</option>)}
         </select>
-        <select value={regionFilter} onChange={(event) => setRegionFilter(event.target.value)} className="field-control rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]">
+        <select aria-label="Region filter" value={regionFilter} onChange={(event) => setRegionFilter(event.target.value)} className="field-control rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]">
           <option value="">All regions</option>
           {regions.map((region) => <option key={region} value={region}>{region}</option>)}
         </select>
-        <select value={serviceLineFilter} onChange={(event) => setServiceLineFilter(event.target.value)} className="field-control rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]">
+        <select aria-label="Service line filter" value={serviceLineFilter} onChange={(event) => setServiceLineFilter(event.target.value)} className="field-control rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]">
           <option value="">All service lines</option>
           {serviceLines.map((line) => <option key={line.id} value={line.id}>{line.name}</option>)}
         </select>
-        <select value={slaStatusFilter} onChange={(event) => setSlaStatusFilter(event.target.value as SlaStatusFilter)} className="field-control rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]">
+        <select aria-label="KPI filter" value={slaStatusFilter} onChange={(event) => setSlaStatusFilter(event.target.value as SlaStatusFilter)} className="field-control rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]">
           <option value="">All KPI</option>
           <option value="overdue">KPI overdue</option>
           <option value="due_soon">KPI due soon</option>
@@ -860,7 +971,7 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, savin
         </select>
       </div>
       <div className="mt-3 grid gap-3 md:grid-cols-[180px_150px_auto]">
-        <select value={sort} onChange={(event) => setSort(event.target.value)} className="field-control rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]">
+        <select aria-label="Sort work orders" value={sort} onChange={(event) => setSort(event.target.value)} className="field-control rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]">
           <option value="scheduled_date">Sort scheduled</option>
           <option value="created_at">Sort created</option>
           <option value="sla_due_at">Sort KPI due</option>
@@ -868,7 +979,7 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, savin
           <option value="status">Sort status</option>
           <option value="location">Sort location</option>
         </select>
-        <select value={direction} onChange={(event) => setDirection(event.target.value as 'asc' | 'desc')} className="field-control rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]">
+        <select aria-label="Sort direction" value={direction} onChange={(event) => setDirection(event.target.value as 'asc' | 'desc')} className="field-control rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]">
           <option value="asc">Ascending</option>
           <option value="desc">Descending</option>
         </select>
@@ -885,6 +996,7 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, savin
         <button type="button" onClick={() => { setOpenOnlyFilter((current) => !current); setClosedFilter(false) }} className={`rounded-full px-3 py-1.5 text-xs font-extrabold uppercase tracking-[0.1em] ${openOnlyFilter ? 'bg-[#244393] text-white' : 'border border-[rgba(36,67,147,0.16)] bg-white text-[#244393]'}`}>Open Only</button>
         <button type="button" onClick={() => { setClosedFilter((current) => !current); setOpenOnlyFilter(false) }} className={`rounded-full px-3 py-1.5 text-xs font-extrabold uppercase tracking-[0.1em] ${closedFilter ? 'bg-[#244393] text-white' : 'border border-[rgba(36,67,147,0.16)] bg-white text-[#244393]'}`}>Closed</button>
       </div>
+      </details>
     </div>
 
     <div className="space-y-2 p-2 sm:p-3">
@@ -892,7 +1004,7 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, savin
       {workOrders.length === 0 && hasActiveFilters && <p className="rounded-xl border border-dashed border-[rgba(23,32,51,0.18)] bg-[#f8faff] p-5 text-sm font-semibold text-[#526071]">No work orders match the current filters.</p>}
       {workOrders.length === 0 && !hasActiveFilters && <div className="rounded-2xl border border-dashed border-[rgba(36,67,147,0.22)] bg-[#f8faff] p-6">
         <p className="font-display text-lg font-extrabold text-[#172033]">No work orders yet.</p>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-[#526071]">Start by adding the first request John receives from WhatsApp, phone, email, or the work-order system. Once saved, it can be reviewed and scheduled.</p>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-[#526071]">Start by adding the first incoming request from WhatsApp, phone, email, or the work-order system. Once saved, it can be reviewed and scheduled.</p>
         {canEdit && <button onClick={startCreate} className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-[#244393] px-4 py-2.5 font-display text-sm font-extrabold text-white transition hover:-translate-y-0.5 hover:bg-[#172b63]"><Plus size={16} /> Add First Work Order</button>}
       </div>}
       {workOrders.length > 0 && <div className="flex flex-col items-start justify-between gap-3 px-2 pb-2 text-xs font-bold uppercase tracking-[0.14em] text-[#7b8798] sm:flex-row sm:items-center sm:px-3">

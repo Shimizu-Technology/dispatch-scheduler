@@ -245,7 +245,12 @@ module Api
         region = attrs[:region].to_s.strip.presence || existing&.location&.region || "Unknown"
         client = Client.find_or_create_by!(name: client_name)
         location = Location.find_or_initialize_by_normalized_name(client: client, name: location_name)
-        location.name = location_name.to_s.strip
+        location.name = location_name.to_s.strip if location.new_record? || existing.present?
+        # Quick intake can leave the region unknown; preserve the shared site's
+        # known region instead of resetting routing for its other work and PMs.
+        if existing.nil? && location.persisted? && region == "Unknown" && location.region.present?
+          region = location.region
+        end
         location.region = region.presence || location.region.presence || "Unknown"
         location.save!
 

@@ -139,15 +139,15 @@ describe('work-order intake and editing', () => {
   })
 
   it('can cancel a dirty-close attempt without losing the request', async () => {
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
     const { user } = setup()
     await user.click(screen.getByRole('button', { name: 'New Work Order' }))
     await fillRequest(user)
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
-    expect(confirm).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('alert').textContent).toContain('Discard the unsaved changes')
+    await user.click(screen.getByRole('button', { name: 'Keep editing' }))
     expect(screen.getByLabelText('Description')).toHaveProperty('value', 'New request')
-    confirm.mockReturnValue(true)
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    await user.click(screen.getByRole('button', { name: 'Discard changes' }))
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 })

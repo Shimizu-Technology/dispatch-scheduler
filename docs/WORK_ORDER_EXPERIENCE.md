@@ -36,7 +36,7 @@ The release changes no SLA windows, status meanings, PA exclusions, dispatch
 constraints, or historical reporting definitions. Lifecycle/history and durable
 source storage from the earlier hardening branch require separate integration.
 
-Acceptance covers consecutive creation, duplicate and failed-save recovery,
+The acceptance plan covers consecutive creation, duplicate and failed-save recovery,
 advanced-field preservation, filtered pagination and back navigation, read-only
 access, keyboard focus, and desktop/narrow browser layouts. Synthetic fixtures
 exercise the real local Rails API with a signed local authentication-provider
@@ -44,3 +44,8 @@ fixture. This does not substitute for an external Clerk OAuth test or physical
 mobile-device testing. Other workspaces receive route-loading checks because
 they now load on demand; their unchanged full business journeys are outside the
 affected-flow scope.
+
+Release status: draft pending remaining browser acceptance. Automated tests and
+independent static review passed. External OAuth and physical mobile tests are
+not claimed; local confirmation/browser-control failures blocked the remaining
+permission, narrow-screen interaction, recovery and secondary-route checks.

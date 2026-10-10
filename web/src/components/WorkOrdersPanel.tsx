@@ -604,6 +604,9 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, savin
   const [saveNotice, setSaveNotice] = useState('')
   const [savedRecord, setSavedRecord] = useState<WorkOrder | null>(null)
   const editorDirty = useRef(false)
+  const [confirmDiscard, setConfirmDiscard] = useState(false)
+  const keepEditingRef = useRef<HTMLButtonElement>(null)
+  useEffect(() => { if (confirmDiscard) keepEditingRef.current?.focus() }, [confirmDiscard])
   const [showPasteIntake, setShowPasteIntake] = useState(false)
   const [editing, setEditing] = useState<WorkOrder | null>(null)
   const [reviewDraft, setReviewDraft] = useState<ImportDraft | null>(null)
@@ -739,6 +742,7 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, savin
       if (reviewDraft) setImportDrafts((currentDrafts) => currentDrafts.filter((draft) => draft.draftId !== reviewDraft.draftId))
     }
     editorDirty.current = false
+    setConfirmDiscard(false)
     const savedLabel = values.external_id ? `Work order #${values.external_id}` : `Work order for ${values.location}`
     setSaveNotice(`${savedLabel} ${activeEditing ? 'updated' : 'saved'}. Your queue view has been kept.`)
     if (addAnother && !activeEditing && !reviewDraft) {
@@ -756,6 +760,7 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, savin
     setSaveNotice('')
     setSavedRecord(null)
     editorDirty.current = false
+    setConfirmDiscard(false)
     setNewDefaults({})
     setEditorInstance((current) => current + 1)
     onEditConsumed?.()
@@ -767,6 +772,7 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, savin
   function startEdit(workOrder: WorkOrder) {
     setSaveNotice('')
     editorDirty.current = false
+    setConfirmDiscard(false)
     onEditConsumed?.()
     setEditing(workOrder)
     setReviewDraft(null)
@@ -775,8 +781,14 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, savin
 
   function closeEditor() {
     if (saving) return
-    if (editorDirty.current && !window.confirm('Discard the unsaved changes to this work order?')) return
+    if (editorDirty.current) { setConfirmDiscard(true); return }
+    discardEditor()
+  }
+
+  function discardEditor() {
+    if (saving) return
     editorDirty.current = false
+    setConfirmDiscard(false)
     setShowForm(false)
     setEditing(null)
     setReviewDraft(null)
@@ -911,6 +923,13 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, canEdit, savin
     </WorkOrderEditorDrawer>
 
     <WorkOrderEditorDrawer open={isFormOpen} title={editorTitle} subtitle={editorSubtitle} saving={saving} onClose={closeEditor}>
+      {confirmDiscard && <div role="alert" className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+        <p className="font-bold">Discard the unsaved changes to this work order?</p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <button ref={keepEditingRef} type="button" disabled={saving} onClick={() => setConfirmDiscard(false)} className="rounded-xl border border-amber-300 bg-white px-3 py-2 font-bold">Keep editing</button>
+          <button type="button" disabled={saving} onClick={discardEditor} className="rounded-xl bg-amber-950 px-3 py-2 font-bold text-white">Discard changes</button>
+        </div>
+      </div>}
       <WorkOrderForm key={activeEditing?.id || reviewDraft?.draftId || `new-${editorInstance}`} initialValues={formInitialValues} serviceLines={serviceLines} saving={saving} notice={saveNotice} allowAddAnother={!activeEditing && !reviewDraft} onDirty={() => { editorDirty.current = true }} onCancel={closeEditor} onSubmit={submitForm} />
     </WorkOrderEditorDrawer>
 

@@ -31,6 +31,23 @@ class WorkOrdersControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1.5, payload.fetch("estimated_hours")
   end
 
+  test "quick intake preserves an existing location region when unknown" do
+    site = location(name: "Demo North Site", region: "North")
+    with_auth_env do
+      post "/api/v1/work_orders", params: {
+        client: site.client.name, location: "demo north site", region: "Unknown",
+        description: "New intake request", source: "whatsapp", priority: "P3",
+        status: "needs_assessment", reported_at: "2026-10-10T08:00:00+10:00"
+      }, headers: auth_headers
+    end
+    assert_response :created
+    assert_equal "North", JSON.parse(response.body).fetch("region")
+    assert_equal "North", site.reload.region
+    assert_equal "Demo North Site", site.name
+    assert_equal "Demo North Site", JSON.parse(response.body).fetch("location")
+    assert_nil JSON.parse(response.body).fetch("scheduled_date")
+  end
+
   test "invalid scheduled date rolls back client and location writes" do
     with_auth_env do
       post "/api/v1/work_orders", params: {
@@ -311,6 +328,101 @@ class WorkOrdersControllerTest < ActionDispatch::IntegrationTest
     assert_includes JSON.parse(response.body).fetch("errors"), "A work order with this source and WO number already exists"
   end
 
+  test "KPI due sorting uses the effective displayed deadline in both directions" do
+    reference = Time.zone.local(2026, 10, 11, 12)
+    assessment = work_order(title: "KPI probe assessment", priority: "P3", status: "needs_assessment", reported_at: reference - 23.hours)
+    repair = work_order(title: "KPI probe repair", priority: "P2", status: "approved", reported_at: reference - 2.hours)
+    assert_operator assessment.sla_due_at, :<, repair.sla_due_at
+    assert_operator assessment.repair_due_at, :>, repair.repair_due_at
+
+    with_auth_env do
+      get "/api/v1/work_orders", params: { page: 1, per_page: 10, sort: "sla_due_at", direction: "asc" }, headers: auth_headers
+      assert_response :success
+      payload = JSON.parse(response.body)
+      assert_equal [ assessment.id, repair.id ], payload.fetch("work_orders").map { |row| row.fetch("id") }
+      assert_equal 2, payload.dig("meta", "total_count")
+
+      get "/api/v1/work_orders", params: { page: 1, per_page: 10, sort: "sla_due_at", direction: "desc" }, headers: auth_headers
+      assert_response :success
+      assert_equal [ repair.id, assessment.id ], JSON.parse(response.body).fetch("work_orders").map { |row| row.fetch("id") }
+    end
+  end
+
+  test "location sorting and KPI sub counts work with distinct projections" do
+    north = work_order(title: "North", status: "waiting_for_parts", location_record: location(name: "QA Alpha"))
+    south = work_order(title: "South", location_record: location(name: "QA Zulu"))
+    with_auth_env do
+      get "/api/v1/work_orders", params: { page: 1, per_page: 10, sort: "location", direction: "asc", q: "QA" }, headers: auth_headers
+      assert_response :success
+      payload = JSON.parse(response.body)
+      assert_equal [ north.id, south.id ], payload.fetch("work_orders").map { |row| row.fetch("id") }
+      assert_equal 2, payload.dig("meta", "total_count")
+      assert_equal 1, payload.dig("meta", "sub_counts", "waiting_for_parts")
+    end
+  end
+
+  test "numbered duplicates normalize source case and surrounding whitespace" do
+    original = work_order(title: "Existing normalized identity")
+    original.update!(source: " WhatsApp\t", external_id: "\tQA-WO-101 ")
+    with_auth_env do
+      post "/api/v1/work_orders", params: { client: "QA Facilities", location: "QA Site", source: "whatsapp", external_id: "qa-wo-101", description: "Duplicate" }, headers: auth_headers
+    end
+    assert_response :conflict
+    assert_equal original.id, JSON.parse(response.body).dig("duplicate", "id")
+    assert_equal 1, WorkOrder.count
+  end
+
+  test "Unicode number normalization does not depend on database case folding" do
+    original = work_order(title: "Existing Unicode identity")
+    original.update!(source: "whatsapp", external_id: "QA-K-101")
+    with_auth_env do
+      post "/api/v1/work_orders", params: { client: "QA Facilities", location: "QA Site", source: "whatsapp", external_id: "qa-k-101", description: "Duplicate" }, headers: auth_headers
+    end
+    assert_response :conflict
+    assert_equal original.id, JSON.parse(response.body).dig("duplicate", "id")
+  end
+
+  test "legacy duplicate identities remain editable without rewriting other records" do
+    first = work_order(title: "Legacy first")
+    second = work_order(title: "Legacy second")
+    first.update!(source: "whatsapp", external_id: "QA-LEGACY")
+    second.update!(source: " WHATSAPP ", external_id: "qa-legacy")
+    with_auth_env do
+      patch "/api/v1/work_orders/#{first.id}", params: { description: "Updated follow-up" }, headers: auth_headers
+    end
+    assert_response :success
+    assert_equal "Updated follow-up", first.reload.description
+    assert_equal "Legacy second", second.reload.description
+    assert_equal 2, WorkOrder.count
+  end
+
+  test "changing an identity cannot reuse a normalized existing number" do
+    first = work_order(title: "Existing number")
+    second = work_order(title: "Different number")
+    first.update!(source: "email", external_id: "QA-WO-200")
+    second.update!(source: "email", external_id: "QA-WO-201")
+    with_auth_env do
+      patch "/api/v1/work_orders/#{second.id}", params: { source: " EMAIL ", external_id: "qa-wo-200", description: "Must not save" }, headers: auth_headers
+    end
+    assert_response :conflict
+    assert_equal "QA-WO-201", second.reload.external_id
+    assert_equal "Different number", second.description
+  end
+
+  test "unnumbered requests remain independent and different sources may reuse a number" do
+    with_auth_env do
+      2.times do
+        post "/api/v1/work_orders", params: { client: "QA Facilities", location: "QA Site", source: "phone", external_id: "", description: "Repeated legitimate request" }, headers: auth_headers
+        assert_response :created
+      end
+      %w[email whatsapp].each do |source|
+        post "/api/v1/work_orders", params: { client: "QA Facilities", location: "QA Site", source: source, external_id: "QA-SHARED", description: "Source-specific request" }, headers: auth_headers
+        assert_response :created
+      end
+    end
+    assert_equal 4, WorkOrder.count
+  end
+
   test "filters and searches work orders" do
     north = location(name: "Yigo", region: "North")
     south = location(name: "Agat", region: "South")
@@ -426,6 +538,87 @@ class WorkOrdersControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :forbidden
+  end
+
+  test "API preserves explicit fractional custom deadlines through receipt and priority corrections" do
+    reported_at = Time.zone.local(2026, 10, 11, 10)
+    assessment = reported_at + 2.hours + Rational(1, 2)
+    repair = reported_at + 4.hours + Rational(1, 2)
+    with_auth_env do
+      post "/api/v1/work_orders", params: { client: "QA Precision Client", location: "QA Precision Site", title: "QA fractional custom", description: "QA custom deadline", source: "manual", priority: "P1", status: "new", reported_at: reported_at.iso8601(6), assessment_due_at: assessment.iso8601(6), repair_due_at: repair.iso8601(6) }, headers: auth_headers
+      assert_response :created
+      initial = JSON.parse(response.body)
+      assert_equal assessment, Time.iso8601(initial.fetch("assessment_due_at"))
+      assert_equal repair, Time.iso8601(initial.fetch("repair_due_at"))
+      id = initial.fetch("id")
+      patch "/api/v1/work_orders/#{id}", params: { reported_at: (reported_at + 1.hour).iso8601(6), expected_lock_version: initial.fetch("lock_version") }, headers: auth_headers
+      assert_response :success
+      corrected = JSON.parse(response.body)
+      patch "/api/v1/work_orders/#{id}", params: { priority: "P4", expected_lock_version: initial.fetch("lock_version") }, headers: auth_headers
+      assert_response :conflict
+      assert_equal "stale_work_order", JSON.parse(response.body).fetch("code")
+      assert_equal corrected.fetch("lock_version"), WorkOrder.find(id).lock_version
+      patch "/api/v1/work_orders/#{id}", params: { priority: "P3", expected_lock_version: corrected.fetch("lock_version") }, headers: auth_headers
+      assert_response :success
+      get "/api/v1/work_orders/#{id}", headers: auth_headers
+      assert_response :success
+      payload = JSON.parse(response.body)
+      assert_equal assessment, Time.iso8601(payload.fetch("assessment_due_at"))
+      assert_equal assessment, Time.iso8601(payload.fetch("response_due_at"))
+      assert_equal repair, Time.iso8601(payload.fetch("repair_due_at"))
+      assert_equal assessment, Time.iso8601(payload.fetch("sla_due_at"))
+      assert_equal initial.fetch("lock_version") + 2, payload.fetch("lock_version")
+      assert_equal 2, AuditEvent.where(action: "work_order.updated", record_id: id).count
+    end
+  end
+
+  test "one receipt correction preserves newly supplied canonical custom deadlines" do
+    reported_at = Time.zone.local(2026, 10, 11, 10)
+    order = work_order(priority: "P1", status: "new", reported_at: reported_at)
+    assessment = reported_at + 2.hours + Rational(1, 2)
+    repair = reported_at + 4.hours + Rational(1, 2)
+    with_auth_env do
+      patch "/api/v1/work_orders/#{order.id}", params: { reported_at: (reported_at + 1.hour).iso8601(6), assessment_due_at: assessment.iso8601(6), repair_due_at: repair.iso8601(6), expected_lock_version: order.lock_version }, headers: auth_headers
+      assert_response :success
+      payload = JSON.parse(response.body)
+      assert_equal assessment, Time.iso8601(payload.fetch("assessment_due_at"))
+      assert_equal assessment, Time.iso8601(payload.fetch("response_due_at"))
+      assert_equal repair, Time.iso8601(payload.fetch("repair_due_at"))
+      assert_equal 1, payload.fetch("lock_version")
+      assert_equal 1, AuditEvent.where(action: "work_order.updated", record_id: order.id).count
+      get "/api/v1/work_orders/#{order.id}", headers: auth_headers
+      assert_response :success
+      assert_equal assessment, Time.iso8601(JSON.parse(response.body).fetch("sla_due_at"))
+    end
+  end
+
+  test "manager drilldowns exclude PA from KPI and keep dated open follow-ups exact" do
+    ordinary = work_order(status: "needs_assessment", reported_at: 10.days.ago, pa_project: false)
+    ordinary.update!(follow_up_due_on: Date.new(2026, 10, 20), parts_eta: Date.new(2026, 10, 25))
+    pa = work_order(status: "needs_assessment", reported_at: 10.days.ago, pa_project: true)
+    future = work_order(status: "new")
+    future.update!(follow_up_due_on: Date.new(2026, 10, 21), parts_eta: Date.new(2026, 10, 28))
+    closed = work_order(status: "closed")
+    closed.update!(follow_up_due_on: Date.new(2026, 10, 20), parts_eta: Date.new(2026, 10, 25))
+    with_auth_env do
+      get "/api/v1/work_orders", params: { archived: "active", page: 1, sla_status: "overdue", exclude_pa: true }, headers: auth_headers
+      assert_response :success
+      ids = JSON.parse(response.body).fetch("work_orders").pluck("id")
+      assert_includes ids, ordinary.id
+      assert_not_includes ids, pa.id
+      get "/api/v1/work_orders", params: { page: 1, open: true, follow_up_due: true, as_of: "2026-10-20" }, headers: auth_headers
+      ids = JSON.parse(response.body).fetch("work_orders").pluck("id")
+      assert_includes ids, ordinary.id
+      assert_not_includes ids, closed.id
+      assert_not_includes ids, future.id
+      get "/api/v1/work_orders", params: { page: 1, open: true, parts_eta_due: true, as_of: "2026-10-20" }, headers: auth_headers
+      ids = JSON.parse(response.body).fetch("work_orders").pluck("id")
+      assert_includes ids, ordinary.id
+      assert_not_includes ids, closed.id
+      assert_not_includes ids, future.id
+      get "/api/v1/work_orders", params: { page: 1, as_of: "invalid" }, headers: auth_headers
+      assert_response :bad_request
+    end
   end
 
   private

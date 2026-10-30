@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_21_130000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_11_105000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -315,6 +315,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_130000) do
     t.index ["role"], name: "index_users_on_role"
   end
 
+  create_table "work_order_create_receipts", force: :cascade do |t|
+    t.string "client_request_id", limit: 36, null: false
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.string "payload_digest", limit: 64, null: false
+    t.datetime "updated_at", null: false
+    t.integer "user_id", null: false
+    t.integer "work_order_id"
+    t.index ["user_id", "client_request_id"], name: "index_work_order_create_receipts_on_user_and_request", unique: true
+    t.index ["user_id"], name: "index_work_order_create_receipts_on_user_id"
+    t.index ["work_order_id"], name: "index_work_order_create_receipts_on_work_order_id"
+  end
+
+  create_table "work_order_identity_locks", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "identity_digest", limit: 64, null: false
+    t.datetime "updated_at", null: false
+    t.index ["identity_digest"], name: "index_work_order_identity_locks_on_identity_digest", unique: true
+  end
+
   create_table "work_orders", force: :cascade do |t|
     t.datetime "archived_at"
     t.datetime "assessed_at"
@@ -331,6 +351,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_130000) do
     t.string "follow_up_owner"
     t.text "latest_follow_up_note"
     t.integer "location_id", null: false
+    t.integer "lock_version", default: 0, null: false
     t.string "normalized_priority"
     t.text "notes"
     t.string "original_status_text"
@@ -402,6 +423,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_130000) do
   add_foreign_key "technician_availabilities", "technicians"
   add_foreign_key "technician_skills", "technicians"
   add_foreign_key "users", "users", column: "invited_by_id"
+  add_foreign_key "work_order_create_receipts", "users", on_delete: :cascade
+  add_foreign_key "work_order_create_receipts", "work_orders", on_delete: :nullify
   add_foreign_key "work_orders", "clients"
   add_foreign_key "work_orders", "locations"
   add_foreign_key "work_orders", "service_lines"

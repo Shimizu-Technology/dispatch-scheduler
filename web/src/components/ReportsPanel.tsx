@@ -1,8 +1,11 @@
+import { useState } from 'react'
 import { Download, FileText, FolderKanban, Wrench } from 'lucide-react'
 import { Card, PanelHeader } from './ui'
 import type { MonthlyReport } from '../types'
 
 type ReportsPanelProps = {
+  month: string
+  onMonthChange: (month: string) => void
   report: MonthlyReport | null
   loading: boolean
   onDownloadCsv: () => Promise<void>
@@ -17,18 +20,18 @@ type MetricProps = {
 
 function metricTone(tone: MetricProps['tone'] = 'blue') {
   return {
-    blue: 'border-[#244393]/15 bg-[#f8faff] text-[#244393]',
-    green: 'border-emerald-200 bg-emerald-50 text-emerald-800',
-    amber: 'border-amber-200 bg-amber-50 text-amber-900',
-    red: 'border-red-200 bg-red-50 text-red-800',
-    slate: 'border-slate-200 bg-slate-50 text-slate-700',
+    blue: 'border-[var(--jmi-blue)]/15 bg-[var(--surface-subtle)] text-[var(--jmi-blue)]',
+    green: 'border-[var(--success-border)] bg-[var(--success-soft)] text-[var(--success-ink)]',
+    amber: 'border-[var(--warning-border)] bg-[var(--warning-soft)] text-[var(--warning-ink)]',
+    red: 'border-[var(--danger-border)] bg-[var(--danger-soft)] text-[var(--danger-ink)]',
+    slate: 'border-[var(--border)] bg-[var(--surface-hover)] text-[var(--neutral-ink)]',
   }[tone]
 }
 
 function Metric({ label, value, detail, tone = 'blue' }: MetricProps) {
   return <article className={`rounded-2xl border p-4 ${metricTone(tone)}`}>
     <p className="font-display tabular text-2xl font-black tracking-tight">{value}</p>
-    <p className="mt-1 text-[0.68rem] font-extrabold uppercase tracking-[0.14em] opacity-80">{label}</p>
+    <p className="mt-1 text-xs font-extrabold  tracking-normal opacity-80">{label}</p>
     {detail && <p className="mt-2 text-xs font-semibold leading-5 opacity-80">{detail}</p>}
   </article>
 }
@@ -43,29 +46,38 @@ function formatMinutes(minutes = 0) {
 
 function Breakdown({ title, values, formatValue = (value: number) => value.toString() }: { title: string; values: Record<string, number>; formatValue?: (value: number) => string }) {
   const entries = Object.entries(values).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-  return <div className="rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white p-4">
-    <h3 className="font-display text-sm font-extrabold text-[#172033]">{title}</h3>
+  return <div className="rounded-2xl border border-[var(--line)] bg-[var(--paper)] p-4">
+    <h3 className="font-display text-sm font-extrabold text-[var(--ink)]">{title}</h3>
     <div className="mt-3 space-y-2">
-      {entries.length === 0 && <p className="text-sm font-semibold text-[#64748b]">No records for this month.</p>}
-      {entries.map(([label, count]) => <div key={label} className="flex items-center justify-between gap-3 rounded-xl bg-[#f8faff] px-3 py-2 text-sm">
-        <span className="font-semibold capitalize text-[#526071]">{label.replaceAll('_', ' ')}</span>
-        <span className="tabular font-display font-extrabold text-[#244393]">{formatValue(count)}</span>
+      {entries.length === 0 && <p className="text-sm font-semibold text-[var(--muted)]">No records for this month.</p>}
+      {entries.map(([label, count]) => <div key={label} className="flex items-center justify-between gap-3 rounded-xl bg-[var(--surface-subtle)] px-3 py-2 text-sm">
+        <span className="font-semibold capitalize text-[var(--ink-soft)]">{label.replaceAll('_', ' ')}</span>
+        <span className="tabular font-display font-extrabold text-[var(--jmi-blue)]">{formatValue(count)}</span>
       </div>)}
     </div>
   </div>
 }
 
-export function ReportsPanel({ report, loading, onDownloadCsv }: ReportsPanelProps) {
+export function ReportsPanel({ month, onMonthChange, report, loading, onDownloadCsv }: ReportsPanelProps) {
+  const [draftMonth, setDraftMonth] = useState(month)
+  const [previousMonth, setPreviousMonth] = useState(month)
+  if (month !== previousMonth) { setPreviousMonth(month); setDraftMonth(month) }
+  function handleMonthChange(value: string) {
+    setDraftMonth(value)
+    if (/^\d{4}-(0[1-9]|1[0-2])$/.test(value)) onMonthChange(value)
+  }
   return <Card className="overflow-hidden">
     <PanelHeader
       eyebrow="Monthly reporting"
       title={report ? `JMI Dispatch Report · ${report.month}` : 'JMI Dispatch Report'}
       description="Export the numbers John needs for Mobil/CBRE conversations: KPI pressure, PM completion, CM, estimates, PA Projects, and follow-up visibility."
-      action={<button type="button" disabled={!report || loading} onClick={() => void onDownloadCsv()} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#244393] px-4 py-2.5 font-display text-sm font-extrabold text-white shadow-[0_12px_28px_rgba(36,67,147,0.18)] transition hover:-translate-y-0.5 hover:bg-[#172b63] disabled:cursor-not-allowed disabled:bg-slate-300 sm:w-auto"><Download size={16} /> Download CSV</button>}
+      action={<button type="button" disabled={!report || loading} onClick={() => void onDownloadCsv()} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl button-action bg-[var(--jmi-blue)] px-4 py-2.5 font-display text-sm font-extrabold text-[var(--paper)] shadow-none transition-colors  hover:bg-[var(--jmi-blue-deep)] disabled:cursor-not-allowed disabled:bg-[var(--border-strong)] sm:w-auto"><Download size={16} /> Download CSV</button>}
     />
 
-    {loading && <p className="p-5 text-sm font-bold text-[#526071]">Loading monthly report...</p>}
-    {!loading && !report && <p className="p-5 text-sm font-bold text-[#526071]">No report loaded yet.</p>}
+    <div className="border-b border-[var(--border)] px-3 py-2"><label className="grid min-w-0 w-full gap-2 text-sm font-semibold sm:w-auto sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center sm:gap-3">Report month<input type="month" value={draftMonth} placeholder="YYYY-MM" pattern="[0-9]{4}-(0[1-9]|1[0-2])" onChange={(event) => handleMonthChange(event.target.value)} className="field-control rounded-xl px-3 py-2" /></label></div>
+
+    {loading && <p role="status" className="p-5 text-sm font-bold text-[var(--ink-soft)]">Loading monthly report...</p>}
+    {!loading && !report && <p className="p-5 text-sm font-bold text-[var(--ink-soft)]">No report loaded yet.</p>}
 
     {report && <div className="space-y-4 p-3 sm:p-4">
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -91,15 +103,15 @@ export function ReportsPanel({ report, loading, onDownloadCsv }: ReportsPanelPro
       </div>
 
       <div className="grid gap-3 lg:grid-cols-2">
-        <div className="rounded-2xl border border-blue-100 bg-[#f8faff] p-4">
-          <div className="flex items-center gap-3"><span className="rounded-xl bg-white p-2 text-[#244393]"><Wrench size={18} /></span><div><p className="font-display font-extrabold text-[#172033]">CSV includes work-order detail rows</p><p className="text-sm font-semibold text-[#64748b]">WO number, service line, KPI due, CM/estimate, PA Project, parts fields, follow-up owner/date, and notes.</p></div></div>
+        <div className="rounded-2xl border border-[var(--info-soft-strong)] bg-[var(--surface-subtle)] p-4">
+          <div className="flex items-center gap-3"><span className="rounded-xl bg-[var(--paper)] p-2 text-[var(--jmi-blue)]"><Wrench size={18} /></span><div><p className="font-display font-extrabold text-[var(--ink)]">CSV includes work-order detail rows</p><p className="text-sm font-semibold text-[var(--muted)]">WO number, service line, KPI due, CM/estimate, PA Project, parts fields, follow-up owner/date, and notes.</p></div></div>
         </div>
-        <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4">
-          <div className="flex items-center gap-3"><span className="rounded-xl bg-white p-2 text-amber-800"><FolderKanban size={18} /></span><div><p className="font-display font-extrabold text-amber-950">PA Projects stay visible</p><p className="text-sm font-semibold text-amber-900/80">Monthly reporting excludes PA Projects from KPI pressure but keeps them in follow-up totals.</p></div></div>
+        <div className="rounded-2xl border border-[var(--warning-soft-strong)] bg-[var(--warning-soft)] p-4">
+          <div className="flex items-center gap-3"><span className="rounded-xl bg-[var(--paper)] p-2 text-[var(--warning-text)]"><FolderKanban size={18} /></span><div><p className="font-display font-extrabold text-[var(--warning-ink-strong)]">PA Projects stay visible</p><p className="text-sm font-semibold text-[var(--warning-ink)]/80">Monthly reporting excludes PA Projects from KPI pressure but keeps them in follow-up totals.</p></div></div>
         </div>
       </div>
 
-      <p className="inline-flex items-center gap-2 rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white px-4 py-2 text-xs font-bold uppercase tracking-[0.12em] text-[#64748b]"><FileText size={14} /> Generated {new Date(report.generated_at).toLocaleString()}</p>
+      <p className="inline-flex items-center gap-2 rounded-2xl border border-[var(--line)] bg-[var(--paper)] px-4 py-2 text-xs font-bold  tracking-normal text-[var(--muted)]"><FileText size={14} /> Generated {new Date(report.generated_at).toLocaleString()}</p>
     </div>}
   </Card>
 }

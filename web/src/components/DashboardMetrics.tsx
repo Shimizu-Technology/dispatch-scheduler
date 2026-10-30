@@ -1,211 +1,69 @@
 import type { ReactNode } from 'react'
-import { AlertTriangle, ArrowRight, CalendarDays, CheckCircle2, ClipboardList, Clock3, FileText, FolderKanban, ListChecks, Radio, ShieldCheck, Users, Wrench } from 'lucide-react'
+import { AlertTriangle, ArrowRight, CalendarDays, Clock3, FileText, FolderKanban, ListChecks, Radio, ShieldCheck, Users, Wrench } from 'lucide-react'
 import { Card, PanelHeader } from './ui'
-import type { AuditEvent, Dashboard, DispatchSchedule, PmTask, Team, Technician, WorkOrder } from '../types'
+import { workOrderViewQuery, type WorkOrderView } from '../lib/workOrderViews'
+import type { AuditEvent, Dashboard, DispatchSchedule, Team, Technician } from '../types'
 
-type DashboardMetricsProps = {
-  dashboard: Dashboard | null
-  workOrders: WorkOrder[]
-  teams: Team[]
-  technicians: Technician[]
-  pmTasks: PmTask[]
-  schedule: DispatchSchedule | null
-  auditEvents: AuditEvent[]
-  canEdit: boolean
-  working: boolean
+type Props = {
+  dashboard: Dashboard | null; teams: Team[]; technicians: Technician[]
+  schedule: DispatchSchedule | null; auditEvents: AuditEvent[]; canEdit: boolean; working: boolean
+  asOfDate?: string; loading?: boolean; loadError?: string; onRetry?: () => void
   onGoToSection: (section: 'work-orders' | 'pa-projects' | 'teams' | 'dispatch' | 'pm-tasks' | 'whatsapp' | 'activity') => void
-  onSuggest: () => Promise<void>
+  onDateChange?: (date: string) => void
+  onOpenWorkOrders: (query: string) => void
+}
+type Tone = 'blue' | 'red' | 'amber' | 'steel'
+function Metric({ label, value, detail, icon, tone = 'steel', onClick }: { label: string; value?: number | string; detail?: string; icon: ReactNode; tone?: Tone; onClick: () => void }) {
+  return <button type="button" onClick={onClick} className={`dashboard-metric metric-${tone} flex min-h-24 w-full items-start gap-3 rounded-xl border border-[var(--border)] bg-[var(--paper)] p-3 text-left`}>
+    <span aria-hidden="true" className="mt-1 text-[var(--ink-soft)]">{icon}</span>
+    <span className="min-w-0"><span className="tabular block text-2xl font-bold text-[var(--ink)]">{value ?? '—'}</span><span className="block text-sm font-semibold text-[var(--ink-soft)]">{label}</span>{detail && <span className="mt-1 block text-xs text-[var(--ink-soft)]">{detail}</span>}</span>
+  </button>
 }
 
-type Tone = 'blue' | 'red' | 'green' | 'amber' | 'steel' | 'dark'
-
-function toneClasses(tone: Tone) {
-  return {
-    blue: 'border-[#244393]/18 bg-[#f8faff] text-[#244393]',
-    red: 'border-red-200 bg-red-50 text-red-800',
-    green: 'border-emerald-200 bg-emerald-50 text-emerald-800',
-    amber: 'border-amber-200 bg-amber-50 text-amber-900',
-    steel: 'border-slate-200 bg-slate-50 text-slate-700',
-    dark: 'border-[#172b63]/20 bg-[#172b63] text-white',
-  }[tone]
-}
-
-function Metric({ icon, label, value, tone = 'blue', detail, onClick }: { icon: ReactNode; label: string; value?: number | string; tone?: Tone; detail?: string; onClick?: () => void }) {
-  const content = <>
-    <div className={`inline-flex rounded-xl border p-1.5 sm:p-2 ${toneClasses(tone)}`}>{icon}</div>
-    <div className="min-w-0">
-      <div className="font-display tabular break-words text-lg font-black tracking-tight text-[#172033] sm:text-xl">{value ?? 0}</div>
-      <div className="text-[0.62rem] font-extrabold uppercase tracking-[0.12em] text-[#64748b]">{label}</div>
-      {detail && <p className="mt-1 text-xs font-semibold leading-4 text-[#526071]">{detail}</p>}
+export function DashboardMetrics({ dashboard, teams, technicians, schedule, auditEvents, canEdit, working, asOfDate, loading = false, loadError = '', onRetry, onDateChange, onGoToSection, onOpenWorkOrders }: Props) {
+  const header = <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2"><h2 className="text-lg font-bold text-[var(--ink)]">Queue health</h2>{onDateChange ? <label className="inline-flex min-w-0 max-w-full items-center gap-2 text-sm"><span className="shrink-0">As of</span><span className="block w-[10.5rem] shrink-0"><input aria-label="As of date" type="date" value={(asOfDate || dashboard?.date || '')} onChange={(event) => { if (event.target.value) onDateChange(event.target.value) }} className="field-control min-w-0 rounded-xl px-2 py-1" /></span></label> : <p className="text-sm text-[var(--ink-soft)]">As of {(asOfDate || dashboard?.date || '')}</p>}</div>
+  // Dashboard totals come from its complete server scope, never the current queue page.
+  if (loading || !dashboard) return <section aria-label="Operations overview" className="space-y-3">
+    <div>{header}
+    {loadError ? <div role="alert" className="rounded-xl border border-[var(--warning-border)] bg-[var(--warning-soft)] p-4 text-sm text-[var(--warning-ink-strong)]"><p>Operations data is unavailable. {loadError}</p><button type="button" onClick={onRetry} className="mt-2 min-h-11 rounded-xl border border-[var(--warning-border-strong)] bg-[var(--paper)] px-3 font-bold">Retry dashboard</button></div> : <><p role="status" className="text-sm text-[var(--ink-soft)]">Loading operations overview...</p><div aria-hidden="true" className="grid grid-cols-2 gap-3 sm:grid-cols-4">{['Open', 'Overdue', 'Waiting parts', 'PA projects'].map((label) => <div key={label} className="min-h-24 rounded-xl border border-[var(--border)] bg-[var(--paper)] p-3"><span className="block text-2xl">—</span><span className="text-sm text-[var(--ink-soft)]">{label}</span></div>)}</div></>}
     </div>
-  </>
-
-  const baseClass = "flex min-h-[5rem] w-full items-start gap-2 rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white/96 p-3 text-left shadow-[0_6px_18px_rgba(23,32,51,0.045)] transition sm:gap-3"
-  if (onClick) return <button type="button" onClick={onClick} className={`${baseClass} hover:border-[#244393]/20 hover:shadow-[0_10px_24px_rgba(23,32,51,0.07)]`}>{content}</button>
-  return <article className={baseClass}>{content}</article>
-}
-
-function statusTone(schedule: DispatchSchedule | null) {
-  if (!schedule) return 'amber' as const
-  if (schedule.status === 'sent') return 'green' as const
-  if (schedule.status === 'finalized') return 'blue' as const
-  return 'steel' as const
-}
-
-function statusLabel(schedule: DispatchSchedule | null) {
-  if (!schedule) return 'No draft'
-  return schedule.status
-}
-
-function nextAction(schedule: DispatchSchedule | null, driverIssues: number, canEdit: boolean) {
-  if (!canEdit) return { label: 'Review operations', detail: 'Viewer mode is read-only. Inspect schedule status, crews, work pressure, and activity.', target: 'dispatch' as const, cta: 'Open dispatch' }
-  if (schedule?.status === 'sent') return { label: 'Monitor field updates', detail: 'Dispatch has been sent. Watch activity, PA Projects, and end-of-day outcomes.', target: 'activity' as const, cta: 'View activity' }
-  if (schedule?.status === 'finalized') return { label: 'Copy and send dispatch', detail: 'The schedule is locked and ready. Copy the crew message, send to WhatsApp, then mark sent.', target: 'whatsapp' as const, cta: 'Open WhatsApp' }
-  if (driverIssues > 0) return { label: 'Resolve crew coverage', detail: 'At least one active crew is missing an available driver. Confirm call-outs or adjust today’s crews before dispatch.', target: 'teams' as const, cta: 'Check crews' }
-  if (!schedule) return { label: 'Generate dispatch draft', detail: 'Crews look ready. Generate the first-pass plan, then John or dispatch can make final calls.', target: 'dispatch' as const, cta: 'Build draft' }
-  if (schedule.status === 'draft') return { label: 'Review and finalize draft', detail: 'A draft exists. Check crew assignments, timing, warnings, PMs, and notes before sending.', target: 'dispatch' as const, cta: 'Review draft' }
-  return { label: 'Copy WhatsApp dispatch', detail: 'The schedule is locked and ready. Copy the crew message and mark it sent after delivery.', target: 'whatsapp' as const, cta: 'Open WhatsApp' }
-}
-
-function datePlusDays(dateString: string, days: number) {
-  const [year, month, day] = dateString.split('-').map(Number)
-  const date = new Date(year, month - 1, day)
-  date.setDate(date.getDate() + days)
-  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 10)
-}
-
-function priorityCount(workOrders: WorkOrder[]) {
-  return workOrders.filter((workOrder) => ['P1', 'P2'].includes(workOrder.normalized_priority || workOrder.priority || '')).length
-}
-
-function formatMetadataValue(value: AuditEvent['metadata'][string] | undefined) {
-  if (value === undefined || value === null || value === '') return null
-  if (Array.isArray(value)) return value.join(', ')
-  return String(value)
-}
-
-function eventSummary(event: AuditEvent) {
-  const metadata = event.metadata || {}
-  const action = event.action.replaceAll('_', ' ').replaceAll('.', ' ')
-  const target = formatMetadataValue(metadata.title) || formatMetadataValue(metadata.item) || formatMetadataValue(metadata.team) || formatMetadataValue(metadata.technician) || formatMetadataValue(metadata.date)
-  return target ? `${action}: ${target}` : action
-}
-
-function eventTime(value: string | null) {
-  if (!value) return 'Unknown time'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return 'Unknown time'
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'short', timeStyle: 'short' }).format(date)
-}
-
-function scheduleDetail(schedule: DispatchSchedule | null, dashboard: Dashboard | null) {
-  if (!schedule) return 'No dispatch draft exists for the selected date.'
-  const count = schedule.items.length
-  return `${count} assigned ${count === 1 ? 'stop' : 'stops'} for ${dashboard?.date || 'the selected date'}.`
-}
-
-export function DashboardMetrics({ dashboard, workOrders, teams, technicians, pmTasks, schedule, auditEvents, canEdit, working, onGoToSection, onSuggest }: DashboardMetricsProps) {
-  const callOuts = technicians.filter((technician) => technician.active && technician.availability === 'unavailable')
+  </section>
+  const c = dashboard.counts
+  const openView = (view: WorkOrderView) => () => onOpenWorkOrders(workOrderViewQuery(view, dashboard.date))
   const driverIssues = teams.filter((team) => !team.has_driver).length
-  const dailyOverrides = teams.filter((team) => team.daily_override).length
-  const highPriority = dashboard?.counts.high_priority_open_work_orders ?? priorityCount(workOrders)
-  const unscheduledApproved = dashboard?.counts.unscheduled_approved ?? workOrders.filter((workOrder) => workOrder.status === 'approved' && !workOrder.scheduled_date).length
-  const paProjects = dashboard?.counts.pa_projects ?? workOrders.filter((workOrder) => workOrder.pa_project).length
-  const correctiveMaintenance = dashboard?.counts.corrective_maintenance ?? workOrders.filter((workOrder) => workOrder.corrective_maintenance).length
-  const estimateRequired = dashboard?.counts.estimate_required ?? workOrders.filter((workOrder) => workOrder.estimate_required).length
-  const waitingForParts = dashboard?.counts.waiting_for_parts ?? workOrders.filter((workOrder) => workOrder.status === 'waiting_for_parts').length
-  const waitingForApproval = dashboard?.counts.waiting_for_approval ?? workOrders.filter((workOrder) => workOrder.status === 'waiting_for_approval').length
-  const dashboardDate = dashboard?.date
-  const partsEtaCutoff = dashboardDate ? datePlusDays(dashboardDate, 7) : null
-  const followUpDueToday = dashboard?.counts.follow_up_due_today ?? workOrders.filter((workOrder) => workOrder.follow_up_due_on && dashboardDate && workOrder.follow_up_due_on <= dashboardDate).length
-  const partsEtaDueSoon = dashboard?.counts.parts_eta_due_soon ?? workOrders.filter((workOrder) => workOrder.parts_eta && (!partsEtaCutoff || workOrder.parts_eta <= partsEtaCutoff)).length
-  const incompletePmTasks = dashboard?.counts.pm_incomplete_month ?? pmTasks.filter((pm) => pm.status !== 'completed').length
-  const completedPmTasks = dashboard?.counts.pm_completed_month ?? pmTasks.filter((pm) => pm.status === 'completed').length
-  const kpiWorkOrders = workOrders.filter((workOrder) => !workOrder.pa_project)
-  const slaOverdue = dashboard?.counts.sla_overdue ?? kpiWorkOrders.filter((workOrder) => workOrder.sla_status === 'overdue').length
-  const slaDueSoon = dashboard?.counts.sla_due_soon ?? kpiWorkOrders.filter((workOrder) => workOrder.sla_status === 'due_soon').length
-  const slaMissing = dashboard?.counts.sla_missing ?? kpiWorkOrders.filter((workOrder) => workOrder.sla_status === 'missing').length
-  const next = nextAction(schedule, driverIssues, canEdit)
-  const scheduleItems = schedule?.items.length || 0
-  const recentEvents = auditEvents.slice(0, 5)
-
-  return <section className="soft-reveal-delay space-y-3">
-    <div className="grid gap-3 xl:grid-cols-[minmax(0,1.1fr)_minmax(20rem,0.9fr)]">
-      <Card className="overflow-hidden border-[#244393]/12 bg-white text-[#172033] shadow-[0_10px_28px_rgba(23,32,51,0.06)]">
-        <div className="grid gap-0 lg:grid-cols-[1fr_auto]">
-          <div className="relative p-4">
-            <div className="absolute inset-y-0 left-0 w-1 bg-[#d84332]" />
-            <p className="font-display text-[0.66rem] font-extrabold uppercase tracking-[0.18em] text-[#244393]">Next action</p>
-            <h2 className="font-display mt-2 text-xl font-black tracking-[-0.025em] text-[#172033] sm:text-2xl">{next.label}</h2>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-[#526071]">{next.detail}</p>
-          </div>
-          <div className="flex min-w-0 flex-col justify-center gap-2 border-t border-[rgba(23,32,51,0.1)] bg-[#f8faff] p-3 lg:min-w-[13rem] lg:border-l lg:border-t-0">
-            {!schedule && canEdit && driverIssues === 0 && <button type="button" disabled={working} onClick={onSuggest} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#d84332] px-4 py-2.5 font-display text-sm font-extrabold text-white shadow-[0_10px_24px_rgba(216,67,50,0.18)] transition hover:-translate-y-0.5 hover:bg-[#bf3228] disabled:cursor-not-allowed disabled:opacity-60">
-              <ClipboardList size={17} /> {working ? 'Working...' : 'Generate draft'}
-            </button>}
-            {Boolean(schedule || !canEdit || driverIssues > 0) && <button type="button" onClick={() => onGoToSection(next.target)} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-[#244393]/15 bg-white px-4 py-2.5 font-display text-sm font-extrabold text-[#244393] transition hover:-translate-y-0.5 hover:bg-[#e8eefc]">
-              {next.cta} <ArrowRight size={17} />
-            </button>}
-          </div>
-        </div>
-      </Card>
-
-      <Card className="overflow-hidden">
-        <PanelHeader eyebrow="Dispatch state" title={statusLabel(schedule)} description={scheduleDetail(schedule, dashboard)} />
-        <div className="grid gap-3 p-3 sm:grid-cols-3 sm:p-4">
-          <Metric icon={<ShieldCheck size={18} />} label="Status" value={statusLabel(schedule)} tone={statusTone(schedule)} />
-          <Metric icon={<ListChecks size={18} />} label="Stops" value={scheduleItems} tone="blue" />
-          <Metric icon={<CalendarDays size={18} />} label="PM due" value={dashboard?.counts.pm_due ?? pmTasks.filter((pm) => pm.scheduled_date === dashboard?.date && pm.status !== 'completed').length} tone="steel" />
-        </div>
-      </Card>
+  const callOuts = technicians.filter((tech) => tech.active && tech.availability === 'unavailable')
+  const queueMetrics: Array<{ label: string; value?: number; view: WorkOrderView; detail?: string; icon: ReactNode; urgent?: boolean }> = [
+    { label: 'Open work orders', value: c.open_work_orders, detail: `${c.high_priority_open_work_orders ?? '—'} high priority`, view: 'open', icon: <Wrench size={18} /> },
+    { label: 'Overdue', value: c.sla_overdue, view: 'overdue', icon: <AlertTriangle size={18} />, urgent: true },
+    { label: 'Waiting parts', value: c.waiting_for_parts, view: 'waiting', icon: <Clock3 size={18} /> },
+    { label: 'PA projects', value: c.pa_projects, view: 'pa', icon: <FolderKanban size={18} /> },
+    { label: 'Waiting approval', value: c.waiting_for_approval, view: 'approval', icon: <ShieldCheck size={18} /> },
+    { label: 'Needs assessment', value: c.needs_assessment, detail: `${c.unscheduled_approved ?? '—'} approved without date`, view: 'assessment', icon: <Clock3 size={18} /> },
+    { label: 'Due soon', value: c.sla_due_soon, view: 'dueSoon', icon: <Clock3 size={18} /> },
+    { label: 'KPI missing', value: c.sla_missing, view: 'missing', icon: <ShieldCheck size={18} /> },
+    { label: 'Follow-up due', value: c.follow_up_due_today, view: 'followUp', icon: <Clock3 size={18} /> },
+    { label: 'Corrective maintenance', value: c.corrective_maintenance, view: 'cm', icon: <Wrench size={18} /> },
+    { label: 'Estimates', value: c.estimate_required, view: 'estimates', icon: <FileText size={18} /> },
+    { label: 'Parts ETA', value: c.parts_eta_due_soon, view: 'partsEta', icon: <Clock3 size={18} /> },
+  ]
+  return <section className="space-y-4">
+    <div>
+      {header}
+      {loadError && <p role="alert" className="mb-3 text-sm text-[var(--warning-ink-strong)]">Refresh failed. Showing the last loaded overview. <button type="button" onClick={onRetry} className="min-h-11 underline">Retry dashboard</button></p>}
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-4">{queueMetrics.map((metric) => <Metric key={metric.view} {...metric} tone={metric.urgent && (metric.value ?? 0) > 0 ? 'red' : 'steel'} onClick={openView(metric.view)} />)}</div>
     </div>
-
-    <div className="grid gap-3 sm:gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(20rem,0.85fr)]">
-      <Card className="overflow-hidden">
-        <PanelHeader eyebrow="Work pressure" title="Queue health" description="Open work, KPI pressure, blocked jobs, and follow-up counts for the selected date." />
-        <div className="grid gap-3 p-3 sm:grid-cols-2 sm:p-4 xl:grid-cols-3">
-          <Metric icon={<Wrench size={18} />} label="Open WOs" value={dashboard?.counts.open_work_orders} detail={`${highPriority} high-priority`} tone={highPriority > 0 ? 'amber' : 'blue'} onClick={() => onGoToSection('work-orders')} />
-          <Metric icon={<Clock3 size={18} />} label="Needs assess." value={dashboard?.counts.needs_assessment} detail={`${unscheduledApproved} approved without date`} tone={unscheduledApproved > 0 ? 'amber' : 'steel'} onClick={() => onGoToSection('work-orders')} />
-          <Metric icon={<AlertTriangle size={18} />} label="KPI overdue" value={slaOverdue} detail="Original due date passed" tone={slaOverdue > 0 ? 'red' : 'green'} onClick={() => onGoToSection('work-orders')} />
-          <Metric icon={<Clock3 size={18} />} label="Due soon" value={slaDueSoon} detail="Within the next 24 hours" tone={slaDueSoon > 0 ? 'amber' : 'steel'} onClick={() => onGoToSection('work-orders')} />
-          <Metric icon={<ShieldCheck size={18} />} label="KPI missing" value={slaMissing} detail="Needs reported time cleanup" tone={slaMissing > 0 ? 'amber' : 'green'} onClick={() => onGoToSection('work-orders')} />
-          <Metric icon={<Clock3 size={18} />} label="Waiting parts" value={waitingForParts} detail="Held out of dispatch" tone={waitingForParts > 0 ? 'amber' : 'steel'} onClick={() => onGoToSection('work-orders')} />
-          <Metric icon={<ShieldCheck size={18} />} label="Waiting approval" value={waitingForApproval} detail="Blocked until approval" tone={waitingForApproval > 0 ? 'amber' : 'steel'} onClick={() => onGoToSection('work-orders')} />
-        </div>
-      </Card>
-
-      <Card className="overflow-hidden">
-        <PanelHeader eyebrow="Crew readiness" title={`${Math.max(teams.length - driverIssues, 0)}/${teams.length} crews ready`} description="Driver coverage, daily overrides, and call-outs before generating the draft." />
-        <div className="grid gap-3 p-3 sm:grid-cols-2 sm:p-4 xl:grid-cols-1">
-          <Metric icon={<Users size={18} />} label="Crews ready" value={`${Math.max(teams.length - driverIssues, 0)}/${teams.length}`} detail={`${dailyOverrides} daily override${dailyOverrides === 1 ? '' : 's'}`} tone={driverIssues > 0 ? 'red' : 'green'} onClick={() => onGoToSection('teams')} />
-          <Metric icon={<Radio size={18} />} label="Call-outs" value={callOuts.length} detail={callOuts.slice(0, 2).map((tech) => tech.name).join(', ') || 'No call-outs marked'} tone={callOuts.length > 0 ? 'red' : 'green'} onClick={() => onGoToSection('teams')} />
-        </div>
-      </Card>
-    </div>
-
-    <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-6">
-      <Metric icon={<FolderKanban size={18} />} label="PA Projects" value={paProjects} detail="Long-lead follow-up workspace" tone={paProjects > 0 ? 'amber' : 'steel'} onClick={() => onGoToSection('pa-projects')} />
-      <Metric icon={<Clock3 size={18} />} label="Follow-up due" value={followUpDueToday} detail="Due today or overdue" tone={followUpDueToday > 0 ? 'amber' : 'green'} onClick={() => onGoToSection('pa-projects')} />
-      <Metric icon={<Clock3 size={18} />} label="Parts ETA" value={partsEtaDueSoon} detail="Due within 7 days" tone={partsEtaDueSoon > 0 ? 'amber' : 'steel'} onClick={() => onGoToSection('pa-projects')} />
-      <Metric icon={<Wrench size={18} />} label="Corrective Maint." value={correctiveMaintenance} detail="CM-flagged open work" tone="blue" onClick={() => onGoToSection('work-orders')} />
-      <Metric icon={<FileText size={18} />} label="Estimates" value={estimateRequired} detail="Estimate-required open work" tone={estimateRequired > 0 ? 'amber' : 'steel'} onClick={() => onGoToSection('work-orders')} />
-      <Metric icon={<CalendarDays size={18} />} label="PM month" value={`${completedPmTasks}/${completedPmTasks + incompletePmTasks}`} detail="Completed this month" tone={incompletePmTasks > 0 ? 'amber' : 'green'} onClick={() => onGoToSection('pm-tasks')} />
-    </div>
-
     <Card className="overflow-hidden">
-      <PanelHeader eyebrow="Recent changes" title="Activity snapshot" description="Latest audit entries so dispatchers can spot fresh edits before sending." action={<button type="button" onClick={() => onGoToSection('activity')} className="rounded-2xl border border-[#244393]/15 bg-[#e8eefc] px-4 py-2 font-display text-xs font-extrabold uppercase tracking-[0.14em] text-[#244393] transition hover:bg-[#dfe8ff]">View all</button>} />
-      <div className="grid gap-3 p-3 sm:p-4 lg:grid-cols-2 xl:grid-cols-5">
-        {recentEvents.length === 0 && <p className="rounded-2xl border border-dashed border-[rgba(23,32,51,0.18)] bg-[#f8faff] p-5 text-sm font-semibold text-[#526071] lg:col-span-2 xl:col-span-5">No activity recorded yet.</p>}
-        {recentEvents.map((event) => <article key={event.id} className="rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white/88 p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="font-display line-clamp-2 text-sm font-extrabold capitalize text-[#172033]">{eventSummary(event)}</p>
-              <p className="mt-1 text-xs font-semibold text-[#64748b]">{event.user_name || 'System'} • {eventTime(event.occurred_at)}</p>
-            </div>
-            <CheckCircle2 className="shrink-0 text-[#244393]" size={16} />
-          </div>
-        </article>)}
+      <PanelHeader title="Dispatch and crews" description="Plan the selected day after reviewing incoming work." action={<button type="button" disabled={working} onClick={() => onGoToSection('dispatch')} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[var(--border)] px-3 text-sm font-bold text-[var(--jmi-blue)]">{canEdit ? 'Open dispatch' : 'Review dispatch'}<ArrowRight size={16} /></button>} />
+      <div className="grid gap-2 p-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Metric label="Dispatch status" value={schedule?.status || 'No draft'} detail={`${schedule?.items.length ?? 0} assigned stops`} icon={<ListChecks size={18} />} onClick={() => onGoToSection('dispatch')} />
+        <Metric label="Crews ready" value={`${Math.max(teams.length - driverIssues, 0)}/${teams.length}`} detail={`${teams.filter((team) => team.daily_override).length} daily overrides`} icon={<Users size={18} />} onClick={() => onGoToSection('teams')} />
+        <Metric label="Call-outs" value={callOuts.length} detail={callOuts.slice(0, 2).map((tech) => tech.name).join(', ') || 'No call-outs marked'} icon={<Radio size={18} />} onClick={() => onGoToSection('teams')} />
+        <Metric label="PM month" value={`${c.pm_completed_month}/${c.pm_completed_month + c.pm_incomplete_month}`} detail={`${c.pm_due} due on selected date`} icon={<CalendarDays size={18} />} onClick={() => onGoToSection('pm-tasks')} />
       </div>
+    </Card>
+    <Card className="overflow-hidden">
+      <PanelHeader title="Recent activity" description="Latest changes to work and dispatch." action={<button type="button" onClick={() => onGoToSection('activity')} className="min-h-11 rounded-xl px-3 text-sm font-bold text-[var(--jmi-blue)]">View all activity</button>} />
+      <div className="divide-y divide-slate-200 px-3">{auditEvents.length === 0 ? <p className="py-4 text-sm text-[var(--ink-soft)]">No activity recorded yet.</p> : auditEvents.slice(0, 5).map((event) => <article key={event.id} className="py-3 text-sm"><p className="break-words font-semibold text-[var(--ink)]">{event.action.replaceAll('_', ' ').replaceAll('.', ' ')}{event.metadata?.title ? `: ${event.metadata.title}` : ''}</p><p className="mt-1 text-xs text-[var(--ink-soft)]">{event.user_name || 'System'} · {event.occurred_at ? new Date(event.occurred_at).toLocaleString() : 'Unknown time'}</p></article>)}</div>
     </Card>
   </section>
 }

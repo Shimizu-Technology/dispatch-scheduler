@@ -8,6 +8,7 @@ export type Dashboard = {
 export type WorkOrderStatus = 'new' | 'needs_assessment' | 'approved' | 'scheduled' | 'in_progress' | 'carry_over' | 'waiting_for_parts' | 'waiting_for_approval' | 'completed' | 'closed' | 'cancelled'
 
 export type WorkOrder = {
+  lock_version?: number
   id: number
   external_id: string | null
   client: string
@@ -63,10 +64,13 @@ export type OcrWorkOrderDraft = WorkOrderInput & {
 }
 
 export type WorkOrderImportPreview = {
+  warnings?: string[]
   work_orders: OcrWorkOrderDraft[]
 }
 
 export type WorkOrderInput = {
+  client_request_id?: string
+  expected_lock_version?: number
   client: string
   location: string
   region: string
@@ -81,11 +85,11 @@ export type WorkOrderInput = {
   original_status_text?: string
   trade_category: string
   requested_at?: string
-  reported_at?: string
+  reported_at?: string | null
   assessment_due_at?: string
   response_due_at?: string
   repair_due_at?: string
-  assessed_at?: string
+  assessed_at?: string | null
   scheduled_date?: string
   estimated_hours?: number | string | null
   required_technician_count?: number | string | null
@@ -99,7 +103,7 @@ export type WorkOrderInput = {
   estimate_number?: string
   parts_status?: string
   parts_ordered?: boolean
-  parts_ordered_at?: string
+  parts_ordered_at?: string | null
   parts_eta?: string
   follow_up_due_on?: string
   follow_up_owner?: string

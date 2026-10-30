@@ -6,9 +6,13 @@ module Api
       def preview
         result = WorkOrderOcrExtractor.extract(params[:file], text: params[:text])
         if result[:success]
-          render json: { work_orders: result[:work_orders] }
+          payload = { work_orders: result[:work_orders] }
+          payload[:warnings] = result[:warnings] if result[:warnings].present?
+          render json: payload
         else
-          render json: { errors: [ result[:error] ] }, status: :unprocessable_entity
+          payload = { errors: [ result[:error] ] }
+          payload[:code] = result[:code] if result[:code]
+          render json: payload, status: :unprocessable_entity
         end
       end
     end

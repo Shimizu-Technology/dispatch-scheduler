@@ -131,7 +131,7 @@ class DispatchSchedulesControllerTest < ActionDispatch::IntegrationTest
     end
     assert_equal "needs_assessment", item.reload.previous_work_order_status
 
-    work.update!(archived_at: Time.current)
+    work.reload.update!(archived_at: Time.current)
 
     with_auth_env do
       post "/api/v1/dispatch_schedules/#{schedule.id}/reopen", headers: auth_headers

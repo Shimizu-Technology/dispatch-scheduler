@@ -2,9 +2,14 @@ module DispatchTestData
   DEFAULT_DATE = Date.new(2026, 5, 5)
 
   def reset_dispatch_records
-    [ AuditEvent, FollowUp, DispatchItemTechnician, DispatchItem, DispatchSchedule, WorkOrder, PmTask, PmTemplateItemLocation, PmTemplateItem, PmTemplateLocation, PmTemplate, TeamMembership, TeamDailyOverride, TechnicianAvailability, TechnicianSkill, Technician, Team, Location, Client, ServiceLine, User ].each do |model|
+    [ WorkOrderCreateReceipt, WorkOrderIdentityLock, AuditEvent, FollowUp, DispatchItemTechnician, DispatchItem, DispatchSchedule, WorkOrder, PmTask, PmTemplateItemLocation, PmTemplateItem, PmTemplateLocation, PmTemplate, TeamMembership, TeamDailyOverride, TechnicianAvailability, TechnicianSkill, Technician, Team, Location, Client, ServiceLine, User ].each do |model|
       model.delete_all
-      ActiveRecord::Base.connection.reset_pk_sequence!(model.table_name) if ActiveRecord::Base.connection.respond_to?(:reset_pk_sequence!)
+      connection = ActiveRecord::Base.connection
+      if connection.adapter_name == "SQLite"
+        connection.execute("DELETE FROM main.sqlite_sequence WHERE name = #{connection.quote(model.table_name)}")
+      elsif connection.respond_to?(:reset_pk_sequence!)
+        connection.reset_pk_sequence!(model.table_name)
+      end
     end
   end
 

@@ -20,6 +20,7 @@ class WorkOrder < ApplicationRecord
   ASSESSMENT_STATUSES = %w[new needs_assessment].freeze
 
   before_validation :normalize_sla_due_dates
+  after_save :clear_auto_due_values
 
   validates :status, inclusion: { in: STATUSES }
   validates :required_technician_count, numericality: { only_integer: true, greater_than_or_equal_to: 1 }
@@ -101,6 +102,10 @@ class WorkOrder < ApplicationRecord
     archived_at.present?
   end
 
+  def reload(...)
+    super.tap { clear_auto_due_values }
+  end
+
   def open?
     CLOSED_STATUSES.exclude?(status)
   end
@@ -146,6 +151,10 @@ class WorkOrder < ApplicationRecord
 
   private
 
+  def clear_auto_due_values
+    @auto_due_values = nil
+  end
+
   def normalize_sla_due_dates
     self.reported_at ||= requested_at
     self.requested_at ||= reported_at
@@ -157,20 +166,30 @@ class WorkOrder < ApplicationRecord
     calculated_repair_due_at = reported_at + windows.fetch(:repair)
 
     if assessment_due_at.blank? || previously_auto_calculated_due?(:assessment_due_at)
-      self.assessment_due_at = calculated_assessment_due_at
+      assign_auto_due(:assessment_due_at, calculated_assessment_due_at)
     end
 
     if response_due_at.blank? || previously_auto_calculated_due?(:response_due_at)
-      self.response_due_at = assessment_due_at || calculated_assessment_due_at
+      assign_auto_due(:response_due_at, assessment_due_at || calculated_assessment_due_at)
     end
 
     if repair_due_at.blank? || previously_auto_calculated_due?(:repair_due_at)
-      self.repair_due_at = calculated_repair_due_at
+      assign_auto_due(:repair_due_at, calculated_repair_due_at)
     end
+  end
+
+  def assign_auto_due(field, value)
+    self[field] = value
+    (@auto_due_values ||= {})[field] = public_send(field)
   end
 
   def previously_auto_calculated_due?(field)
     return false unless persisted?
+    # Keep changed caller values. Values assigned by this callback remain auto
+    # across repeated validations before save, so later receipt edits recalculate.
+    if public_send("will_save_change_to_#{field}?") && (@auto_due_values || {})[field] != public_send(field)
+      return false
+    end
     return false unless will_save_change_to_reported_at? || will_save_change_to_requested_at? || will_save_change_to_priority? || will_save_change_to_normalized_priority?
 
     old_reported_at = will_save_change_to_reported_at? ? reported_at_was : reported_at
@@ -185,6 +204,11 @@ class WorkOrder < ApplicationRecord
     else
       old_reported_at + old_windows.fetch(:assessment)
     end
-    old_value.to_i == expected_old_value.to_i
+    return false unless old_value.to_i == expected_old_value.to_i
+
+    # Preserve the six-digit precision stored by our datetime columns. A real
+    # fractional override is custom, even inside the automatic deadline's second.
+    # Older derived deadlines may have been stored without fractional seconds.
+    old_value.usec == expected_old_value.usec || old_value.usec.zero?
   end
 end

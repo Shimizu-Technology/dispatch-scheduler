@@ -1,7 +1,13 @@
 const rawApiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/$/, '')
 const API = rawApiUrl.endsWith('/api/v1') ? rawApiUrl : `${rawApiUrl}/api/v1`
 
-type ErrorBody = { errors?: string[] }
+type ErrorBody = { errors?: string[]; code?: string; latest_work_order?: unknown; invalid?: Array<{ index: number; errors: string[] }> }
+
+export class ApiError extends Error {
+  status: number | null
+  body: ErrorBody | null
+  constructor(message: string, status: number | null, body: ErrorBody | null = null) { super(message); this.name = 'ApiError'; this.status = status; this.body = body }
+}
 let getAuthToken: (() => Promise<string | null>) | null = null
 
 export function setAuthTokenGetter(getter: () => Promise<string | null>) {
@@ -10,7 +16,7 @@ export function setAuthTokenGetter(getter: () => Promise<string | null>) {
 
 async function errorMessage(res: Response) {
   const errorJson = await res.json().catch(() => null) as ErrorBody | null
-  return errorJson?.errors?.join(', ') || `${res.status} ${res.statusText}`
+  return new ApiError(errorJson?.errors?.join(', ') || `${res.status} ${res.statusText}`, res.status, errorJson)
 }
 
 async function requestJson<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -20,10 +26,13 @@ async function requestJson<T>(path: string, options: RequestInit = {}): Promise<
   const token = await getAuthToken?.()
   if (token) headers.set('Authorization', `Bearer ${token}`)
 
-  const res = await fetch(`${API}${path}`, { ...options, headers })
-  if (!res.ok) throw new Error(await errorMessage(res))
+  let res: Response
+  try { res = await fetch(`${API}${path}`, { ...options, headers }) }
+  catch { throw new ApiError('The connection was interrupted.', null) }
+  if (!res.ok) throw await errorMessage(res)
   if (res.status === 204) return undefined as T
-  return res.json()
+  try { return await res.json() }
+  catch { throw new ApiError('The server response could not be read.', null) }
 }
 
 async function requestForm<T>(path: string, body: FormData): Promise<T> {
@@ -32,7 +41,7 @@ async function requestForm<T>(path: string, body: FormData): Promise<T> {
   if (token) headers.set('Authorization', `Bearer ${token}`)
 
   const res = await fetch(`${API}${path}`, { method: 'POST', body, headers })
-  if (!res.ok) throw new Error(await errorMessage(res))
+  if (!res.ok) throw await errorMessage(res)
   return res.json()
 }
 
@@ -42,7 +51,7 @@ async function requestBlob(path: string): Promise<Blob> {
   if (token) headers.set('Authorization', `Bearer ${token}`)
 
   const res = await fetch(`${API}${path}`, { headers })
-  if (!res.ok) throw new Error(await errorMessage(res))
+  if (!res.ok) throw await errorMessage(res)
   return res.blob()
 }
 

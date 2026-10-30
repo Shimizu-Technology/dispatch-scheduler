@@ -5,10 +5,10 @@ import type { ReactNode } from 'react'
 import App from './App'
 import type { WorkOrder } from './types'
 
-const auth = vi.hoisted(() => ({ signedIn: true, loading: false, verifying: false, error: null as string | null }))
+const auth = vi.hoisted(() => ({ signedIn: true, loading: false, verifying: false, error: null as string | null, retainUser: false }))
 const api = vi.hoisted(() => ({ getJson: vi.fn(), postJson: vi.fn(), patchJson: vi.fn() }))
 vi.mock('./contexts/useAuthContext', () => ({ useAuthContext: () => ({
-  user: auth.signedIn && !auth.verifying && !auth.error ? { id: 1, name: 'Synthetic dispatcher', role: 'dispatcher', permissions: { can_admin: false } } : null,
+  user: auth.signedIn && (auth.retainUser || (!auth.verifying && !auth.error)) ? { id: 1, name: 'Synthetic dispatcher', role: 'dispatcher', permissions: { can_admin: false } } : null,
   isSignedIn: auth.signedIn, isLoading: auth.loading, isVerifyingApi: auth.verifying, authError: auth.error, canEditDispatch: true, refreshUser: vi.fn(),
 }) }))
 vi.mock('@clerk/react', () => ({ UserButton: () => <span>Account</span>, SignInButton: ({ children, forceRedirectUrl }: { children: ReactNode; forceRedirectUrl: string }) => <span data-return-url={forceRedirectUrl}>{children}</span> }))
@@ -45,6 +45,7 @@ beforeEach(() => {
   auth.loading = false
   auth.verifying = false
   auth.error = null
+  auth.retainUser = false
   window.localStorage.clear()
   window.history.replaceState(null, '', '/work-orders')
   vi.stubGlobal('scrollTo', vi.fn())
@@ -136,10 +137,10 @@ describe('intake route and saved queue context', () => {
     } finally { vi.useRealTimers() }
   })
 
-  it('offers a way to create the missing dispatch from WhatsApp', () => {
+  it('offers a way to create the missing dispatch from WhatsApp', async () => {
     window.history.replaceState(null, '', '/whatsapp')
     render(<App />)
-    fireEvent.click(screen.getByRole('button', { name: 'Open dispatch' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Open dispatch' }))
     expect(window.location.pathname).toMatch(/^\/dispatch\//)
     expect(screen.getByRole('heading', { name: 'Dispatch plan' })).toBeTruthy()
     expect(screen.queryByText('Finalized and sent schedules are locked until reopened.')).toBeNull()
@@ -433,4 +434,65 @@ it('refreshes the dashboard for the newly selected date, not the first-render da
   const dashboardDates = api.getJson.mock.calls.slice(before).map(([path]) => String(path)).filter((path) => path.startsWith('/dashboard?')).map((path) => new URLSearchParams(path.split('?')[1]).get('date'))
   expect(dashboardDates.length).toBeGreaterThan(0)
   expect(dashboardDates.every((date) => date === nextDate)).toBe(true)
+})
+
+
+it('keeps a previous user behind the access-verification screen', () => {
+  auth.verifying = true
+  auth.retainUser = true
+  render(<App />)
+  expect(screen.getByRole('status').textContent).toContain('Checking your access')
+  expect(screen.queryByRole('navigation')).toBeNull()
+  expect(screen.queryByRole('button', { name: 'New Work Order' })).toBeNull()
+})
+
+it.each(['/dispatch/today', '/whatsapp'])('does not offer an empty plan until %s finishes loading', async (path) => {
+  let finish!: (value: unknown) => void
+  const pending = new Promise((resolve) => { finish = resolve })
+  api.getJson.mockImplementation((url: string) => url.startsWith('/dispatch_schedules?') ? pending : Promise.resolve(response(url)))
+  window.history.replaceState(null, '', path)
+  render(<App />)
+  expect(screen.queryByRole('button', { name: 'Generate Draft' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Open dispatch' })).toBeNull()
+  await act(async () => { finish({ schedule: null }) })
+  expect(await screen.findByRole('button', { name: path === '/whatsapp' ? 'Open dispatch' : 'Generate Draft' })).toBeTruthy()
+})
+
+it('removes an old schedule on date change and requires recovery before generating', async () => {
+  const loaded = { id: 1, date: '2026-10-30', status: 'finalized', items: [], summary: { scheduled_items: 0, eligible_work_orders: 0, eligible_pm_tasks: 0, deferred_items: 0, blocked_work_orders: 0 } }
+  api.getJson.mockImplementation(async (path: string) => {
+    if (path === '/dispatch_schedules?date=2026-10-30') return { schedule: loaded }
+    if (path === '/dispatch_schedules?date=2026-10-29') throw new Error('Synthetic dispatch outage')
+    return response(path)
+  })
+  window.history.replaceState(null, '', '/dispatch/2026-10-30')
+  render(<App />)
+  await screen.findByRole('heading', { name: 'Finalized dispatch' })
+  fireEvent.change(screen.getByLabelText('Schedule date'), { target: { value: '2026-10-29' } })
+  expect(screen.queryByRole('heading', { name: 'Finalized dispatch' })).toBeNull()
+  await screen.findByRole('button', { name: 'Retry dispatch' })
+  expect(screen.queryByRole('button', { name: 'Generate Draft' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Reopen' })).toBeNull()
+  api.getJson.mockImplementation(async (path: string) => response(path))
+  fireEvent.click(screen.getByRole('button', { name: 'Retry dispatch' }))
+  await screen.findByRole('button', { name: 'Generate Draft' })
+})
+
+
+it('filters PM stations using the visible Status and Region fields', async () => {
+  window.history.replaceState(null, '', '/pm/month/2026-10')
+  const tasks = [
+    { id: 1, client: 'Synthetic', location: 'North site', region: 'North', task_name: 'Check pump', trade_category: 'General', scheduled_date: '2026-10-30', status: 'pending' },
+    { id: 2, client: 'Synthetic', location: 'South site', region: 'South', task_name: 'Check lights', trade_category: 'General', scheduled_date: '2026-10-30', status: 'completed' },
+  ]
+  api.getJson.mockImplementation(async (path: string) => path.startsWith('/pm_tasks?') ? tasks : response(path))
+  render(<App />)
+  await screen.findByRole('heading', { name: 'North site' })
+  fireEvent.change(screen.getByRole('combobox', { name: 'Status' }), { target: { value: 'completed' } })
+  expect(screen.queryByRole('heading', { name: 'North site' })).toBeNull()
+  expect(screen.getByRole('heading', { name: 'South site' })).toBeTruthy()
+  fireEvent.change(screen.getByRole('combobox', { name: 'Status' }), { target: { value: '' } })
+  fireEvent.change(screen.getByRole('combobox', { name: 'Region' }), { target: { value: 'North' } })
+  expect(screen.getByRole('heading', { name: 'North site' })).toBeTruthy()
+  expect(screen.queryByRole('heading', { name: 'South site' })).toBeNull()
 })

@@ -399,6 +399,10 @@ function DispatchApp() {
     setLoading(true)
     setError('')
     setInitialDataError('')
+    setCrewDataDate(null)
+    setSchedule(null)
+    setWhatsApp('')
+    setWhatsAppCrews([])
     if (context.current.route.section !== 'work-orders') void fetchWorkOrders(DEFAULT_WORK_ORDER_QUERY)
     const [dash, ...workspace] = await Promise.allSettled([
       getJson<Dashboard>(`/dashboard?date=${date}`),
@@ -435,8 +439,8 @@ function DispatchApp() {
         }
       } else { setWhatsApp(''); setWhatsAppCrews([]) }
     } else {
-      setInitialDataError('Workspace data could not load for this date. Retry before editing crews.')
-      setError('Workspace data could not load for this date. Retry before editing crews.')
+      setInitialDataError('Workspace data could not load for this date. Retry before editing.')
+      setError('Workspace data could not load for this date. Retry before editing.')
       setCrewDataDate(null)
     }
     if (current()) setLoading(false)
@@ -1112,6 +1116,10 @@ function DispatchApp() {
   }
 
   async function suggestSchedule() {
+    if (loading || crewDataDate !== selectedDate || initialDataError) {
+      setError('Load dispatch for the selected date before generating a draft.')
+      return
+    }
     if (!canEditDispatch) {
       setError('Viewer access cannot regenerate dispatch drafts.')
       return
@@ -1446,7 +1454,8 @@ function DispatchApp() {
 
   const activeSectionMeta = sections.find((section) => section.id === currentSection) || sections[0]
   const dispatchScreen = currentSection === 'dispatch' || currentSection === 'whatsapp'
-  if (authLoading || !isSignedIn || !user) {
+  const dispatchReady = !loading && crewDataDate === selectedDate && !initialDataError
+  if (authLoading || isVerifyingApi || !isSignedIn || !user) {
     return <main className="grid min-h-dvh place-items-center px-6 py-10">
       <section aria-labelledby="welcome-title" className="w-full max-w-sm text-center">
         <BrandMark />
@@ -1505,13 +1514,17 @@ function DispatchApp() {
           </div>}
         </header>
 
-        {user && loading && <div className="inline-flex w-fit items-center gap-2 rounded-2xl border border-[var(--info-soft-strong)] bg-[var(--info-soft)]/90 px-4 py-2 text-sm font-bold text-[var(--info-ink-strong)]">
+        {user && loading && !dispatchScreen && <div className="inline-flex w-fit items-center gap-2 rounded-2xl border border-[var(--info-soft-strong)] bg-[var(--info-soft)]/90 px-4 py-2 text-sm font-bold text-[var(--info-ink-strong)]">
           <RefreshCw size={16} className="animate-spin" /> Loading live dispatch data...
         </div>}
 
+        {dispatchScreen && !dispatchReady && <section className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-4">
+          {initialDataError ? <><p role="alert" className="text-sm text-[var(--ink-soft)]">Dispatch could not load for this date. Retry to continue.</p><button type="button" onClick={() => void loadInitialData(selectedDate)} className="mt-3 min-h-11 rounded-xl border border-[var(--border)] px-4 text-sm font-bold">Retry dispatch</button></> : <p role="status" className="text-sm text-[var(--ink-soft)]">Loading dispatch for the selected date…</p>}
+        </section>}
+
         {user && !canEditDispatch && <div className="rounded-2xl border border-[var(--warning-border)] bg-[var(--warning-soft)] p-4 text-sm font-bold text-[var(--warning-ink)]">Viewer mode: you can inspect dashboard, work orders, teams, PMs, and generated schedules, but editing controls are hidden.</div>}
 
-        {error && <div className="rounded-2xl border border-[var(--danger-border)] bg-[var(--danger-soft)] p-4 text-sm font-bold text-[var(--danger-ink)]">{error}</div>}
+        {error && !(dispatchScreen && initialDataError) && <div className="rounded-2xl border border-[var(--danger-border)] bg-[var(--danger-soft)] p-4 text-sm font-bold text-[var(--danger-ink)]">{error}</div>}
 
         {user && currentSection === 'overview' && <DashboardMetrics dashboard={overviewReady ? dashboard : null} teams={teams} technicians={technicians} schedule={schedule} auditEvents={auditEvents} canEdit={canEditDispatch} working={working} loading={loading} asOfDate={selectedDate} loadError={dashboardError} onRetry={() => void loadInitialData(selectedDate)} onDateChange={handleSelectedDateChange} onGoToSection={goToSection} onOpenWorkOrders={(query) => navigateTo(`/work-orders?${query}`)} />}
 
@@ -1521,7 +1534,7 @@ function DispatchApp() {
 
         {currentSection === 'teams' && <TeamsPanel loading={loading || (crewDataDate !== selectedDate && !initialDataError)} loadError={crewDataDate !== selectedDate ? initialDataError : ''} onRetry={() => void loadInitialData(selectedDate)} selectedDate={selectedDate} onDateChange={handleSelectedDateChange} teams={teams} technicians={technicians} serviceLines={serviceLines} schedule={schedule} canEdit={canEditDispatch} savingTechnicianId={availabilitySavingId} savingTeamId={teamSavingId} onToggleAvailability={toggleAvailability} onUpdateDailyCrew={updateDailyCrew} onUpdateDefaultCrew={updateDefaultCrew} onCreateTeam={createTeam} onArchiveTeam={archiveTeam} onCreateTechnician={createTechnician} onUpdateTechnician={updateTechnician} onArchiveTechnician={archiveTechnician} />}
 
-        {currentSection === 'dispatch' && <DispatchBuilder schedule={schedule} teams={teams} technicians={technicians} working={working} canEdit={canEditDispatch} onSuggest={suggestSchedule} onUpdate={updateDispatchItem} onOutcome={updateDispatchItemOutcome} onWorkOrderStatus={updateWorkOrderStatus} onFinalize={finalizeSchedule} onReopen={reopenSchedule} />}
+        {currentSection === 'dispatch' && dispatchReady && <DispatchBuilder schedule={schedule} teams={teams} technicians={technicians} working={working} canEdit={canEditDispatch} onSuggest={suggestSchedule} onUpdate={updateDispatchItem} onOutcome={updateDispatchItemOutcome} onWorkOrderStatus={updateWorkOrderStatus} onFinalize={finalizeSchedule} onReopen={reopenSchedule} />}
 
         {currentSection === 'pm-tasks' && <PmTasksPanel key={selectedDate} pmTasks={pmTasks} pmTemplates={pmTemplates} serviceLines={serviceLines} canEdit={canEditDispatch} savingPmTaskId={pmTaskSavingId} selectedDate={selectedDate} onUpdate={updatePmTask} onCreate={createPmTask} onBulkCreate={bulkCreatePmTasks} onCompleteStation={completePmStation} onArchive={archivePmTask} onCreateTemplate={createPmTemplate} onUpdateTemplate={updatePmTemplate} onArchiveTemplate={archivePmTemplate} onPreviewTemplate={previewPmTemplate} onGenerateTemplate={generatePmTemplate} onMonthChange={(month) => handleSelectedDateChange(dateFromMonth(month, selectedDate))} />}
 
@@ -1529,7 +1542,7 @@ function DispatchApp() {
 
         {currentSection === 'reports' && <ReportsPanel month={selectedDate.slice(0, 7)} onMonthChange={(month) => handleSelectedDateChange(dateFromMonth(month, selectedDate))} report={monthlyReport} loading={reportLoading} onDownloadCsv={downloadMonthlyReportCsv} />}
 
-        {currentSection === 'whatsapp' && <WhatsAppExport schedule={schedule} message={whatsApp} crews={whatsAppCrews} copied={copied} working={working} canEdit={canEditDispatch} onCopy={copyWhatsApp} onMarkSent={markScheduleSent} onOpenDispatch={() => goToSection('dispatch')} />}
+        {currentSection === 'whatsapp' && dispatchReady && <WhatsAppExport schedule={schedule} message={whatsApp} crews={whatsAppCrews} copied={copied} working={working} canEdit={canEditDispatch} onCopy={copyWhatsApp} onMarkSent={markScheduleSent} onOpenDispatch={() => goToSection('dispatch')} />}
 
         {currentSection === 'activity' && <ActivityPanel events={auditEvents} />}
 

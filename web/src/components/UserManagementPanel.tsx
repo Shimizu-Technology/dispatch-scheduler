@@ -72,7 +72,7 @@ export function UserManagementPanel({ deliveryNotice, users, currentUserId, savi
     <PanelHeader
       eyebrow="Admin"
       title="User invitations and access"
-      description="Invite JMI dispatch users, resend pending invitations, and control who can edit schedules or administer the workspace. Only invited users can access the workspace."
+      description="Invite JMI dispatch users, resend pending invitations, and control who can edit schedules or administer the workspace."
       action={<button type="button" onClick={() => setShowInvite((current) => !current)} className="inline-flex items-center gap-2 rounded-2xl button-action bg-[var(--jmi-blue)] px-4 py-2 font-display text-xs font-extrabold  tracking-normal text-[var(--paper)] shadow-none transition-colors  hover:bg-[var(--jmi-blue-deep)]"><Plus size={16} /> Invite user</button>}
     />
 

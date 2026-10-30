@@ -1499,7 +1499,7 @@ function DispatchApp() {
 
         {error && <div className="rounded-2xl border border-[var(--danger-border)] bg-[var(--danger-soft)] p-4 text-sm font-bold text-[var(--danger-ink)]">{error}</div>}
 
-        {currentSection === 'overview' && <DashboardMetrics dashboard={overviewReady ? dashboard : null} teams={teams} technicians={technicians} schedule={schedule} auditEvents={auditEvents} canEdit={canEditDispatch} working={working} loading={loading} asOfDate={selectedDate} loadError={dashboardError} onRetry={() => void loadInitialData(selectedDate)} onDateChange={handleSelectedDateChange} onGoToSection={goToSection} onOpenWorkOrders={(query) => navigateTo(`/work-orders?${query}`)} />}
+        {user && currentSection === 'overview' && <DashboardMetrics dashboard={overviewReady ? dashboard : null} teams={teams} technicians={technicians} schedule={schedule} auditEvents={auditEvents} canEdit={canEditDispatch} working={working} loading={loading} asOfDate={selectedDate} loadError={dashboardError} onRetry={() => void loadInitialData(selectedDate)} onDateChange={handleSelectedDateChange} onGoToSection={goToSection} onOpenWorkOrders={(query) => navigateTo(`/work-orders?${query}`)} />}
 
         {currentSection === 'work-orders' && (user ? <WorkOrdersPanel loading={queueLoading} loadError={queueError} onRetry={() => void fetchWorkOrders(currentRoute.search)} onEditorStateChange={reportWorkOrderEditor} pendingLeave={Boolean(pendingWorkOrderLeave)} onKeepEditing={() => setPendingWorkOrderLeave(null)} onDiscardAndLeave={discardAndLeaveWorkOrders} leaveBlocked={workOrderLeaveBlocked} workOrders={workOrders} meta={workOrderMeta} serviceLines={serviceLines} canAdmin={Boolean(user.permissions.can_admin)} canEdit={canEditDispatch} saving={workOrderSaving} routeSearch={currentRoute.search} workOrderToEdit={workOrderToEdit} onEditConsumed={clearWorkOrderToEdit} onRouteQueryChange={updateWorkOrderRouteQuery} onFetch={fetchWorkOrders} onCreate={createWorkOrder} onUpdate={updateWorkOrder} onArchive={archiveWorkOrder} /> : <SignInRequiredPanel title="Sign in to review work orders" />)}
 
@@ -1526,12 +1526,12 @@ function DispatchApp() {
   )
 }
 
-function SignInRequiredPanel({ title = 'Sign in to load live dispatch data' }: { title?: string }) {
+function SignInRequiredPanel({ title = 'Sign in to your workspace' }: { title?: string }) {
   return <section className="rounded-2xl border border-[var(--line)] bg-[var(--paper)]/90 p-4 shadow-none sm:p-6">
     <div className="max-w-2xl">
       <p className="font-display text-xs font-extrabold  tracking-normal text-[var(--jmi-blue)]">Secure JMI workspace</p>
       <h2 className="font-display mt-1 text-xl font-extrabold tracking-tight text-[var(--ink)] sm:text-2xl">{title}</h2>
-      <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">The app shell is available so the page does not feel broken while Clerk is loading or before sign-in. Live JMI data and editing actions load after you sign in.</p>
+      <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">Sign in to view work orders, crews, and schedules. Ask an administrator if you need access.</p>
       <SignInButton mode="modal">
         <button className="mt-5 inline-flex items-center gap-2 rounded-2xl button-action bg-[var(--jmi-blue)] px-5 py-3 font-display text-sm font-extrabold text-[var(--paper)] shadow-none transition-colors  hover:bg-[var(--jmi-blue-deep)]">
           <LockKeyhole size={18} /> Sign In With Clerk

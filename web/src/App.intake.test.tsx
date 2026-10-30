@@ -5,10 +5,11 @@ import type { ReactNode } from 'react'
 import App from './App'
 import type { WorkOrder } from './types'
 
+const auth = vi.hoisted(() => ({ signedIn: true }))
 const api = vi.hoisted(() => ({ getJson: vi.fn(), postJson: vi.fn(), patchJson: vi.fn() }))
 vi.mock('./contexts/useAuthContext', () => ({ useAuthContext: () => ({
-  user: { id: 1, name: 'Synthetic dispatcher', role: 'dispatcher', permissions: { can_admin: false } },
-  isSignedIn: true, isLoading: false, isVerifyingApi: false, authError: null, canEditDispatch: true,
+  user: auth.signedIn ? { id: 1, name: 'Synthetic dispatcher', role: 'dispatcher', permissions: { can_admin: false } } : null,
+  isSignedIn: auth.signedIn, isLoading: false, isVerifyingApi: false, authError: null, canEditDispatch: true,
 }) }))
 vi.mock('@clerk/react', () => ({ UserButton: () => <span>Account</span>, SignInButton: ({ children }: { children: ReactNode }) => children }))
 vi.mock('./lib/api', async (original) => ({ ...await original<typeof import('./lib/api')>(), ...api }))
@@ -40,6 +41,7 @@ function go(path: string) {
   window.dispatchEvent(new PopStateEvent('popstate'))
 }
 beforeEach(() => {
+  auth.signedIn = true
   window.localStorage.clear()
   window.history.replaceState(null, '', '/work-orders')
   vi.stubGlobal('scrollTo', vi.fn())
@@ -58,6 +60,16 @@ describe('intake route and saved queue context', () => {
     expect(lastQuery().get('direction')).toBe('desc')
     act(() => go('/dashboard'))
     expect(screen.getByText('Queue health')).toBeTruthy()
+  })
+
+  it('shows a clear signed-out dashboard without an endless operations loader', () => {
+    auth.signedIn = false
+    window.history.replaceState(null, '', '/dashboard')
+    render(<App />)
+    expect(screen.getByRole('heading', { name: 'Sign in to your workspace' })).toBeTruthy()
+    expect(screen.queryByText('Loading operations overview...')).toBeNull()
+    expect(screen.queryByText('Queue health')).toBeNull()
+    expect(api.getJson).not.toHaveBeenCalled()
   })
 
   it('keeps the page title and a separate compact brand mark in the phone header', async () => {

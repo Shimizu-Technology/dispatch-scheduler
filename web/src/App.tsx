@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { Activity, BarChart3, CalendarDays, ClipboardList, FolderKanban, LayoutDashboard, LockKeyhole, Menu, MessageSquareText, PanelLeftClose, PanelLeftOpen, RefreshCw, Settings2, UserCog, Users, Wrench, X } from 'lucide-react'
@@ -13,13 +13,15 @@ import { ServiceLinesPanel } from './components/ServiceLinesPanel'
 import { TeamsPanel } from './components/TeamsPanel'
 import { UserManagementPanel } from './components/UserManagementPanel'
 import { WhatsAppExport } from './components/WhatsAppExport'
-import { WorkOrdersPanel } from './components/WorkOrdersPanel'
+import { WorkOrdersPanel, type WorkOrderEditorState } from './components/WorkOrdersPanel'
 import { useAuthContext } from './contexts/useAuthContext'
+import { RequestGuard } from './lib/requestGuard'
 import { deleteJson, getBlob, getJson, patchJson, postJson } from './lib/api'
 import type { AuditEvent, Dashboard, DispatchOutcomeStatus, DispatchSchedule, ManagedUser, MonthlyReport, PaginationMeta, PmTask, PmTaskBulkCreatePayload, PmTaskInput, PmTemplate, PmTemplateGenerationPayload, PmTemplateInput, ServiceLine, ServiceLineInput, Team, TeamInput, Technician, TechnicianInput, WhatsAppCrewExport, WhatsAppExportPayload, WorkOrder, WorkOrderInput, WorkOrderListPayload, WorkOrderStatus } from './types'
 import './index.css'
 
 type ActiveSection = 'overview' | 'work-orders' | 'pm-tasks' | 'pa-projects' | 'dispatch' | 'teams' | 'reports' | 'whatsapp' | 'activity' | 'service-lines' | 'users'
+type PendingWorkOrderLeave = { url: string; replace?: boolean; historyDelta?: number }
 type AppRoute = { section: ActiveSection; path: string; search: string; date?: string; month?: string; workOrderId?: number }
 
 type SectionLink = {
@@ -35,7 +37,17 @@ type SectionLink = {
 const SECTION_IDS: ActiveSection[] = ['overview', 'work-orders', 'pm-tasks', 'pa-projects', 'dispatch', 'teams', 'reports', 'whatsapp', 'activity', 'service-lines', 'users']
 const SELECTED_DATE_STORAGE_KEY = 'dispatch-scheduler:selected-date'
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'dispatch-scheduler:sidebar-collapsed'
-const DEFAULT_WORK_ORDER_QUERY = 'archived=active&page=1&per_page=50&sort=scheduled_date&direction=asc'
+const DEFAULT_WORK_ORDER_QUERY = 'archived=active&page=1&per_page=50&sort=created_at&direction=desc'
+function queueQueryKey(query: string) {
+  const params = new URLSearchParams(query.replace(/^\?/, ''))
+  // The filter accepts this deep-link alias; the API's archive scope is only.
+  if (params.get('archived') === 'archived') params.set('archived', 'only')
+  new URLSearchParams(DEFAULT_WORK_ORDER_QUERY).forEach((value, key) => {
+    if (!params.get(key)) params.set(key, value)
+  })
+  params.sort()
+  return params.toString()
+}
 const ROUTE_PATHS: Record<ActiveSection, string> = {
   overview: '/dashboard',
   'work-orders': '/work-orders',
@@ -68,7 +80,7 @@ function routeFromLegacyHash(hash: string): ActiveSection | null {
   return SECTION_IDS.includes(value as ActiveSection) ? value as ActiveSection : null
 }
 
-function routeForLocation(location: Location = window.location): AppRoute {
+function routeForLocation(location: Pick<Location, 'pathname' | 'search' | 'hash'> = window.location): AppRoute {
   const legacySection = routeFromLegacyHash(location.hash)
   if (legacySection) return { section: legacySection, path: ROUTE_PATHS[legacySection], search: '' }
 
@@ -86,7 +98,8 @@ function routeForLocation(location: Location = window.location): AppRoute {
   if (reportMonthMatch) return { section: 'reports', path, search, month: reportMonthMatch[1] }
   if (path === '/reports') return { section: 'reports', path, search }
 
-  if (path === '/' || path === '/dashboard') return { section: 'overview', path, search }
+  if (path === '/') return { section: 'work-orders', path: '/work-orders', search }
+  if (path === '/dashboard') return { section: 'overview', path, search }
   const workOrderMatch = path.match(/^\/work-orders\/(\d+)$/)
   if (workOrderMatch) return { section: 'work-orders', path, search, workOrderId: Number(workOrderMatch[1]) }
   if (path === '/work-orders') return { section: 'work-orders', path, search }
@@ -281,6 +294,87 @@ function DispatchApp() {
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState('')
 
+  const [queueLoading, setQueueLoading] = useState(false)
+  const [queueError, setQueueError] = useState('')
+  const requests = useRef(new RequestGuard())
+  const context = useRef({ date: selectedDate, route: currentRoute })
+  const workOrderEditor = useRef<WorkOrderEditorState>({ open: false, dirty: false, saving: false, unconfirmed: false })
+  const [pendingWorkOrderLeave, setPendingWorkOrderLeave] = useState<PendingWorkOrderLeave | null>(null)
+  const [workOrderLeaveBlocked, setWorkOrderLeaveBlocked] = useState(false)
+  const acceptedUrl = useRef(window.location.pathname + window.location.search + window.location.hash)
+  const acceptedHistoryIndex = useRef(0)
+  const restoringHistory = useRef(false)
+  const confirmedAfterRestore = useRef<PendingWorkOrderLeave | null>(null)
+  useLayoutEffect(() => {
+    const index = window.history.state?.jmiNavigationIndex
+    acceptedHistoryIndex.current = Number.isInteger(index) ? index : 0
+    window.history.replaceState({ ...window.history.state, jmiNavigationIndex: acceptedHistoryIndex.current }, '', acceptedUrl.current)
+  }, [])
+  const reportWorkOrderEditor = useCallback((state: WorkOrderEditorState) => {
+    workOrderEditor.current = state
+    if (!state.open || (!state.dirty && !state.unconfirmed && !state.saving)) setPendingWorkOrderLeave(null)
+    if (!state.saving) setWorkOrderLeaveBlocked(false)
+  }, [])
+  const acceptRoute = useCallback(() => {
+    const route = routeForLocation()
+    acceptedUrl.current = window.location.pathname + window.location.search + window.location.hash
+    if (route.section !== 'work-orders' || route.workOrderId !== context.current.route.workOrderId) setWorkOrderToEdit(null)
+    setCurrentRoute(route)
+  }, [])
+  const performNavigation = useCallback((url: string, options: { replace?: boolean } = {}) => {
+    const index = acceptedHistoryIndex.current + (options.replace ? 0 : 1)
+    const state = { ...(options.replace ? window.history.state : {}), jmiNavigationIndex: index }
+    if (options.replace) window.history.replaceState(state, '', url)
+    else window.history.pushState(state, '', url)
+    acceptedHistoryIndex.current = index
+    acceptRoute()
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [acceptRoute])
+  const mayNavigate = useCallback((target: PendingWorkOrderLeave) => {
+    const url = new URL(target.url, window.location.origin)
+    const destination = routeForLocation(url)
+    const current = context.current.route
+    const editor = workOrderEditor.current
+    const leavingEditor = current.section === 'work-orders' && editor.open &&
+      (destination.section !== 'work-orders' || destination.workOrderId !== current.workOrderId)
+    if (!leavingEditor) return true
+    if (editor.saving) {
+      setWorkOrderLeaveBlocked(true)
+      return false
+    }
+    if (editor.dirty || editor.unconfirmed) {
+      setPendingWorkOrderLeave(target)
+      return false
+    }
+    return true
+  }, [])
+  const navigateTo = useCallback((url: string, options: { replace?: boolean } = {}) => {
+    const target = { url, replace: options.replace }
+    if (mayNavigate(target)) {
+      if (restoringHistory.current) confirmedAfterRestore.current = target
+      else performNavigation(url, options)
+    }
+  }, [mayNavigate, performNavigation])
+  const finishWorkOrderLeave = useCallback((target: PendingWorkOrderLeave) => {
+    if (target.historyDelta) window.history.go(target.historyDelta)
+    else performNavigation(target.url, { replace: target.replace })
+  }, [performNavigation])
+  function discardAndLeaveWorkOrders() {
+    if (!pendingWorkOrderLeave || workOrderEditor.current.saving) return
+    const target = pendingWorkOrderLeave
+    workOrderEditor.current = { open: false, dirty: false, saving: false, unconfirmed: false }
+    setPendingWorkOrderLeave(null)
+    setWorkOrderToEdit(null)
+    if (restoringHistory.current) confirmedAfterRestore.current = target
+    else finishWorkOrderLeave(target)
+  }
+  useLayoutEffect(() => { context.current = { date: selectedDate, route: currentRoute } }, [selectedDate, currentRoute])
+  useEffect(() => {
+    requests.current.activate()
+    const guard = requests.current
+    return () => guard.dispose()
+  }, [])
+
   const refreshWhatsApp = useCallback(async (scheduleId: number) => {
     const exportJson = await getJson<WhatsAppExportPayload>(`/dispatch_schedules/${scheduleId}/whatsapp_export`)
     setWhatsApp(exportJson.message)
@@ -295,9 +389,9 @@ function DispatchApp() {
   const loadInitialData = useCallback(async (date: string) => {
     setLoading(true)
     setError('')
-    const [dash, orders, teamData, technicianData, pms, templates, lines, schedulePayload] = await Promise.all([
+    if (context.current.route.section !== 'work-orders') void fetchWorkOrders(DEFAULT_WORK_ORDER_QUERY)
+    const [dash, teamData, technicianData, pms, templates, lines, schedulePayload] = await Promise.all([
       getJson<Dashboard>(`/dashboard?date=${date}`),
-      getJson<WorkOrderListPayload>(`/work_orders?${DEFAULT_WORK_ORDER_QUERY}`),
       getJson<Team[]>(`/teams?date=${date}`),
       getJson<Technician[]>(`/technicians?date=${date}&include_inactive=true`),
       getJson<PmTask[]>(`/pm_tasks?month=${date.slice(0, 7)}`),
@@ -306,8 +400,6 @@ function DispatchApp() {
       getJson<{ schedule: DispatchSchedule | null }>(`/dispatch_schedules?date=${date}`),
     ])
     setDashboard(dash)
-    setWorkOrders(orders.work_orders)
-    setWorkOrderMeta(orders.meta)
     setTeams(teamData)
     setTechnicians(technicianData)
     setPmTasks(pms)
@@ -322,6 +414,8 @@ function DispatchApp() {
       setWhatsAppCrews([])
     }
     setLoading(false)
+  // Queue reads use the current route ref.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshAuditEvents, refreshWhatsApp])
 
   useEffect(() => {
@@ -389,9 +483,16 @@ function DispatchApp() {
   useEffect(() => {
     if (!user?.id || currentRoute.section !== 'work-orders' || !currentRoute.workOrderId) return
 
+    const id = currentRoute.workOrderId
+    const current = requests.current.begin('work-order-detail', () => context.current.route.section === 'work-orders' && context.current.route.workOrderId === id)
     void getJson<WorkOrder>(`/work_orders/${currentRoute.workOrderId}`)
-      .then(setWorkOrderToEdit)
-      .catch((err) => setError(err instanceof Error ? err.message : 'Unable to load work order'))
+      .then((order) => {
+        const editor = workOrderEditor.current
+        if (current() && (!editor.open || (!editor.dirty && !editor.unconfirmed && !editor.saving))) setWorkOrderToEdit(order)
+      })
+      .catch((err) => { if (current()) setError(err instanceof Error ? err.message : 'Unable to load work order') })
+    const guard = requests.current
+    return () => { guard.begin('work-order-detail') }
   }, [currentRoute.section, currentRoute.workOrderId, user?.id])
 
   useEffect(() => {
@@ -402,20 +503,63 @@ function DispatchApp() {
   }, [currentRoute.section, currentRoute.workOrderId])
 
   useEffect(() => {
-    const handleRouteChange = () => setCurrentRoute(routeForLocation())
+    const handleRouteChange = () => {
+      if (restoringHistory.current) {
+        const currentUrl = window.location.pathname + window.location.search + window.location.hash
+        if (currentUrl !== acceptedUrl.current) {
+          const index = window.history.state?.jmiNavigationIndex
+          if (Number.isInteger(index) && index !== acceptedHistoryIndex.current) {
+            window.history.go(acceptedHistoryIndex.current - index)
+            return
+          }
+          window.history.replaceState({ jmiNavigationIndex: acceptedHistoryIndex.current }, '', acceptedUrl.current)
+        }
+        restoringHistory.current = false
+        const confirmed = confirmedAfterRestore.current
+        confirmedAfterRestore.current = null
+        if (confirmed) finishWorkOrderLeave(confirmed)
+        return
+      }
+      const targetUrl = window.location.pathname + window.location.search + window.location.hash
+      const index = window.history.state?.jmiNavigationIndex
+      const delta = Number.isInteger(index) ? index - acceptedHistoryIndex.current : undefined
+      if (!mayNavigate({ url: targetUrl, replace: true, historyDelta: delta })) {
+        // Keep the rendered editor and restore its URL while the inline prompt
+        // waits. Indexed app entries preserve the original Back/Forward stack.
+        if (delta) {
+          restoringHistory.current = true
+          window.history.go(-delta)
+        } else {
+          window.history.pushState({ jmiNavigationIndex: acceptedHistoryIndex.current }, '', acceptedUrl.current)
+        }
+        return
+      }
+      acceptedHistoryIndex.current = Number.isInteger(index) ? index : acceptedHistoryIndex.current + 1
+      window.history.replaceState({ ...window.history.state, jmiNavigationIndex: acceptedHistoryIndex.current }, '', targetUrl)
+      acceptRoute()
+    }
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      const editor = workOrderEditor.current
+      if (editor.open && (editor.dirty || editor.unconfirmed || editor.saving)) {
+        event.preventDefault()
+        event.returnValue = ''
+      }
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
     window.addEventListener('popstate', handleRouteChange)
     window.addEventListener('hashchange', handleRouteChange)
     return () => {
       window.removeEventListener('popstate', handleRouteChange)
       window.removeEventListener('hashchange', handleRouteChange)
+      window.removeEventListener('beforeunload', handleBeforeUnload)
     }
-  }, [])
+  }, [acceptRoute, mayNavigate, finishWorkOrderLeave])
 
   useEffect(() => {
     if (window.location.hash && routeFromLegacyHash(window.location.hash)) {
       navigateTo(ROUTE_PATHS[routeFromLegacyHash(window.location.hash) || 'overview'], { replace: true })
     }
-  }, [])
+  }, [navigateTo])
 
   useEffect(() => {
     const routeDate = currentRoute.date || (currentRoute.month ? dateFromMonth(currentRoute.month, selectedDate) : null)
@@ -424,13 +568,6 @@ function DispatchApp() {
       setSelectedDate(routeDate)
     }
   }, [currentRoute.date, currentRoute.month, selectedDate])
-
-  function navigateTo(url: string, options: { replace?: boolean } = {}) {
-    if (options.replace) window.history.replaceState(null, '', url)
-    else window.history.pushState(null, '', url)
-    setCurrentRoute(routeForLocation())
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }
 
   function pathForSection(section: ActiveSection) {
     if (section === 'dispatch') return selectedDate === todayDate ? '/dispatch/today' : `/dispatch/${selectedDate}`
@@ -536,18 +673,44 @@ function DispatchApp() {
     }
   }
 
-  async function refreshWorkOrderContext(nextQuery = DEFAULT_WORK_ORDER_QUERY) {
-    const [dash, orders] = await Promise.all([
-      getJson<Dashboard>(`/dashboard?date=${selectedDate}`),
-      getJson<WorkOrderListPayload>(`/work_orders?${nextQuery}`),
+  async function refreshWorkOrderContext(nextQuery = currentRoute.section === 'work-orders' ? currentRoute.search.replace(/^\?/, '') || DEFAULT_WORK_ORDER_QUERY : DEFAULT_WORK_ORDER_QUERY) {
+    const date = selectedDate
+    // Partial/deep-link queries still need the paginated envelope. Use the same
+    // normalized query for both the actual request and stale-context checks.
+    const requestQuery = queueQueryKey(nextQuery)
+    const matchesContext = () => context.current.route.section !== 'work-orders' || queueQueryKey(context.current.route.search) === requestQuery
+    if (!matchesContext()) return
+    const queueCurrent = requests.current.begin('queue', matchesContext)
+    const dashboardCurrent = requests.current.begin('dashboard', () => context.current.date === date)
+    setQueueLoading(true)
+    setQueueError('')
+    const [dash, orders] = await Promise.allSettled([
+      getJson<Dashboard>(`/dashboard?date=${date}`),
+      getJson<WorkOrderListPayload>(`/work_orders?${requestQuery}`),
     ])
-    setDashboard(dash)
-    setWorkOrders(orders.work_orders)
-    setWorkOrderMeta(orders.meta)
+    if (dashboardCurrent() && dash.status === 'fulfilled') setDashboard(dash.value)
+    if (!queueCurrent()) return
+    setQueueLoading(false)
+    if (orders.status === 'rejected') {
+      const message = orders.reason instanceof Error ? orders.reason.message : 'Unable to load work orders'
+      setQueueError(message)
+      throw orders.reason
+    }
+    const payload = orders.value
+    if (!payload || !Array.isArray(payload.work_orders) || payload.work_orders.some((row) => !row || typeof row !== 'object' || Array.isArray(row)) ||
+      (payload.meta !== null && (typeof payload.meta !== 'object' || Array.isArray(payload.meta)))) {
+      const error = new Error('The work-order list response could not be read. Retry work orders.')
+      setQueueError(error.message)
+      throw error
+    }
+    setWorkOrders(payload.work_orders)
+    setWorkOrderMeta(payload.meta)
+    if (dash.status === 'rejected' && dashboardCurrent()) setError('Work orders loaded, but dashboard totals could not refresh.')
   }
 
   async function fetchWorkOrders(query: string) {
-    await refreshWorkOrderContext(query)
+    try { await refreshWorkOrderContext(query) }
+    catch { /* The queue owns its recovery message; keep applied filters and editor. */ }
   }
 
   async function fetchPaProjects(page: number) {
@@ -556,25 +719,22 @@ function DispatchApp() {
     setPaProjectMeta(payload.meta)
   }
 
-  async function createWorkOrder(values: WorkOrderInput) {
+  async function createWorkOrder(values: WorkOrderInput): Promise<WorkOrder> {
     if (!canEditDispatch) {
-      setError('Viewer access cannot add work orders.')
-      return
+      throw new Error('Viewer access cannot add work orders.')
     }
 
+    const queueQuery = currentRoute.section === 'work-orders' ? currentRoute.search.replace(/^\?/, '') || DEFAULT_WORK_ORDER_QUERY : DEFAULT_WORK_ORDER_QUERY
     setWorkOrderSaving(true)
     setError('')
     try {
       const created = await postJson<WorkOrder>('/work_orders', values)
-      setWorkOrders((current) => [created, ...current.filter((workOrder) => workOrder.id !== created.id)])
-      goToSection('work-orders')
-      await afterAuditedChange()
-
       try {
-        await refreshWorkOrderContext()
+        await Promise.all([afterAuditedChange(), refreshWorkOrderContext(queueQuery)])
       } catch (refreshError) {
         setError(refreshError instanceof Error ? `Work order saved, but the dashboard did not refresh: ${refreshError.message}` : 'Work order saved, but the dashboard did not refresh.')
       }
+      return created
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to create work order')
       throw err
@@ -583,24 +743,22 @@ function DispatchApp() {
     }
   }
 
-  async function updateWorkOrder(workOrderId: number, values: WorkOrderInput) {
+  async function updateWorkOrder(workOrderId: number, values: WorkOrderInput): Promise<WorkOrder> {
     if (!canEditDispatch) {
-      setError('Viewer access cannot update work orders.')
-      return
+      throw new Error('Viewer access cannot update work orders.')
     }
 
+    const queueQuery = currentRoute.section === 'work-orders' ? currentRoute.search.replace(/^\?/, '') || DEFAULT_WORK_ORDER_QUERY : DEFAULT_WORK_ORDER_QUERY
     setWorkOrderSaving(true)
     setError('')
     try {
       const updated = await patchJson<WorkOrder>(`/work_orders/${workOrderId}`, values)
-      setWorkOrders((current) => current.map((workOrder) => workOrder.id === updated.id ? updated : workOrder))
-      await afterAuditedChange()
-
       try {
-        await refreshWorkOrderContext()
+        await Promise.all([afterAuditedChange(), refreshWorkOrderContext(queueQuery)])
       } catch (refreshError) {
         setError(refreshError instanceof Error ? `Work order updated, but the dashboard did not refresh: ${refreshError.message}` : 'Work order updated, but the dashboard did not refresh.')
       }
+      return updated
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to update work order')
       throw err
@@ -834,12 +992,12 @@ function DispatchApp() {
     setWorkOrderSaving(true)
     setError('')
     try {
-      const updated = await patchJson<WorkOrder>(`/work_orders/${workOrderId}/${archived ? 'archive' : 'unarchive'}`, {})
-      setWorkOrders((current) => current.map((workOrder) => workOrder.id === updated.id ? updated : workOrder))
+      await patchJson<WorkOrder>(`/work_orders/${workOrderId}/${archived ? 'archive' : 'unarchive'}`, {})
       await afterAuditedChange()
       await refreshWorkOrderContext()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to update work order archive state')
+      throw err
     } finally {
       setWorkOrderSaving(false)
     }
@@ -1221,8 +1379,8 @@ function DispatchApp() {
 
   const currentSection = currentRoute.section === 'users' && !user?.permissions.can_admin ? 'overview' : currentRoute.section
   const sections: SectionLink[] = [
+    { id: 'work-orders', label: 'Work Orders', mobileLabel: 'WOs', description: 'Requests, status and follow-up', icon: <Wrench size={18} />, count: dashboard?.counts.open_work_orders ?? workOrderMeta?.total_count ?? workOrders.filter((workOrder) => !workOrder.archived).length, group: 'operate' },
     { id: 'overview', label: 'Dashboard', mobileLabel: 'Home', description: 'Operations health', icon: <LayoutDashboard size={18} />, group: 'operate' },
-    { id: 'work-orders', label: 'Work Orders', mobileLabel: 'WOs', description: 'Open, closed, blocked, and KPI work', icon: <Wrench size={18} />, count: dashboard?.counts.open_work_orders ?? workOrderMeta?.total_count ?? workOrders.filter((workOrder) => !workOrder.archived).length, group: 'operate' },
     { id: 'pm-tasks', label: 'PMs', description: 'Monthly station obligations', icon: <CalendarDays size={18} />, count: pmTasks.length, group: 'operate' },
     { id: 'pa-projects', label: 'PA Projects', mobileLabel: 'PA', description: 'Parts, estimates, and follow-up', icon: <FolderKanban size={18} />, count: dashboard?.counts.pa_projects ?? paProjectMeta?.total_count ?? workOrders.filter((workOrder) => !workOrder.archived && workOrder.pa_project).length, group: 'operate' },
     { id: 'dispatch', label: "Today’s Dispatch", mobileLabel: 'Dispatch', description: 'Build, finalize, and send crews', icon: <ClipboardList size={18} />, count: schedule?.items.length, group: 'manage' },
@@ -1267,7 +1425,7 @@ function DispatchApp() {
 
         <div className="flex min-w-0 flex-col gap-3">
         <header className="soft-reveal overflow-hidden rounded-[1.05rem] border border-[#1d336c]/12 bg-white/96 shadow-[0_12px_34px_rgba(23,32,51,0.08)] backdrop-blur sm:rounded-[1.2rem]">
-          <div className="grid gap-0 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,28rem)]">
+          <div className={`grid gap-0 ${currentSection === 'work-orders' && user ? '' : 'xl:grid-cols-[minmax(0,1fr)_minmax(20rem,28rem)]'}`}>
             <div className="relative border-b border-[rgba(23,32,51,0.1)] bg-[#172b63] px-3 py-3 text-white sm:px-4 xl:border-b-0 xl:border-r xl:border-white/10 xl:px-5">
               <div className="absolute inset-y-0 left-0 w-1 bg-[#d84332]" />
               <div className="flex flex-col justify-between gap-2 pl-2">
@@ -1275,10 +1433,10 @@ function DispatchApp() {
                   <button type="button" onClick={() => setMobileNavOpen(true)} className="inline-flex items-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-3 py-2 font-display text-xs font-extrabold uppercase tracking-[0.14em] text-white shadow-[0_10px_24px_rgba(0,0,0,0.12)] backdrop-blur transition hover:bg-white/16 xl:hidden" aria-label="Open navigation" aria-expanded={mobileNavOpen}>
                     <Menu size={17} /> Menu
                   </button>
-                  {schedule && <span className={`inline-flex items-center rounded-full border px-3 py-1.5 font-display text-[0.66rem] font-extrabold uppercase tracking-[0.14em] ${schedule.status === 'sent' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : schedule.status === 'finalized' ? 'border-blue-200 bg-blue-50 text-blue-900' : 'border-white/15 bg-white/10 text-blue-50'}`}>{schedule.status}</span>}
+                  {schedule && currentSection !== 'work-orders' && <span className={`inline-flex items-center rounded-full border px-3 py-1.5 font-display text-[0.66rem] font-extrabold uppercase tracking-[0.14em] ${schedule.status === 'sent' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : schedule.status === 'finalized' ? 'border-blue-200 bg-blue-50 text-blue-900' : 'border-white/15 bg-white/10 text-blue-50'}`}>{schedule.status}</span>}
                 </div>
                 <div>
-                  <p className="font-display text-[0.68rem] font-extrabold uppercase tracking-[0.28em] text-blue-100/80">Operations management board</p>
+                  <p className="font-display text-[0.68rem] font-extrabold uppercase tracking-[0.28em] text-blue-100/80">{currentSection === 'work-orders' ? 'JMI work order tracking' : 'Operations management board'}</p>
                   <div className="mt-1 flex flex-wrap items-end gap-x-3 gap-y-1">
                     <h1 className="font-display text-xl font-black tracking-[-0.03em] sm:text-2xl md:text-3xl">{activeSectionMeta?.label || 'Daily Dispatch'}</h1>
                     <p className="pb-1 text-xs font-semibold leading-5 text-blue-50/72 sm:text-sm">{activeSectionMeta?.description || 'Daily dispatch command center'}</p>
@@ -1288,7 +1446,7 @@ function DispatchApp() {
               </div>
             </div>
 
-            <div className="grid gap-2 bg-white px-3 py-3 sm:grid-cols-2 sm:gap-3 sm:px-4 xl:grid-cols-1 xl:px-4">
+            <div className={`${currentSection === 'work-orders' && user ? 'xl:hidden' : ''} grid gap-2 bg-white px-3 py-3 sm:grid-cols-2 sm:gap-3 sm:px-4 xl:grid-cols-1 xl:px-4`}>
               {!user && isSignedIn ? <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
                 <div className="flex items-start gap-3">
                   <span className="rounded-xl bg-amber-100 p-2 text-amber-800">{isVerifyingApi ? <RefreshCw className="animate-spin" size={18} /> : <LockKeyhole size={18} />}</span>
@@ -1301,13 +1459,13 @@ function DispatchApp() {
                 <div className="flex items-start gap-3">
                   <span className="rounded-xl bg-[#e8eefc] p-2 text-[#244393]"><LockKeyhole size={18} /></span>
                   <div>
-                    <span className="font-display block font-extrabold text-[#172033]">Sign in to work the schedule</span>
-                    <span className="text-[#526071]">Live JMI data and dispatch actions require Clerk.</span>
+                    <span className="font-display block font-extrabold text-[#172033]">Sign in to JMI</span>
+                    <span className="text-[#526071]">Sign in to access work orders and operations.</span>
                   </div>
                 </div>
               </div> : null}
 
-              {user && <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 sm:col-span-2 xl:col-span-1">
+              {user && currentSection !== 'work-orders' && <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 sm:col-span-2 xl:col-span-1">
                 <label className="rounded-2xl border border-[rgba(23,32,51,0.1)] bg-[#f8faff] px-3 py-2">
                   <span className="font-display block text-[0.64rem] font-extrabold uppercase tracking-[0.16em] text-[#64748b]">Schedule date</span>
                   <input
@@ -1328,7 +1486,7 @@ function DispatchApp() {
               </div>}
 
               <div className="flex flex-col gap-2 sm:col-span-2 sm:flex-row sm:flex-wrap sm:items-center xl:col-span-1">
-                {canEditDispatch && currentSection !== 'overview' && <button disabled={working || Boolean(schedule && schedule.status !== 'draft')} onClick={suggestSchedule} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#d84332] px-4 py-2.5 font-display text-sm font-extrabold text-white shadow-[0_10px_22px_rgba(216,67,50,0.18)] transition hover:-translate-y-0.5 hover:bg-[#bf3228] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:flex-none">
+                {canEditDispatch && currentSection !== 'overview' && currentSection !== 'work-orders' && <button disabled={working || Boolean(schedule && schedule.status !== 'draft')} onClick={suggestSchedule} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#d84332] px-4 py-2.5 font-display text-sm font-extrabold text-white shadow-[0_10px_22px_rgba(216,67,50,0.18)] transition hover:-translate-y-0.5 hover:bg-[#bf3228] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:flex-none">
                   <ClipboardList size={17} /> {scheduleActionLabel}
                 </button>}
                 {user && <div className="inline-flex w-full items-center gap-3 rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white px-3 py-2 text-sm text-[#526071] shadow-sm sm:w-auto sm:flex-none xl:hidden">
@@ -1372,7 +1530,7 @@ function DispatchApp() {
 
         {currentSection === 'overview' && <DashboardMetrics dashboard={dashboard} workOrders={workOrders.filter((workOrder) => !workOrder.archived)} teams={teams} technicians={technicians} pmTasks={pmTasks} schedule={schedule} auditEvents={auditEvents} canEdit={canEditDispatch} working={working} onGoToSection={goToSection} onSuggest={suggestSchedule} />}
 
-        {currentSection === 'work-orders' && (user ? <WorkOrdersPanel workOrders={workOrders} meta={workOrderMeta} serviceLines={serviceLines} canEdit={canEditDispatch} saving={workOrderSaving} routeSearch={currentRoute.search} workOrderToEdit={workOrderToEdit} onEditConsumed={clearWorkOrderToEdit} onRouteQueryChange={updateWorkOrderRouteQuery} onFetch={fetchWorkOrders} onCreate={createWorkOrder} onUpdate={updateWorkOrder} onArchive={archiveWorkOrder} /> : <SignInRequiredPanel title="Sign in to review work orders" />)}
+        {currentSection === 'work-orders' && (user ? <WorkOrdersPanel loading={queueLoading} loadError={queueError} onRetry={() => void fetchWorkOrders(currentRoute.search)} onEditorStateChange={reportWorkOrderEditor} pendingLeave={Boolean(pendingWorkOrderLeave)} onKeepEditing={() => setPendingWorkOrderLeave(null)} onDiscardAndLeave={discardAndLeaveWorkOrders} leaveBlocked={workOrderLeaveBlocked} workOrders={workOrders} meta={workOrderMeta} serviceLines={serviceLines} canEdit={canEditDispatch} saving={workOrderSaving} routeSearch={currentRoute.search} workOrderToEdit={workOrderToEdit} onEditConsumed={clearWorkOrderToEdit} onRouteQueryChange={updateWorkOrderRouteQuery} onFetch={fetchWorkOrders} onCreate={createWorkOrder} onUpdate={updateWorkOrder} onArchive={archiveWorkOrder} /> : <SignInRequiredPanel title="Sign in to review work orders" />)}
 
         {currentSection === 'pa-projects' && (user ? <PaProjectsPanel workOrders={paProjectWorkOrders} meta={paProjectMeta} canEdit={canEditDispatch} onPage={fetchPaProjects} onEdit={openWorkOrderFromPaProject} /> : <SignInRequiredPanel title="Sign in to review PA Projects" />)}
 

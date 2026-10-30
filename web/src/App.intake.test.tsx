@@ -72,6 +72,18 @@ describe('intake route and saved queue context', () => {
     expect(api.getJson).not.toHaveBeenCalled()
   })
 
+  it('hides the closed phone drawer while keeping the desktop sidebar visible', async () => {
+    render(<App />)
+    await screen.findByText('WO #SYNTHETIC-1')
+    const sidebar = document.querySelector('.app-sidebar')!
+    expect(sidebar.className).toContain('invisible xl:visible')
+    fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }))
+    expect(sidebar.className).not.toContain('invisible')
+    expect(sidebar.className).toContain('translate-x-0 visible')
+    fireEvent.click(screen.getAllByRole('button', { name: 'Close navigation' }).at(-1)!)
+    expect(sidebar.className).toContain('invisible xl:visible')
+  })
+
   it('keeps the page title and a separate compact brand mark in the phone header', async () => {
     render(<App />)
     await screen.findByText('WO #SYNTHETIC-1')

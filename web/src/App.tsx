@@ -213,7 +213,7 @@ function AppSidebar({ sections, currentSection, collapsed, mobileOpen, userName,
     items: sections.filter((section) => section.group === group),
   })).filter((group) => group.items.length > 0)
 
-  return <aside className={`app-sidebar fixed inset-y-0 left-0 z-50 flex w-[18rem] flex-col border-r border-[var(--line)] bg-[var(--paper)]/98 shadow-none  xl:sticky xl:top-5 xl:z-auto xl:h-[calc(100vh-2.5rem)] xl:translate-x-0 xl:rounded-[1.15rem] xl:border xl:shadow-none ${mobileOpen ? 'translate-x-0' : '-translate-x-full'} ${collapsed ? 'xl:w-[5.25rem]' : 'xl:w-[15.5rem]'}`}>
+  return <aside className={`app-sidebar fixed inset-y-0 left-0 z-50 flex w-[18rem] flex-col border-r border-[var(--line)] bg-[var(--paper)]/98 shadow-none  xl:sticky xl:top-5 xl:z-auto xl:h-[calc(100vh-2.5rem)] xl:translate-x-0 xl:rounded-[1.15rem] xl:border xl:shadow-none ${mobileOpen ? 'translate-x-0 visible' : '-translate-x-full invisible xl:visible'} ${collapsed ? 'xl:w-[5.25rem]' : 'xl:w-[15.5rem]'}`}>
     <nav className="flex h-full flex-col" aria-label="JMI management navigation">
       <div className={`border-b border-[var(--line)] ${collapsed ? 'px-3 pb-3 pt-4' : 'px-3 pb-4 pt-4'}`}>
         <div className="flex items-center justify-between gap-2">

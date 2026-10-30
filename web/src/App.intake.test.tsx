@@ -60,6 +60,37 @@ describe('intake route and saved queue context', () => {
     expect(screen.getByText('Queue health')).toBeTruthy()
   })
 
+  it('keeps the page title and a separate compact brand mark in the phone header', async () => {
+    render(<App />)
+    await screen.findByText('WO #SYNTHETIC-1')
+    const header = document.querySelector('.app-header')!
+    expect(header.querySelector('h1')?.textContent).toBe('Work Orders')
+    const wordmark = Array.from(header.querySelectorAll('span')).find((span) => span.textContent === 'JMI')!
+    expect(wordmark.className).toContain('hidden')
+    expect(wordmark.className).toContain('xl:inline')
+    expect(header.querySelector('[role="img"][aria-label="JMI logo"]')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Open navigation' }).className).toContain('min-h-11')
+    act(() => go('/dispatch/2026-10-30'))
+    const date = screen.getByLabelText('Schedule date')
+    expect(date.parentElement?.parentElement?.className).toContain('grid-cols-[minmax(0,1fr)_auto]')
+    expect(date.className).toContain('w-full')
+  })
+
+  it('keeps secondary PM actions available in a compact disclosure', async () => {
+    window.history.replaceState(null, '', '/pm/month/2026-10')
+    render(<App />)
+    const primary = await screen.findByRole('button', { name: 'Generate Month' })
+    expect(primary.closest('details')).toBeNull()
+    const more = screen.getByText('More actions').closest('details')!
+    expect(more.open).toBe(false)
+    for (const name of ['Template Setup', 'Paste Exceptions', 'New PM']) {
+      expect(screen.getByRole('button', { name }).closest('details')).toBe(more)
+    }
+    expect(screen.getByLabelText('PM month').getAttribute('type')).toBe('month')
+    fireEvent.click(screen.getByRole('button', { name: 'New PM' }))
+    expect(screen.getByLabelText('Due date')).toBeTruthy()
+  })
+
   it('uses URL filters, sort and page on its first request and keeps them after create and edit', async () => {
     window.history.replaceState(null, '', '/work-orders?q=leak&status=new&page=2&per_page=10&sort=priority&direction=asc')
     render(<App />)

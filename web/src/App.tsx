@@ -153,13 +153,17 @@ function FloatingTooltip({ anchorRef, label, visible }: { anchorRef: RefObject<H
   )
 }
 
+function BrandMark({ compact = false }: { compact?: boolean }) {
+  return <span role="img" aria-label="JMI logo" className={`relative inline-flex shrink-0 items-center justify-center overflow-hidden bg-[var(--paper)] ${compact ? 'h-7 w-7 rounded-lg' : 'h-11 w-11 rounded-2xl shadow-none ring-1 ring-[var(--jmi-blue)]/12'}`}>
+    <span className={`absolute -skew-x-[28deg] bg-[var(--jmi-blue)] ${compact ? 'left-1.5 h-5 w-1' : 'left-2.5 h-8 w-1.5'}`} />
+    <span className={`absolute -skew-x-[28deg] bg-[var(--primary)] ${compact ? 'left-3 h-5 w-1' : 'left-5 h-8 w-1.5'}`} />
+    <span className={`absolute -skew-x-[28deg] bg-[var(--jmi-blue)] ${compact ? 'left-[1.125rem] h-5 w-1' : 'left-[1.875rem] h-8 w-1.5'}`} />
+  </span>
+}
+
 function SidebarLogo({ collapsed }: { collapsed: boolean }) {
   return <div className={`flex items-center rounded-2xl transition-colors ${collapsed ? 'gap-3 px-3 py-2 xl:justify-center xl:p-1.5' : 'gap-3 px-3 py-2'}`}>
-    <span className="relative inline-flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[var(--paper)] shadow-none ring-1 ring-[var(--jmi-blue)]/12">
-      <span className="absolute left-2.5 h-8 w-1.5 -skew-x-[28deg] button-action bg-[var(--jmi-blue)]" />
-      <span className="absolute left-5 h-8 w-1.5 -skew-x-[28deg] button-primary bg-[var(--primary)]" />
-      <span className="absolute left-[1.875rem] h-8 w-1.5 -skew-x-[28deg] button-action bg-[var(--jmi-blue)]" />
-    </span>
+    <BrandMark />
     <span className={collapsed ? 'min-w-0 xl:sr-only' : 'min-w-0'}>
       <span className="font-display block truncate text-sm font-black tracking-tight text-[var(--ink)]">JMI Guam</span>
       <span className="block truncate text-xs font-extrabold  tracking-normal text-[var(--muted)]">Management System</span>
@@ -1461,14 +1465,15 @@ function DispatchApp() {
         <header className="app-header rounded-xl border border-[var(--border)] bg-[var(--paper)]">
           <div className="flex min-h-14 items-center gap-3 px-3">
             <button type="button" onClick={() => setMobileNavOpen(true)} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-[var(--jmi-blue)] xl:hidden" aria-label="Open navigation" aria-expanded={mobileNavOpen}><Menu size={20} /></button>
-            <span className="font-display font-extrabold text-[var(--jmi-blue)]">JMI</span>
+            <span className="hidden font-display font-extrabold text-[var(--jmi-blue)] xl:inline">JMI</span>
             <h1 className="min-w-0 flex-1 text-xl font-bold text-[var(--ink)]">{activeSectionMeta?.label || 'Dispatch'}</h1>
-            {user && <UserButton />}
+            <span className="xl:hidden"><BrandMark compact /></span>
+            <span className="hidden xl:inline-flex">{user && <UserButton />}</span>
             {!isSignedIn && <SignInButton mode="modal"><button className="min-h-11 rounded-xl button-action-deep bg-[var(--jmi-blue-deep)] px-3 text-sm font-bold text-[var(--paper)]">Sign in</button></SignInButton>}
           </div>
-          {user && dispatchScreen && <div className="flex flex-wrap items-end gap-2 border-t border-[var(--border)] p-3">
+          {user && dispatchScreen && <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-3 border-t border-[var(--border)] p-3">
             <label className="min-w-0 flex-1 text-xs font-semibold text-[var(--ink-soft)]">Schedule date<input type="date" value={selectedDate} onChange={(event) => handleSelectedDateChange(event.target.value)} className="field-control mt-1 block w-full rounded-xl px-3 py-2" /></label>
-            <button type="button" disabled={selectedDate === todayDate} onClick={() => handleSelectedDateChange(todayDate)} className="min-h-11 rounded-xl border border-[var(--border)] px-3 text-sm font-bold">Today</button>
+            <button type="button" disabled={selectedDate === todayDate} onClick={() => handleSelectedDateChange(todayDate)} className="h-11 shrink-0 rounded-xl border border-[var(--border)] px-3 text-sm font-bold">Today</button>
 
           </div>}
         </header>

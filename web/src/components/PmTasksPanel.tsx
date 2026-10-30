@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
-import { Archive, Building2, CalendarPlus, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, Edit3, FileSpreadsheet, LayoutGrid, ListChecks, Plus, RefreshCw, X } from 'lucide-react'
+import { Archive, Building2, CalendarPlus, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, Edit3, FileSpreadsheet, LayoutGrid, ListChecks, MoreHorizontal, Plus, RefreshCw, X } from 'lucide-react'
 import { Badge, Card, PanelHeader } from './ui'
 import type { PmFrequency, PmTask, PmTaskInput, PmTaskStatus, PmTemplate, PmTemplateGenerationPayload, PmTemplateInput, ServiceLine } from '../types'
 
@@ -15,7 +15,7 @@ const statusOptions: Array<{ value: '' | PmTaskStatus; label: string }> = [
 const tradeOptions = ['General', 'Electrical', 'Plumbing', 'HVAC', 'Carpentry', 'Painting', 'Landscaping', 'Masonry']
 const regionOptions = ['North', 'Central', 'South', 'Islandwide', 'Unknown']
 const frequencyOptions: Array<{ value: PmFrequency; label: string; detail: string }> = [
-  { value: 'monthly', label: 'Monthly', detail: 'normal Mobil checklist' },
+  { value: 'monthly', label: 'Monthly', detail: 'standard checklist' },
   { value: 'quarterly', label: 'Quarterly', detail: 'optional this month' },
   { value: 'biannual', label: 'Biannual', detail: 'optional this month' },
   { value: 'annual', label: 'Annual', detail: 'optional this month' },
@@ -606,12 +606,17 @@ export function PmTasksPanel({ pmTasks, pmTemplates, serviceLines, canEdit, savi
     if (editingPmId === pm.id) setEditingPmId(null)
   }
 
-  const templateAction = <div className="flex w-full flex-col gap-2 md:flex-row md:flex-wrap md:items-center 2xl:justify-end">
+  const templateAction = <div className="flex w-full flex-wrap items-center gap-2 2xl:justify-end">
     {canEdit && <>
-      <button onClick={() => { setShowTemplateGenerator((value) => !value); if (!selectedTemplateId && pmTemplates[0]) setSelectedTemplateId(pmTemplates[0].id) }} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl button-action-deep bg-[var(--jmi-blue-deep)] px-4 py-2.5 text-sm font-extrabold text-[var(--paper)] shadow-none transition-colors  hover:bg-[var(--jmi-blue)] md:w-auto"><ListChecks size={17} /> Generate Month</button>
+      <button onClick={() => { setShowTemplateGenerator((value) => !value); if (!selectedTemplateId && pmTemplates[0]) setSelectedTemplateId(pmTemplates[0].id) }} className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl button-action-deep bg-[var(--jmi-blue-deep)] px-4 py-2.5 text-sm font-extrabold text-[var(--paper)] shadow-none transition-colors  hover:bg-[var(--jmi-blue)] md:w-auto"><ListChecks size={17} /> Generate Month</button>
+      <details className="min-w-0 flex-1 md:flex-none">
+        <summary className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[var(--line)] px-3 text-sm font-bold text-[var(--jmi-blue)]"><MoreHorizontal size={17} /> More actions</summary>
+        <div className="mt-2 flex flex-col gap-2 md:flex-row md:flex-wrap">
       <button onClick={() => { if (showTemplateSetup) setShowTemplateSetup(false); else loadTemplateForEditing(selectedTemplate) }} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-[var(--jmi-blue)]/15 bg-[var(--jmi-blue-soft)] px-4 py-2.5 text-sm font-extrabold text-[var(--jmi-blue)] shadow-none transition-colors  hover:bg-[var(--jmi-blue-hover)] md:w-auto"><Building2 size={17} /> Template Setup</button>
       <button onClick={() => setShowMonthSetup((value) => !value)} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-[var(--jmi-blue)]/15 bg-[var(--paper)] px-4 py-2.5 text-sm font-extrabold text-[var(--jmi-blue)] shadow-none transition-colors  hover:bg-[var(--jmi-blue-soft)] md:w-auto"><ClipboardList size={17} /> Paste Exceptions</button>
       <button onClick={() => setShowNewForm((value) => !value)} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl button-primary bg-[var(--primary)] px-4 py-2.5 text-sm font-extrabold text-[var(--paper)] shadow-none transition-colors  hover:bg-[var(--jmi-red-deep)] md:w-auto"><Plus size={17} /> New PM</button>
+        </div>
+      </details>
     </>}
     <div className="grid w-full grid-cols-3 gap-2 text-center text-xs font-extrabold  tracking-normal text-[var(--muted)] md:w-auto md:text-xs tracking-normal">
       <span className="rounded-xl border border-[var(--jmi-blue)]/15 bg-[var(--jmi-blue-soft)] px-2 py-2 text-[var(--jmi-blue)] md:px-3">{pmTasks.length} total</span>
@@ -624,18 +629,18 @@ export function PmTasksPanel({ pmTasks, pmTemplates, serviceLines, canEdit, savi
     <PanelHeader
       eyebrow="Preventive maintenance"
       title={`PM Month Tracker · ${monthString(selectedDate)}`}
-      description="Generate the monthly PM list from the saved Mobil checklist, then track station completion, exceptions, and JCF time. PMs remain monthly obligations, not forced dispatch stops."
+      description="Track monthly tasks and JCF time. Generate from a saved checklist; dispatch separately."
       action={templateAction}
     />
 
     <div className="flex flex-col gap-3 border-b border-[var(--line)] bg-[var(--paper)] p-3 sm:p-4 md:flex-row md:items-center md:justify-between">
       <div>
         <p className="font-display text-sm font-extrabold text-[var(--ink)]">Viewing {monthLabel(monthString(selectedDate))}</p>
-        <p className="text-sm font-semibold text-[var(--muted)]">Use previous/future months for PM history, upcoming obligations, and month setup.</p>
+        <p className="text-sm font-semibold text-[var(--muted)]">Review history or plan an upcoming month.</p>
       </div>
-      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] gap-2 md:w-auto md:min-w-[22rem]">
+      <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] gap-2 md:w-auto md:min-w-[22rem]">
         <button type="button" onClick={() => onMonthChange(addMonths(monthString(selectedDate), -1))} className="rounded-xl border border-[var(--jmi-blue)]/15 bg-[var(--paper)] px-3 py-2 text-[var(--jmi-blue)] transition-colors hover:bg-[var(--jmi-blue-soft)]" aria-label="Previous PM month"><ChevronLeft size={18} /></button>
-        <input type="month" value={monthString(selectedDate)} onChange={(event) => onMonthChange(event.target.value)} className="field-control rounded-xl px-3 py-2 text-center font-display text-sm font-extrabold text-[var(--ink)]" />
+        <input aria-label="PM month" type="month" value={monthString(selectedDate)} onChange={(event) => onMonthChange(event.target.value)} className="field-control min-w-0 rounded-xl px-3 py-2 text-left font-display text-sm font-extrabold text-[var(--ink)]" />
         <button type="button" onClick={() => onMonthChange(addMonths(monthString(selectedDate), 1))} className="rounded-xl border border-[var(--jmi-blue)]/15 bg-[var(--paper)] px-3 py-2 text-[var(--jmi-blue)] transition-colors hover:bg-[var(--jmi-blue-soft)]" aria-label="Next PM month"><ChevronRight size={18} /></button>
       </div>
     </div>
@@ -644,12 +649,12 @@ export function PmTasksPanel({ pmTasks, pmTemplates, serviceLines, canEdit, savi
       <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="font-display text-lg font-extrabold text-[var(--ink)]">Generate {monthString(selectedDate)} PMs from a template</p>
-          <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-[var(--muted)]">Use this for John's monthly Mobil workflow: choose the month, reuse the station checklist, preview duplicates, then create the full PM month in one click.</p>
+          <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-[var(--muted)]">Choose a checklist, preview duplicates, then generate this month’s tasks.</p>
         </div>
         <button type="button" aria-label="Close template generator" onClick={() => setShowTemplateGenerator(false)} className="rounded-xl border border-[var(--border)] bg-[var(--paper)] p-2 text-[var(--muted)] transition-colors hover:bg-[var(--surface-hover)]"><X size={18} /></button>
       </div>
 
-      {pmTemplates.length === 0 ? <div className="rounded-2xl border border-[var(--warning-border)] bg-[var(--warning-soft)] p-4 text-sm font-bold text-[var(--warning-ink-strong)]">No PM templates yet. Create the Mobil Monthly PM template first, then generate the month.</div> : <div className="grid gap-4 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+      {pmTemplates.length === 0 ? <div className="rounded-2xl border border-[var(--warning-border)] bg-[var(--warning-soft)] p-4 text-sm font-bold text-[var(--warning-ink-strong)]">Create a PM template first, then generate the month.</div> : <div className="grid gap-4 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
         <div className="space-y-3 rounded-2xl border border-[var(--info-soft-strong)] bg-[var(--paper)] p-3 shadow-none">
           <label className="block text-xs font-extrabold  tracking-normal text-[var(--muted)]">Template<select value={selectedTemplate?.id || ''} onChange={(event) => { const next = pmTemplates.find((template) => template.id === Number(event.target.value)) || null; setSelectedTemplateId(next?.id || ''); resetTemplateSelection(next) }} className="field-control mt-1 w-full rounded-xl px-3 py-2.5 text-sm font-semibold normal-case tracking-normal text-[var(--ink)]">{pmTemplates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select></label>
           {selectedTemplate && <div className="grid gap-2 text-xs font-bold text-[var(--muted)] sm:grid-cols-3">
@@ -760,7 +765,7 @@ export function PmTasksPanel({ pmTasks, pmTemplates, serviceLines, canEdit, savi
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.8fr)]">
         <div>
           <div className="mb-3 flex items-center justify-between gap-3">
-            <div><p className="font-display text-lg font-extrabold text-[var(--ink)]">Paste one-off PM rows for {monthString(selectedDate)}</p><p className="text-sm font-semibold text-[var(--muted)]">Use this for exceptions. For the normal 140 monthly PMs, use Generate From Template.</p></div>
+            <div><p className="font-display text-lg font-extrabold text-[var(--ink)]">Paste one-off PM rows for {monthString(selectedDate)}</p><p className="text-sm font-semibold text-[var(--muted)]">Paste exceptions here. Use Generate Month for recurring tasks.</p></div>
             <button type="button" aria-label="Close monthly PM setup" onClick={() => setShowMonthSetup(false)} className="rounded-xl border border-[var(--border)] bg-[var(--paper)] p-2 text-[var(--muted)] transition-colors hover:bg-[var(--surface-hover)]"><X size={18} /></button>
           </div>
           <textarea value={pasteText} onChange={(event) => handlePasteTextChange(event.target.value)} rows={8} placeholder={'2026-06-03\tYigo Mobil\tElectrical Inspection\tElectrical\tNorth\n2026-06-04\tAgat Mobil\tWater Systems PM\tPlumbing\tSouth'} className="field-control w-full rounded-2xl px-4 py-3 text-sm font-semibold leading-6 text-[var(--ink)]" />
@@ -778,7 +783,7 @@ export function PmTasksPanel({ pmTasks, pmTemplates, serviceLines, canEdit, savi
       <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-[180px_180px_minmax(16rem,1fr)_auto]">
         <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as '' | PmTaskStatus)} className="field-control rounded-xl px-3 py-2 text-sm font-semibold text-[var(--ink)]">{statusOptions.map((option) => <option key={option.value || 'all'} value={option.value}>{option.label}</option>)}</select>
         <select value={regionFilter} onChange={(event) => setRegionFilter(event.target.value)} className="field-control rounded-xl px-3 py-2 text-sm font-semibold text-[var(--ink)]"><option value="">All regions</option>{regions.map((region) => <option key={region} value={region}>{region}</option>)}</select>
-        <p className="rounded-xl border border-[var(--info-soft-strong)] bg-[var(--surface-subtle)] px-3 py-2 text-sm font-semibold leading-6 text-[var(--ink-soft)] md:col-span-2 2xl:col-span-1">While-you're-there PMs can be suggested beside work at the same station. Late-month pressure pulls remaining monthly PMs forward.</p>
+        <p className="rounded-xl border border-[var(--info-soft-strong)] bg-[var(--surface-subtle)] px-3 py-2 text-sm font-semibold leading-6 text-[var(--ink-soft)] md:col-span-2 2xl:col-span-1">PMs can join work at the same station. Late-month suggestions prioritize remaining tasks.</p>
         <button type="button" onClick={() => setViewMode((mode) => mode === 'station' ? 'list' : 'station')} className="inline-flex items-center justify-center gap-2 rounded-xl border border-[var(--jmi-blue)]/15 bg-[var(--paper)] px-3 py-2 text-sm font-extrabold text-[var(--jmi-blue)] transition-colors hover:bg-[var(--jmi-blue-soft)] md:col-span-2 2xl:col-span-1">{viewMode === 'station' ? <LayoutGrid size={16} /> : <ListChecks size={16} />}{viewMode === 'station' ? 'List view' : 'Station view'}</button>
       </div>
     </div>

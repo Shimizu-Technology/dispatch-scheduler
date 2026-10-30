@@ -21,7 +21,7 @@ function Metric({ label, value, detail, icon, tone = 'steel', onClick }: { label
 }
 
 export function DashboardMetrics({ dashboard, teams, technicians, schedule, auditEvents, canEdit, working, asOfDate, loading = false, loadError = '', onRetry, onDateChange, onGoToSection, onOpenWorkOrders }: Props) {
-  const header = <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2"><h2 className="text-lg font-bold text-[var(--ink)]">Queue health</h2>{onDateChange ? <label className="inline-flex items-center gap-2 text-sm">As of<input aria-label="As of date" type="date" value={(asOfDate || dashboard?.date || '')} onChange={(event) => { if (event.target.value) onDateChange(event.target.value) }} className="field-control rounded-xl px-2 py-1" /></label> : <p className="text-sm text-[var(--ink-soft)]">As of {(asOfDate || dashboard?.date || '')}</p>}</div>
+  const header = <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2"><h2 className="text-lg font-bold text-[var(--ink)]">Queue health</h2>{onDateChange ? <label className="inline-flex min-w-0 max-w-full items-center gap-2 text-sm"><span className="shrink-0">As of</span><input aria-label="As of date" type="date" value={(asOfDate || dashboard?.date || '')} onChange={(event) => { if (event.target.value) onDateChange(event.target.value) }} className="field-control min-w-0 max-w-[10.5rem] rounded-xl px-2 py-1" /></label> : <p className="text-sm text-[var(--ink-soft)]">As of {(asOfDate || dashboard?.date || '')}</p>}</div>
   // Dashboard totals come from its complete server scope, never the current queue page.
   if (loading || !dashboard) return <section aria-label="Operations overview" className="space-y-3">
     <div>{header}

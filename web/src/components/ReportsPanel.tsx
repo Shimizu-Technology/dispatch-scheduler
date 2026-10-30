@@ -74,7 +74,7 @@ export function ReportsPanel({ month, onMonthChange, report, loading, onDownload
       action={<button type="button" disabled={!report || loading} onClick={() => void onDownloadCsv()} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl button-action bg-[var(--jmi-blue)] px-4 py-2.5 font-display text-sm font-extrabold text-[var(--paper)] shadow-none transition-colors  hover:bg-[var(--jmi-blue-deep)] disabled:cursor-not-allowed disabled:bg-[var(--border-strong)] sm:w-auto"><Download size={16} /> Download CSV</button>}
     />
 
-    <div className="border-b border-[var(--border)] px-3 py-2"><label className="inline-flex items-center gap-3 text-sm font-semibold">Report month<input type="month" value={draftMonth} placeholder="YYYY-MM" pattern="[0-9]{4}-(0[1-9]|1[0-2])" onChange={(event) => handleMonthChange(event.target.value)} className="field-control rounded-xl px-3 py-2" /></label></div>
+    <div className="border-b border-[var(--border)] px-3 py-2"><label className="grid min-w-0 w-full gap-2 text-sm font-semibold sm:w-auto sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center sm:gap-3">Report month<input type="month" value={draftMonth} placeholder="YYYY-MM" pattern="[0-9]{4}-(0[1-9]|1[0-2])" onChange={(event) => handleMonthChange(event.target.value)} className="field-control rounded-xl px-3 py-2" /></label></div>
 
     {loading && <p role="status" className="p-5 text-sm font-bold text-[var(--ink-soft)]">Loading monthly report...</p>}
     {!loading && !report && <p className="p-5 text-sm font-bold text-[var(--ink-soft)]">No report loaded yet.</p>}

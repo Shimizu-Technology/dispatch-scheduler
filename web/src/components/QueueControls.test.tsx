@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { MoreViews } from './QueueControls'
+import { FilterField, MoreViews } from './QueueControls'
 
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
@@ -61,5 +61,31 @@ describe('More views', () => {
     await user.click(trigger)
     screen.getByRole('button', { name: 'Outside' }).focus()
     await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
+  })
+})
+
+describe('More views selection marker', () => {
+  it('visibly marks only the current view while keeping radio semantics', async () => {
+    render(<MoreViews views={['assessment', 'pa', 'closed']} matchesView={(view) => view === 'pa'} onSelect={vi.fn()} />)
+    await userEvent.setup().click(screen.getByRole('button', { name: 'More views' }))
+    const items = screen.getAllByRole('menuitemradio')
+    const selected = items.filter((item) => item.getAttribute('aria-checked') === 'true')
+    expect(selected).toHaveLength(1)
+    expect(selected[0].className).toContain('bg-[var(--jmi-blue-soft)]')
+    expect(selected[0].querySelector('svg')).not.toBeNull()
+    for (const item of items.filter((candidate) => candidate !== selected[0])) {
+      expect(item.className).not.toContain('bg-[var(--jmi-blue-soft)]')
+      expect(item.querySelector('svg')).toBeNull()
+    }
+  })
+})
+
+describe('Filter field', () => {
+  it('keeps a visible label beside the chosen value without changing the accessible name', () => {
+    render(<FilterField label="Priority"><select aria-label="Priority filter" defaultValue="P1"><option value="">All priority</option><option value="P1">P1</option></select></FilterField>)
+    const select = screen.getByRole('combobox', { name: 'Priority filter' })
+    expect(select.parentElement?.textContent).toContain('Priority')
+    expect(select.closest('label')).toBeNull()
+    expect(screen.getByText('Priority', { selector: 'span' })).toBeTruthy()
   })
 })

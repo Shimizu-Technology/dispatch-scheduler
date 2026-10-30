@@ -1,8 +1,12 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { X } from 'lucide-react'
+import { Check, X } from 'lucide-react'
 import { WORK_ORDER_VIEWS, type WorkOrderView } from '../lib/workOrderViews'
+
+export function FilterField({ label, className = '', children }: { label: string; className?: string; children: ReactNode }) {
+  return <div className={`grid min-w-0 gap-1 text-xs font-semibold text-[var(--ink-soft)] ${className}`}><span aria-hidden="true">{label}</span>{children}</div>
+}
 
 export function MoreViews({ views, matchesView, onSelect }: { views: WorkOrderView[]; matchesView: (view: WorkOrderView) => boolean; onSelect: (view: WorkOrderView) => void }) {
   const [open, setOpen] = useState(false)
@@ -55,7 +59,10 @@ export function MoreViews({ views, matchesView, onSelect }: { views: WorkOrderVi
         const next = event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1 : (index + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length
         items[next]?.focus()
       }
-    }}>{views.map((view) => <button key={view} type="button" role="menuitemradio" aria-checked={matchesView(view)} onClick={() => { onSelect(view); close(true) }} className="min-h-11 rounded-lg px-3 text-left text-sm text-[var(--jmi-blue)]">{WORK_ORDER_VIEWS[view].label}</button>)}</div></section>, document.body)}
+    }}>{views.map((view) => {
+      const selected = matchesView(view)
+      return <button key={view} type="button" role="menuitemradio" aria-checked={selected} onClick={() => { onSelect(view); close(true) }} className={`flex min-h-11 items-center justify-between gap-2 rounded-lg px-3 text-left text-sm text-[var(--jmi-blue)] ${selected ? 'bg-[var(--jmi-blue-soft)] font-semibold' : ''}`}>{WORK_ORDER_VIEWS[view].label}{selected && <Check aria-hidden="true" size={16} />}</button>
+    })}</div></section>, document.body)}
   </>
 }
 

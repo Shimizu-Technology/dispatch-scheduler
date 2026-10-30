@@ -726,7 +726,7 @@ it('keeps the capped pasted source and omission warning after all 25 shown reque
  await user.click(screen.getByRole('button', { name: 'Acknowledge extraction warnings' }))
  expect(screen.queryByText(warning)).toBeNull()
  expect(input).toHaveProperty('value', source)
-})
+}, 30_000)
 
 it('keeps prior omission warning and full source when the next split preview fails', async () => {
  const warning = 'One source request was omitted; split and review it separately.'

@@ -3,7 +3,7 @@ import type { ClipboardEvent, FormEvent, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Archive, ArchiveRestore, ClipboardPaste, Edit3, FileUp, Plus, Search, Sparkles, X } from 'lucide-react'
 import { Badge } from './ui'
-import { FilterDisclosure, MoreViews } from './QueueControls'
+import { FilterDisclosure, FilterField, MoreViews } from './QueueControls'
 import { activeWorkOrderContext, DEFAULT_WORK_ORDER_QUERY, WORK_ORDER_VIEWS, workOrderViewQuery, type WorkOrderView } from '../lib/workOrderViews'
 import { ApiError, postForm, postJson } from '../lib/api'
 import type { OcrWorkOrderDraft, PaginationMeta, ServiceLine, WorkOrder, WorkOrderImportPreview, WorkOrderInput, WorkOrderStatus } from '../types'
@@ -1151,48 +1151,48 @@ export function WorkOrdersPanel({ canAdmin = false, workOrders, meta, serviceLin
       </div>
       <p aria-label="Active filters" className="mt-2 break-words text-xs text-[var(--ink-soft)]">{activeWorkOrderContext(appliedQuery)}</p>
       <FilterDisclosure selected={hasActiveFilters} onCancel={() => restoreFilterInputs(workOrderFiltersFromQuery(appliedQuery))}>{(closeFilters) => <>
-        <select aria-label="Status filter" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="field-control my-2 w-full rounded-xl px-3 py-2"><option value="">All statuses</option>{statuses.map((status) => <option key={status} value={status}>{statusLabel(status)}</option>)}</select>
+        <FilterField label="Status" className="my-2"><select aria-label="Status filter" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="field-control w-full rounded-xl px-3 py-2"><option value="">All statuses</option>{statuses.map((status) => <option key={status} value={status}>{statusLabel(status)}</option>)}</select></FilterField>
       <div className="grid gap-2 sm:gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-[1fr_150px_160px_150px_150px_180px_150px]">
 
-        <select aria-label="Archive filter" value={archiveFilter} onChange={(event) => setArchiveFilter(event.target.value as 'active' | 'archived' | 'all')} className="field-control rounded-xl px-3 py-2 text-sm font-semibold text-[var(--ink)]">
+        <FilterField label="Records"><select aria-label="Archive filter" value={archiveFilter} onChange={(event) => setArchiveFilter(event.target.value as 'active' | 'archived' | 'all')} className="field-control rounded-xl px-3 py-2 text-sm font-semibold text-[var(--ink)]">
           <option value="active">Active queue</option>
           <option value="archived">Archived</option>
           <option value="all">All records</option>
-        </select>
+        </select></FilterField>
 
-        <select aria-label="Priority filter" value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)} className="field-control rounded-xl px-3 py-2 text-sm font-semibold text-[var(--ink)]">
+        <FilterField label="Priority"><select aria-label="Priority filter" value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)} className="field-control rounded-xl px-3 py-2 text-sm font-semibold text-[var(--ink)]">
           <option value="">All priority</option>
           {priorityFilterOptions.map((priority) => <option key={priority} value={priority}>{priority}{priorities.includes(priority) ? '' : ' (current priority)'}</option>)}
-        </select>
-        <select aria-label="Region filter" value={regionFilter} onChange={(event) => setRegionFilter(event.target.value)} className="field-control rounded-xl px-3 py-2 text-sm font-semibold text-[var(--ink)]">
+        </select></FilterField>
+        <FilterField label="Region"><select aria-label="Region filter" value={regionFilter} onChange={(event) => setRegionFilter(event.target.value)} className="field-control rounded-xl px-3 py-2 text-sm font-semibold text-[var(--ink)]">
           <option value="">All regions</option>
           {regions.map((region) => <option key={region} value={region}>{region}</option>)}
-        </select>
-        <select aria-label="Service line filter" value={serviceLineFilter} onChange={(event) => setServiceLineFilter(event.target.value)} className="field-control rounded-xl px-3 py-2 text-sm font-semibold text-[var(--ink)]">
+        </select></FilterField>
+        <FilterField label="Service line"><select aria-label="Service line filter" value={serviceLineFilter} onChange={(event) => setServiceLineFilter(event.target.value)} className="field-control rounded-xl px-3 py-2 text-sm font-semibold text-[var(--ink)]">
           <option value="">All service lines</option>
           {serviceLines.map((line) => <option key={line.id} value={line.id}>{line.name}</option>)}
-        </select>
-        <select aria-label="KPI filter" value={slaStatusFilter} onChange={(event) => setSlaStatusFilter(event.target.value as SlaStatusFilter)} className="field-control rounded-xl px-3 py-2 text-sm font-semibold text-[var(--ink)]">
+        </select></FilterField>
+        <FilterField label="KPI"><select aria-label="KPI filter" value={slaStatusFilter} onChange={(event) => setSlaStatusFilter(event.target.value as SlaStatusFilter)} className="field-control rounded-xl px-3 py-2 text-sm font-semibold text-[var(--ink)]">
           <option value="">All KPI</option>
           <option value="overdue">KPI overdue</option>
           <option value="due_soon">KPI due soon</option>
           <option value="missing">KPI missing</option>
           <option value="on_track">KPI on track</option>
-        </select>
+        </select></FilterField>
       </div>
       <div className="mt-3 grid gap-3 md:grid-cols-[180px_150px_auto]">
-        <select aria-label="Sort work orders" value={sort} onChange={(event) => setSort(event.target.value)} className="field-control rounded-xl px-3 py-2 text-sm font-semibold text-[var(--ink)]">
+        <FilterField label="Sort by"><select aria-label="Sort work orders" value={sort} onChange={(event) => setSort(event.target.value)} className="field-control rounded-xl px-3 py-2 text-sm font-semibold text-[var(--ink)]">
           <option value="scheduled_date">Sort scheduled</option>
           <option value="created_at">Sort created</option>
           <option value="sla_due_at">Sort KPI due</option>
           <option value="priority">Sort priority</option>
           <option value="status">Sort status</option>
           <option value="location">Sort location</option>
-        </select>
-        <select aria-label="Sort direction" value={direction} onChange={(event) => setDirection(event.target.value as 'asc' | 'desc')} className="field-control rounded-xl px-3 py-2 text-sm font-semibold text-[var(--ink)]">
+        </select></FilterField>
+        <FilterField label="Order"><select aria-label="Sort direction" value={direction} onChange={(event) => setDirection(event.target.value as 'asc' | 'desc')} className="field-control rounded-xl px-3 py-2 text-sm font-semibold text-[var(--ink)]">
           <option value="asc">Ascending</option>
           <option value="desc">Descending</option>
-        </select>
+        </select></FilterField>
 
       </div>
       <div className="mt-3 flex flex-wrap gap-2">

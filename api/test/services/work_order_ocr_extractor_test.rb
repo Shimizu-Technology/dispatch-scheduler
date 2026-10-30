@@ -238,6 +238,13 @@ class WorkOrderOcrExtractorTest < ActiveSupport::TestCase
     end
   end
 
+  test "flags missing extracted title before using the description fallback" do
+    row = WorkOrderOcrExtractor.send(:normalize_row, valid_row.merge(title: " ", description: "Description supplies the draft title", confidence: "high").stringify_keys)
+    assert_equal "Description supplies the draft title", row.fetch(:title)
+    assert row.fetch(:issues).any? { |issue| issue.include?("No title") }
+    assert_not_equal "high", row.fetch(:confidence)
+  end
+
   private
 
   def valid_row

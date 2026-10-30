@@ -16,6 +16,7 @@ import { WhatsAppExport } from './components/WhatsAppExport'
 import { WorkOrdersPanel, type WorkOrderEditorState } from './components/WorkOrdersPanel'
 import { useAuthContext } from './contexts/useAuthContext'
 import { RequestGuard } from './lib/requestGuard'
+import { DEFAULT_WORK_ORDER_QUERY } from './lib/workOrderViews'
 import { ApiError, deleteJson, getBlob, getJson, patchJson, postJson } from './lib/api'
 import type { AuditEvent, Dashboard, DispatchOutcomeStatus, DispatchSchedule, ManagedUser, MonthlyReport, PaginationMeta, PmTask, PmTaskBulkCreatePayload, PmTaskInput, PmTemplate, PmTemplateGenerationPayload, PmTemplateInput, ServiceLine, ServiceLineInput, Team, TeamInput, Technician, TechnicianInput, WhatsAppCrewExport, WhatsAppExportPayload, WorkOrder, WorkOrderInput, WorkOrderListPayload, WorkOrderStatus } from './types'
 import './index.css'
@@ -37,7 +38,6 @@ type SectionLink = {
 const SECTION_IDS: ActiveSection[] = ['overview', 'work-orders', 'pm-tasks', 'pa-projects', 'dispatch', 'teams', 'reports', 'whatsapp', 'activity', 'service-lines', 'users']
 const SELECTED_DATE_STORAGE_KEY = 'dispatch-scheduler:selected-date'
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'dispatch-scheduler:sidebar-collapsed'
-const DEFAULT_WORK_ORDER_QUERY = 'archived=active&page=1&per_page=50&sort=created_at&direction=desc'
 function queueQueryKey(query: string) {
   const params = new URLSearchParams(query.replace(/^\?/, ''))
   // The filter accepts this deep-link alias; the API's archive scope is only.
@@ -296,6 +296,9 @@ function DispatchApp() {
   const [invitationNotice, setInvitationNotice] = useState('')
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState('')
+  const [dashboardError, setDashboardError] = useState('')
+  const [crewDataDate, setCrewDataDate] = useState<string | null>(null)
+  const [initialDataError, setInitialDataError] = useState('')
 
   const [queueLoading, setQueueLoading] = useState(false)
   const [queueError, setQueueError] = useState('')
@@ -392,10 +395,13 @@ function DispatchApp() {
   }, [])
 
   const loadInitialData = useCallback(async (date: string) => {
+    const current = requests.current.begin('initial-data', () => context.current.date === date)
+    const dashboardCurrent = requests.current.begin('dashboard', () => context.current.date === date)
     setLoading(true)
     setError('')
+    setInitialDataError('')
     if (context.current.route.section !== 'work-orders') void fetchWorkOrders(DEFAULT_WORK_ORDER_QUERY)
-    const [dash, teamData, technicianData, pms, templates, lines, schedulePayload] = await Promise.all([
+    const [dash, ...workspace] = await Promise.allSettled([
       getJson<Dashboard>(`/dashboard?date=${date}`),
       getJson<Team[]>(`/teams?date=${date}`),
       getJson<Technician[]>(`/technicians?date=${date}&include_inactive=true`),
@@ -403,26 +409,42 @@ function DispatchApp() {
       getJson<{ pm_templates: PmTemplate[] }>('/pm_templates'),
       getJson<{ service_lines: ServiceLine[] }>('/service_lines?include_inactive=true'),
       getJson<{ schedule: DispatchSchedule | null }>(`/dispatch_schedules?date=${date}`),
-    ])
-    setDashboard(dash)
-    setTeams(teamData)
-    setTechnicians(technicianData)
-    setPmTasks(pms)
-    setPmTemplates(templates.pm_templates)
-    setServiceLines(lines.service_lines)
-    setSchedule(schedulePayload.schedule)
-    setOverviewReady(true)
-    void refreshAuditEvents()
-    if (schedulePayload.schedule) {
-      await refreshWhatsApp(schedulePayload.schedule.id)
-    } else {
-      setWhatsApp('')
-      setWhatsAppCrews([])
+    ] as const)
+    if (!current()) return
+    if (dashboardCurrent()) {
+      if (dash.status === 'fulfilled') {
+        setDashboard(dash.value)
+        setOverviewReady(true)
+        setDashboardError('')
+      } else setDashboardError(dash.reason instanceof Error ? dash.reason.message : 'Unable to load dashboard')
     }
-    setLoading(false)
+    const [teamData, technicianData, pms, templates, lines, schedulePayload] = workspace
+    if (teamData.status === 'fulfilled' && technicianData.status === 'fulfilled' && pms.status === 'fulfilled' && templates.status === 'fulfilled' && lines.status === 'fulfilled' && schedulePayload.status === 'fulfilled') {
+      setTeams(teamData.value)
+      setTechnicians(technicianData.value)
+      setPmTasks(pms.value)
+      setPmTemplates(templates.value.pm_templates)
+      setServiceLines(lines.value.service_lines)
+      setSchedule(schedulePayload.value.schedule)
+      setCrewDataDate(date)
+      if (schedulePayload.value.schedule) {
+        try {
+          const payload = await getJson<WhatsAppExportPayload>(`/dispatch_schedules/${schedulePayload.value.schedule.id}/whatsapp_export`)
+          if (current()) { setWhatsApp(payload.message); setWhatsAppCrews(payload.crews) }
+        } catch (error) {
+          if (current()) setError(error instanceof Error ? error.message : 'Unable to load WhatsApp export')
+        }
+      } else { setWhatsApp(''); setWhatsAppCrews([]) }
+    } else {
+      setInitialDataError('Workspace data could not load for this date. Retry before editing crews.')
+      setError('Workspace data could not load for this date. Retry before editing crews.')
+      setCrewDataDate(null)
+    }
+    if (current()) setLoading(false)
+    void afterAuditedChange()
   // Queue reads use the current route ref.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshAuditEvents, refreshWhatsApp])
+  }, [])
 
   useEffect(() => {
     window.localStorage.setItem(SELECTED_DATE_STORAGE_KEY, selectedDate)
@@ -452,10 +474,7 @@ function DispatchApp() {
 
     // The signed-in dashboard load is the app's external data subscription point.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    void loadInitialData(selectedDate).catch((err) => {
-      setError(err.message)
-      setLoading(false)
-    })
+    void loadInitialData(selectedDate)
   }, [authLoading, loadInitialData, selectedDate, user?.id])
 
   useEffect(() => {
@@ -468,12 +487,16 @@ function DispatchApp() {
   useEffect(() => {
     if (!user?.id || currentRoute.section !== 'reports') return
 
+    const month = selectedDate.slice(0, 7)
+    const current = requests.current.begin('report', () => context.current.route.section === 'reports' && context.current.date.slice(0, 7) === month)
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setReportLoading(true)
-    void getJson<MonthlyReport>(`/reports/monthly?month=${selectedDate.slice(0, 7)}`)
-      .then(setMonthlyReport)
-      .catch((err) => setError(err instanceof Error ? err.message : 'Unable to load report'))
-      .finally(() => setReportLoading(false))
+    void getJson<MonthlyReport>(`/reports/monthly?month=${month}`)
+      .then((report) => { if (current()) setMonthlyReport(report) })
+      .catch((err) => { if (current()) setError(err instanceof Error ? err.message : 'Unable to load report') })
+      .finally(() => { if (current()) setReportLoading(false) })
+    const guard = requests.current
+    return () => { guard.begin('report') }
   }, [currentRoute.section, selectedDate, user?.id])
 
   useEffect(() => {
@@ -583,7 +606,6 @@ function DispatchApp() {
   }
 
   function goToSection(section: ActiveSection) {
-    if (section !== 'work-orders') setWorkOrderToEdit(null)
     navigateTo(pathForSection(section))
   }
 
@@ -696,7 +718,10 @@ function DispatchApp() {
       getJson<Dashboard>(`/dashboard?date=${date}`),
       getJson<WorkOrderListPayload>(`/work_orders?${requestQuery}`),
     ])
-    if (dashboardCurrent() && dash.status === 'fulfilled') setDashboard(dash.value)
+    if (dashboardCurrent()) {
+      if (dash.status === 'fulfilled') { setDashboard(dash.value); setOverviewReady(true); setDashboardError('') }
+      else setDashboardError('Dashboard totals could not refresh. Retry dashboard.')
+    }
     if (!queueCurrent()) return
     setQueueLoading(false)
     if (orders.status === 'rejected') {
@@ -713,7 +738,6 @@ function DispatchApp() {
     }
     setWorkOrders(payload.work_orders)
     setWorkOrderMeta(payload.meta)
-    if (dash.status === 'rejected' && dashboardCurrent()) setError('Work orders loaded, but dashboard totals could not refresh.')
   }
 
   async function fetchWorkOrders(query: string) {
@@ -739,8 +763,8 @@ function DispatchApp() {
       const created = await postJson<WorkOrder>('/work_orders', values)
       try {
         await Promise.all([afterAuditedChange(), refreshWorkOrderContext(queueQuery)])
-      } catch (refreshError) {
-        setError(refreshError instanceof Error ? `Work order saved, but the dashboard did not refresh: ${refreshError.message}` : 'Work order saved, but the dashboard did not refresh.')
+      } catch {
+        setError('Work order saved, but the work-order list did not refresh. Retry work orders.')
       }
       return created
     } catch (err) {
@@ -763,8 +787,8 @@ function DispatchApp() {
       const updated = await patchJson<WorkOrder>(`/work_orders/${workOrderId}`, values)
       try {
         await Promise.all([afterAuditedChange(), refreshWorkOrderContext(queueQuery)])
-      } catch (refreshError) {
-        setError(refreshError instanceof Error ? `Work order updated, but the dashboard did not refresh: ${refreshError.message}` : 'Work order updated, but the dashboard did not refresh.')
+      } catch {
+        setError('Work order updated, but the work-order list did not refresh. Retry work orders.')
       }
       return updated
     } catch (err) {
@@ -1001,8 +1025,11 @@ function DispatchApp() {
     setError('')
     try {
       await patchJson<WorkOrder>(`/work_orders/${workOrderId}/${archived ? 'archive' : 'unarchive'}`, {})
-      await afterAuditedChange()
-      await refreshWorkOrderContext()
+      try {
+        await Promise.all([afterAuditedChange(), refreshWorkOrderContext()])
+      } catch {
+        setError('Archive state saved, but the work-order list did not refresh. Retry work orders.')
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to update work order archive state')
       throw err
@@ -1467,13 +1494,13 @@ function DispatchApp() {
 
         {error && <div className="rounded-2xl border border-[var(--danger-border)] bg-[var(--danger-soft)] p-4 text-sm font-bold text-[var(--danger-ink)]">{error}</div>}
 
-        {currentSection === 'overview' && <DashboardMetrics dashboard={overviewReady ? dashboard : null} workOrders={workOrders.filter((workOrder) => !workOrder.archived)} teams={teams} technicians={technicians} pmTasks={pmTasks} schedule={schedule} auditEvents={auditEvents} canEdit={canEditDispatch} working={working} loading={loading} loadError={error} onRetry={() => void loadInitialData(selectedDate).catch((err) => { setError(err.message); setLoading(false) })} onDateChange={handleSelectedDateChange} onGoToSection={goToSection} onOpenWorkOrders={(query) => navigateTo(`/work-orders?${query}`)} />}
+        {currentSection === 'overview' && <DashboardMetrics dashboard={overviewReady ? dashboard : null} teams={teams} technicians={technicians} schedule={schedule} auditEvents={auditEvents} canEdit={canEditDispatch} working={working} loading={loading} asOfDate={selectedDate} loadError={dashboardError} onRetry={() => void loadInitialData(selectedDate)} onDateChange={handleSelectedDateChange} onGoToSection={goToSection} onOpenWorkOrders={(query) => navigateTo(`/work-orders?${query}`)} />}
 
         {currentSection === 'work-orders' && (user ? <WorkOrdersPanel loading={queueLoading} loadError={queueError} onRetry={() => void fetchWorkOrders(currentRoute.search)} onEditorStateChange={reportWorkOrderEditor} pendingLeave={Boolean(pendingWorkOrderLeave)} onKeepEditing={() => setPendingWorkOrderLeave(null)} onDiscardAndLeave={discardAndLeaveWorkOrders} leaveBlocked={workOrderLeaveBlocked} workOrders={workOrders} meta={workOrderMeta} serviceLines={serviceLines} canAdmin={Boolean(user.permissions.can_admin)} canEdit={canEditDispatch} saving={workOrderSaving} routeSearch={currentRoute.search} workOrderToEdit={workOrderToEdit} onEditConsumed={clearWorkOrderToEdit} onRouteQueryChange={updateWorkOrderRouteQuery} onFetch={fetchWorkOrders} onCreate={createWorkOrder} onUpdate={updateWorkOrder} onArchive={archiveWorkOrder} /> : <SignInRequiredPanel title="Sign in to review work orders" />)}
 
         {currentSection === 'pa-projects' && (user ? <PaProjectsPanel workOrders={paProjectWorkOrders} meta={paProjectMeta} canEdit={canEditDispatch} onPage={fetchPaProjects} onEdit={openWorkOrderFromPaProject} /> : <SignInRequiredPanel title="Sign in to review PA Projects" />)}
 
-        {currentSection === 'teams' && (user ? <TeamsPanel selectedDate={selectedDate} onDateChange={handleSelectedDateChange} teams={teams} technicians={technicians} serviceLines={serviceLines} schedule={schedule} canEdit={canEditDispatch} savingTechnicianId={availabilitySavingId} savingTeamId={teamSavingId} onToggleAvailability={toggleAvailability} onUpdateDailyCrew={updateDailyCrew} onUpdateDefaultCrew={updateDefaultCrew} onCreateTeam={createTeam} onArchiveTeam={archiveTeam} onCreateTechnician={createTechnician} onUpdateTechnician={updateTechnician} onArchiveTechnician={archiveTechnician} /> : <SignInRequiredPanel title="Sign in to check crews" />)}
+        {currentSection === 'teams' && (user ? <TeamsPanel loading={loading || (crewDataDate !== selectedDate && !initialDataError)} loadError={crewDataDate !== selectedDate ? initialDataError : ''} onRetry={() => void loadInitialData(selectedDate)} selectedDate={selectedDate} onDateChange={handleSelectedDateChange} teams={teams} technicians={technicians} serviceLines={serviceLines} schedule={schedule} canEdit={canEditDispatch} savingTechnicianId={availabilitySavingId} savingTeamId={teamSavingId} onToggleAvailability={toggleAvailability} onUpdateDailyCrew={updateDailyCrew} onUpdateDefaultCrew={updateDefaultCrew} onCreateTeam={createTeam} onArchiveTeam={archiveTeam} onCreateTechnician={createTechnician} onUpdateTechnician={updateTechnician} onArchiveTechnician={archiveTechnician} /> : <SignInRequiredPanel title="Sign in to check crews" />)}
 
         {currentSection === 'dispatch' && (user ? <DispatchBuilder schedule={schedule} teams={teams} technicians={technicians} working={working} canEdit={canEditDispatch} onSuggest={suggestSchedule} onUpdate={updateDispatchItem} onOutcome={updateDispatchItemOutcome} onWorkOrderStatus={updateWorkOrderStatus} onFinalize={finalizeSchedule} onReopen={reopenSchedule} /> : <SignInRequiredPanel title="Sign in to build today's dispatch" />)}
 

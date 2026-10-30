@@ -348,7 +348,7 @@ function PmEditForm({ pm, saving, onCancel, onSave }: { pm: PmTask; saving: bool
   return <form onSubmit={(event) => void submit(event)} className="mt-3 rounded-2xl border border-[var(--jmi-blue)]/12 bg-[var(--surface-subtle)] p-3">
     <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
       <div><p className="font-display text-sm font-extrabold text-[var(--ink)]">Edit PM</p><p className="text-xs font-semibold text-[var(--muted)]">Changes apply only to this generated PM record.</p></div>
-      <button type="button" onClick={onCancel} className="rounded-lg border border-[var(--border)] bg-[var(--paper)] p-1.5 text-[var(--muted)]"><X size={15} /></button>
+      <button type="button" aria-label="Close PM editor" onClick={onCancel} className="rounded-lg border border-[var(--border)] bg-[var(--paper)] p-1.5 text-[var(--muted)]"><X size={15} /></button>
     </div>
     <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
       <label className="text-xs font-extrabold  tracking-normal text-[var(--muted)]">Client<input value={draft.client} onChange={(event) => updateDraft('client', event.target.value)} className="field-control mt-1 w-full rounded-lg px-2 py-1.5 text-sm font-semibold normal-case tracking-normal text-[var(--ink)]" /></label>
@@ -646,7 +646,7 @@ export function PmTasksPanel({ pmTasks, pmTemplates, serviceLines, canEdit, savi
           <p className="font-display text-lg font-extrabold text-[var(--ink)]">Generate {monthString(selectedDate)} PMs from a template</p>
           <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-[var(--muted)]">Use this for John's monthly Mobil workflow: choose the month, reuse the station checklist, preview duplicates, then create the full PM month in one click.</p>
         </div>
-        <button type="button" onClick={() => setShowTemplateGenerator(false)} className="rounded-xl border border-[var(--border)] bg-[var(--paper)] p-2 text-[var(--muted)] transition-colors hover:bg-[var(--surface-hover)]"><X size={18} /></button>
+        <button type="button" aria-label="Close template generator" onClick={() => setShowTemplateGenerator(false)} className="rounded-xl border border-[var(--border)] bg-[var(--paper)] p-2 text-[var(--muted)] transition-colors hover:bg-[var(--surface-hover)]"><X size={18} /></button>
       </div>
 
       {pmTemplates.length === 0 ? <div className="rounded-2xl border border-[var(--warning-border)] bg-[var(--warning-soft)] p-4 text-sm font-bold text-[var(--warning-ink-strong)]">No PM templates yet. Create the Mobil Monthly PM template first, then generate the month.</div> : <div className="grid gap-4 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
@@ -719,7 +719,7 @@ export function PmTasksPanel({ pmTasks, pmTemplates, serviceLines, canEdit, savi
         </div>
         <div className="flex flex-wrap gap-2">
           <button type="button" onClick={startNewTemplate} className="rounded-xl border border-[var(--jmi-blue)]/15 bg-[var(--jmi-blue-soft)] px-3 py-2 text-xs font-extrabold text-[var(--jmi-blue)] transition-colors hover:bg-[var(--jmi-blue-hover)]">New template</button>
-          <button type="button" onClick={() => setShowTemplateSetup(false)} className="rounded-xl border border-[var(--border)] bg-[var(--paper)] p-2 text-[var(--muted)] transition-colors hover:bg-[var(--surface-hover)]"><X size={18} /></button>
+          <button type="button" aria-label="Close template setup" onClick={() => setShowTemplateSetup(false)} className="rounded-xl border border-[var(--border)] bg-[var(--paper)] p-2 text-[var(--muted)] transition-colors hover:bg-[var(--surface-hover)]"><X size={18} /></button>
         </div>
       </div>
       <div className="grid gap-3 lg:grid-cols-4">
@@ -742,7 +742,7 @@ export function PmTasksPanel({ pmTasks, pmTemplates, serviceLines, canEdit, savi
     {canEdit && showNewForm && <form onSubmit={(event) => void submitNewPm(event)} className="border-b border-[var(--line)] bg-[var(--surface-subtle)] p-3 sm:p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div><p className="font-display text-lg font-extrabold text-[var(--ink)]">Add one PM</p><p className="text-sm font-semibold text-[var(--muted)]">Use this for corrections, last-minute PMs, or one station at a time.</p></div>
-        <button type="button" onClick={() => setShowNewForm(false)} className="rounded-xl border border-[var(--border)] bg-[var(--paper)] p-2 text-[var(--muted)] transition-colors hover:bg-[var(--surface-hover)]"><X size={18} /></button>
+        <button type="button" aria-label="Close new PM form" onClick={() => setShowNewForm(false)} className="rounded-xl border border-[var(--border)] bg-[var(--paper)] p-2 text-[var(--muted)] transition-colors hover:bg-[var(--surface-hover)]"><X size={18} /></button>
       </div>
       <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
         <label className="text-xs font-extrabold  tracking-normal text-[var(--muted)]">Client<input value={newPm.client} onChange={(event) => updateNewPm('client', event.target.value)} className="field-control mt-1 w-full rounded-xl px-3 py-2.5 text-sm font-semibold normal-case tracking-normal text-[var(--ink)]" /></label>
@@ -761,7 +761,7 @@ export function PmTasksPanel({ pmTasks, pmTemplates, serviceLines, canEdit, savi
         <div>
           <div className="mb-3 flex items-center justify-between gap-3">
             <div><p className="font-display text-lg font-extrabold text-[var(--ink)]">Paste one-off PM rows for {monthString(selectedDate)}</p><p className="text-sm font-semibold text-[var(--muted)]">Use this for exceptions. For the normal 140 monthly PMs, use Generate From Template.</p></div>
-            <button type="button" onClick={() => setShowMonthSetup(false)} className="rounded-xl border border-[var(--border)] bg-[var(--paper)] p-2 text-[var(--muted)] transition-colors hover:bg-[var(--surface-hover)]"><X size={18} /></button>
+            <button type="button" aria-label="Close monthly PM setup" onClick={() => setShowMonthSetup(false)} className="rounded-xl border border-[var(--border)] bg-[var(--paper)] p-2 text-[var(--muted)] transition-colors hover:bg-[var(--surface-hover)]"><X size={18} /></button>
           </div>
           <textarea value={pasteText} onChange={(event) => handlePasteTextChange(event.target.value)} rows={8} placeholder={'2026-06-03\tYigo Mobil\tElectrical Inspection\tElectrical\tNorth\n2026-06-04\tAgat Mobil\tWater Systems PM\tPlumbing\tSouth'} className="field-control w-full rounded-2xl px-4 py-3 text-sm font-semibold leading-6 text-[var(--ink)]" />
           <div className="mt-3 flex flex-wrap gap-2">

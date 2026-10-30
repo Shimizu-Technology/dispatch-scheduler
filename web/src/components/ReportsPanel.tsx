@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Download, FileText, FolderKanban, Wrench } from 'lucide-react'
 import { Card, PanelHeader } from './ui'
 import type { MonthlyReport } from '../types'
@@ -58,6 +59,13 @@ function Breakdown({ title, values, formatValue = (value: number) => value.toStr
 }
 
 export function ReportsPanel({ month, onMonthChange, report, loading, onDownloadCsv }: ReportsPanelProps) {
+  const [draftMonth, setDraftMonth] = useState(month)
+  const [previousMonth, setPreviousMonth] = useState(month)
+  if (month !== previousMonth) { setPreviousMonth(month); setDraftMonth(month) }
+  function handleMonthChange(value: string) {
+    setDraftMonth(value)
+    if (/^\d{4}-(0[1-9]|1[0-2])$/.test(value)) onMonthChange(value)
+  }
   return <Card className="overflow-hidden">
     <PanelHeader
       eyebrow="Monthly reporting"
@@ -66,9 +74,9 @@ export function ReportsPanel({ month, onMonthChange, report, loading, onDownload
       action={<button type="button" disabled={!report || loading} onClick={() => void onDownloadCsv()} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl button-action bg-[var(--jmi-blue)] px-4 py-2.5 font-display text-sm font-extrabold text-[var(--paper)] shadow-none transition-colors  hover:bg-[var(--jmi-blue-deep)] disabled:cursor-not-allowed disabled:bg-[var(--border-strong)] sm:w-auto"><Download size={16} /> Download CSV</button>}
     />
 
-    <div className="border-b border-[var(--border)] px-3 py-2"><label className="inline-flex items-center gap-3 text-sm font-semibold">Report month<input type="month" value={month} onChange={(event) => { if (event.target.value) onMonthChange(event.target.value) }} className="field-control rounded-xl px-3 py-2" /></label></div>
+    <div className="border-b border-[var(--border)] px-3 py-2"><label className="inline-flex items-center gap-3 text-sm font-semibold">Report month<input type="month" value={draftMonth} placeholder="YYYY-MM" pattern="[0-9]{4}-(0[1-9]|1[0-2])" onChange={(event) => handleMonthChange(event.target.value)} className="field-control rounded-xl px-3 py-2" /></label></div>
 
-    {loading && <p className="p-5 text-sm font-bold text-[var(--ink-soft)]">Loading monthly report...</p>}
+    {loading && <p role="status" className="p-5 text-sm font-bold text-[var(--ink-soft)]">Loading monthly report...</p>}
     {!loading && !report && <p className="p-5 text-sm font-bold text-[var(--ink-soft)]">No report loaded yet.</p>}
 
     {report && <div className="space-y-4 p-3 sm:p-4">

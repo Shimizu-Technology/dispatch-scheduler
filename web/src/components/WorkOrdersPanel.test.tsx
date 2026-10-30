@@ -560,14 +560,14 @@ it('keeps upload omission warnings after the final shown draft is saved until ex
 })
 
 it('retains the complete pasted source after the server rejects oversized intake', async () => {
- vi.mocked(postJson).mockRejectedValueOnce(new ApiError('Pasted intake is limited to 20,000 characters.', 422))
+ vi.mocked(postJson).mockRejectedValueOnce(new ApiError('Intake text exceeds 20,000 characters. Split it into smaller requests.', 422, { code: 'intake_text_too_long' }))
  const { user, onCreate } = setup()
  await user.click(screen.getByRole('button', { name: 'Paste Intake' }))
  const input = screen.getByRole('textbox', { name: 'Incoming request text or screenshot' })
  const source = 'x'.repeat(20001)
  fireEvent.change(input, { target: { value: source } })
  await user.click(screen.getByRole('button', { name: 'Preview pasted text' }))
- expect((await screen.findByRole('alert')).textContent).toContain('Pasted intake is limited to 20,000 characters.')
+ expect((await screen.findByRole('alert')).textContent).toContain('Intake text exceeds 20,000 characters. Split it into smaller requests.')
  expect(input).toHaveProperty('value', source)
  expect(onCreate).not.toHaveBeenCalled()
 })
@@ -995,6 +995,16 @@ describe('phone filter sheet', () => {
     expect(document.activeElement?.textContent).toContain('Filters and sorting')
     expect(screen.getByLabelText('Active filters').textContent).toContain('waiting for parts')
   })
+  it('preserves a pending search when phone filters are cancelled', async () => {
+    const { user } = setup({ routeSearch: '?q=applied' })
+    fireEvent.change(screen.getByLabelText('Search work orders'), { target: { value: 'Pending search' } })
+    await user.click(screen.getByRole('button', { name: /Filters and sorting/ }))
+    await user.selectOptions(screen.getByLabelText('Status filter'), 'approved')
+    await user.click(screen.getByRole('button', { name: 'Close filters' }))
+    expect(screen.getByLabelText('Search work orders')).toHaveProperty('value', 'Pending search')
+    await user.click(screen.getByRole('button', { name: /Filters and sorting/ }))
+    expect(screen.getByLabelText('Status filter')).toHaveProperty('value', '')
+  })
   it('Escape/close discard pending changes and restore focus; Clear resets the query and closes', async () => {
     const onRouteQueryChange = vi.fn()
     const { user } = setup({ routeSearch: '?priority=P2&sort=priority', onRouteQueryChange })
@@ -1027,4 +1037,14 @@ it('uses a neutral dialog element and gives the main Description five rows while
   const save = screen.getByRole('button', { name: 'Save Work Order' })
   expect(save.className).toContain('button-primary')
   expect(save.closest('.editor-footer')).toBeTruthy()
+})
+
+it('uses the stable oversized-text error code and retains pasted text for splitting', async () => {
+  vi.mocked(postJson).mockRejectedValueOnce(new ApiError('Split this request into smaller parts.', 422, { code: 'intake_text_too_long' }))
+  setup()
+  fireEvent.click(screen.getByRole('button', { name: 'Paste Intake' }))
+  fireEvent.change(screen.getByRole('textbox', { name: 'Incoming request text or screenshot' }), { target: { value: 'x'.repeat(20001) } })
+  fireEvent.click(screen.getByRole('button', { name: /Preview pasted text/ }))
+  expect((await screen.findByRole('alert')).textContent).toContain('Split this request into smaller parts.')
+  expect(screen.getByRole('textbox', { name: 'Incoming request text or screenshot' })).toHaveProperty('value', 'x'.repeat(20001))
 })

@@ -145,6 +145,7 @@ class WorkOrderImportsControllerTest < ActionDispatch::IntegrationTest
     end
     assert_response :unprocessable_entity
     assert_includes JSON.parse(response.body).fetch("errors").first, "Split"
+    assert_equal "intake_text_too_long", JSON.parse(response.body).fetch("code")
   end
 
   test "malformed provider content returns 422 without creating operational records" do

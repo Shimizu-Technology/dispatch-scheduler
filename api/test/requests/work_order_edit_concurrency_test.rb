@@ -30,7 +30,7 @@ class WorkOrderEditConcurrencyTest < ActionDispatch::IntegrationTest
       end
     end
     2.times { gate << true }
-    threads.each(&:join)
+    threads.each { |thread| assert thread.join(10), "Concurrent request did not finish" }
     responses = 2.times.map { results.pop }
     assert responses.all? { |value| value.is_a?(Array) }, responses.inspect
     assert_equal [ 200, 409 ], responses.map(&:first).sort

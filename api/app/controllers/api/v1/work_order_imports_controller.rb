@@ -10,7 +10,9 @@ module Api
           payload[:warnings] = result[:warnings] if result[:warnings].present?
           render json: payload
         else
-          render json: { errors: [ result[:error] ] }, status: :unprocessable_entity
+          payload = { errors: [ result[:error] ] }
+          payload[:code] = result[:code] if result[:code]
+          render json: payload, status: :unprocessable_entity
         end
       end
     end

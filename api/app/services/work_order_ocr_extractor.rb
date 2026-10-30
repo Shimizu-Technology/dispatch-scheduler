@@ -61,7 +61,7 @@ class WorkOrderOcrExtractor
     def extract_from_text(text, source_label:, default_source: "pasted_text")
       return { success: false, error: "Paste work-order text before previewing intake." } if text.to_s.strip.blank?
       if text.to_s.length > MAX_TEXT_LENGTH
-        return { success: false, error: "Intake text exceeds 20,000 characters. Split it into smaller requests and preview each part; no text has been sent for extraction." }
+        return { success: false, code: "intake_text_too_long", error: "Intake text exceeds 20,000 characters. Split it into smaller requests and preview each part; no text has been sent for extraction." }
       end
 
       api_key = ENV["OPENROUTER_API_KEY"]
@@ -216,7 +216,7 @@ class WorkOrderOcrExtractor
       trade = normalize_choice(source["trade_category"], %w[General Plumbing HVAC Electrical Carpentry Painting Landscaping Masonry], "General", "Trade", normalization_issues)
       description = source["description"].to_s.squish
       title = source["title"].to_s.squish.presence || description.truncate(60)
-      normalization_issues << "No title or scope was extracted. Review the source before saving." if title.blank?
+      normalization_issues << "No title or scope was extracted. Review the source before saving." if source["title"].to_s.squish.blank?
       location = source["location"].to_s.squish.presence || "Unknown"
       normalization_issues << "Location is unknown. Identify the site before saving this request." if location.casecmp?("Unknown")
       dates = %w[scheduled_date parts_eta follow_up_due_on].index_with do |field|

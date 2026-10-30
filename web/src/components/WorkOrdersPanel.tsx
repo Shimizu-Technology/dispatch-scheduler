@@ -1025,7 +1025,7 @@ export function WorkOrdersPanel({ canAdmin = false, workOrders, meta, serviceLin
         if (!payload.warnings?.length) setPasteText('')
       } else setImportError('No work orders found in this source. Add more detail or try a clearer screenshot, then preview again. Earlier proposals are still available.')
     } catch (err) {
-      setImportError(err instanceof Error && err.message.startsWith('Pasted intake is limited to ') ? err.message : 'Automatic extraction is unavailable. Your text is kept.')
+      setImportError(err instanceof ApiError && err.body?.code === 'intake_text_too_long' ? err.message : 'Automatic extraction is unavailable. Your text is kept.')
       setImportDiagnostic(err instanceof Error ? err.message : 'Extraction failed')
       setManualFallback(true)
     } finally {
@@ -1150,7 +1150,7 @@ export function WorkOrdersPanel({ canAdmin = false, workOrders, meta, serviceLin
         <MoreViews views={moreViews} matchesView={matchesView} onSelect={(view) => applyQuickFilter(workOrderViewQuery(view))} />
       </div>
       <p aria-label="Active filters" className="mt-2 break-words text-xs text-[var(--ink-soft)]">{activeWorkOrderContext(appliedQuery)}</p>
-      <FilterDisclosure selected={hasActiveFilters} onCancel={() => restoreFilterInputs(workOrderFiltersFromQuery(appliedQuery))}>{(closeFilters) => <>
+      <FilterDisclosure selected={hasActiveFilters} onCancel={() => restoreFilterInputs({ ...workOrderFiltersFromQuery(appliedQuery), query })}>{(closeFilters) => <>
         <FilterField label="Status" className="my-2"><select aria-label="Status filter" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="field-control w-full rounded-xl px-3 py-2"><option value="">All statuses</option>{statuses.map((status) => <option key={status} value={status}>{statusLabel(status)}</option>)}</select></FilterField>
       <div className="grid gap-2 sm:gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-[1fr_150px_160px_150px_150px_180px_150px]">
 

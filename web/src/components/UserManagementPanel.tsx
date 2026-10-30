@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Mail, Plus, RefreshCw, ShieldCheck, Trash2, UserCheck, UserX } from 'lucide-react'
 import { Badge, Card, PanelHeader } from './ui'
+import { ApiError } from '../lib/api'
 import type { ManagedUser, UserRole } from '../types'
 
 const roles: Array<{ value: UserRole; label: string; description: string }> = [
@@ -46,7 +47,10 @@ export function UserManagementPanel({ deliveryNotice, users, currentUserId, savi
     }
     setFormError('')
     try { await onCreate({ email, name: form.name.trim() || undefined, role: form.role }) }
-    catch { setFormError('The invitation could not be saved. Check your connection and try again.'); return }
+    catch (error) {
+      setFormError(error instanceof ApiError && error.status === null ? 'The invitation result is unconfirmed. Refresh the user list before retrying; access may already have been saved.' : error instanceof Error ? error.message : 'The invitation could not be saved. Try again.')
+      return
+    }
     setForm({ email: '', name: '', role: 'dispatcher' })
     setShowInvite(false)
   }

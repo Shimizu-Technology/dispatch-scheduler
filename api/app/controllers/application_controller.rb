@@ -1,6 +1,7 @@
 class ApplicationController < ActionController::API
   before_action :authenticate_request!
   rescue_from ActionController::BadRequest, with: :render_bad_request
+  rescue_from ActiveRecord::StaleObjectError, with: :render_concurrent_work_order_update
 
   attr_reader :current_user
 
@@ -52,6 +53,24 @@ class ApplicationController < ActionController::API
   def bearer_token
     header = request.authorization.to_s
     header[/\ABearer\s+(.+)\z/i, 1]
+  end
+
+  def render_stale_work_order(work_order)
+    render json: {
+      code: "stale_work_order",
+      errors: [ "This work order changed while you were editing. Review the latest version before saving again." ],
+      latest_work_order: Serializers.work_order(work_order)
+    }, status: :conflict
+  end
+
+  def render_concurrent_work_order_update(error)
+    if error.record.is_a?(WorkOrder)
+      render_stale_work_order(WorkOrder.find(error.record.id))
+    else
+      render json: { errors: [ "This record changed concurrently. Reload it before trying again." ] }, status: :conflict
+    end
+  rescue ActiveRecord::RecordNotFound
+    render json: { errors: [ "This work order is no longer available." ] }, status: :not_found
   end
 
   def render_bad_request(error)

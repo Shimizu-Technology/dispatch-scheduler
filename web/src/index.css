@@ -139,7 +139,7 @@ p { text-wrap: pretty; }
   .work-order-row { padding-block: 12px; border-radius: 0; }
   .work-order-row h3 { margin-top: 4px; }
   .work-order-row details { margin-top: 4px; padding-top: 0; border: 0; }
-  .work-order-row summary { min-height: 32px; padding-block: 6px; }
+  .work-order-row summary { padding-block: 6px; }
 }
 @media (min-width: 1024px) {
   .work-order-content { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 4px 16px; }

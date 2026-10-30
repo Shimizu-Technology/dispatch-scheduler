@@ -551,10 +551,14 @@ class WorkOrdersControllerTest < ActionDispatch::IntegrationTest
       assert_equal assessment, Time.iso8601(initial.fetch("assessment_due_at"))
       assert_equal repair, Time.iso8601(initial.fetch("repair_due_at"))
       id = initial.fetch("id")
-      patch "/api/v1/work_orders/#{id}", params: { reported_at: (reported_at + 1.hour).iso8601(6), lock_version: initial.fetch("lock_version") }, headers: auth_headers
+      patch "/api/v1/work_orders/#{id}", params: { reported_at: (reported_at + 1.hour).iso8601(6), expected_lock_version: initial.fetch("lock_version") }, headers: auth_headers
       assert_response :success
       corrected = JSON.parse(response.body)
-      patch "/api/v1/work_orders/#{id}", params: { priority: "P3", lock_version: corrected.fetch("lock_version") }, headers: auth_headers
+      patch "/api/v1/work_orders/#{id}", params: { priority: "P4", expected_lock_version: initial.fetch("lock_version") }, headers: auth_headers
+      assert_response :conflict
+      assert_equal "stale_work_order", JSON.parse(response.body).fetch("code")
+      assert_equal corrected.fetch("lock_version"), WorkOrder.find(id).lock_version
+      patch "/api/v1/work_orders/#{id}", params: { priority: "P3", expected_lock_version: corrected.fetch("lock_version") }, headers: auth_headers
       assert_response :success
       get "/api/v1/work_orders/#{id}", headers: auth_headers
       assert_response :success
@@ -574,7 +578,7 @@ class WorkOrdersControllerTest < ActionDispatch::IntegrationTest
     assessment = reported_at + 2.hours + Rational(1, 2)
     repair = reported_at + 4.hours + Rational(1, 2)
     with_auth_env do
-      patch "/api/v1/work_orders/#{order.id}", params: { reported_at: (reported_at + 1.hour).iso8601(6), assessment_due_at: assessment.iso8601(6), repair_due_at: repair.iso8601(6), lock_version: order.lock_version }, headers: auth_headers
+      patch "/api/v1/work_orders/#{order.id}", params: { reported_at: (reported_at + 1.hour).iso8601(6), assessment_due_at: assessment.iso8601(6), repair_due_at: repair.iso8601(6), expected_lock_version: order.lock_version }, headers: auth_headers
       assert_response :success
       payload = JSON.parse(response.body)
       assert_equal assessment, Time.iso8601(payload.fetch("assessment_due_at"))
@@ -585,6 +589,35 @@ class WorkOrdersControllerTest < ActionDispatch::IntegrationTest
       get "/api/v1/work_orders/#{order.id}", headers: auth_headers
       assert_response :success
       assert_equal assessment, Time.iso8601(JSON.parse(response.body).fetch("sla_due_at"))
+    end
+  end
+
+  test "manager drilldowns exclude PA from KPI and keep dated open follow-ups exact" do
+    ordinary = work_order(status: "needs_assessment", reported_at: 10.days.ago, pa_project: false)
+    ordinary.update!(follow_up_due_on: Date.new(2026, 10, 20), parts_eta: Date.new(2026, 10, 25))
+    pa = work_order(status: "needs_assessment", reported_at: 10.days.ago, pa_project: true)
+    future = work_order(status: "new")
+    future.update!(follow_up_due_on: Date.new(2026, 10, 21), parts_eta: Date.new(2026, 10, 28))
+    closed = work_order(status: "closed")
+    closed.update!(follow_up_due_on: Date.new(2026, 10, 20), parts_eta: Date.new(2026, 10, 25))
+    with_auth_env do
+      get "/api/v1/work_orders", params: { archived: "active", page: 1, sla_status: "overdue", exclude_pa: true }, headers: auth_headers
+      assert_response :success
+      ids = JSON.parse(response.body).fetch("work_orders").pluck("id")
+      assert_includes ids, ordinary.id
+      assert_not_includes ids, pa.id
+      get "/api/v1/work_orders", params: { page: 1, open: true, follow_up_due: true, as_of: "2026-10-20" }, headers: auth_headers
+      ids = JSON.parse(response.body).fetch("work_orders").pluck("id")
+      assert_includes ids, ordinary.id
+      assert_not_includes ids, closed.id
+      assert_not_includes ids, future.id
+      get "/api/v1/work_orders", params: { page: 1, open: true, parts_eta_due: true, as_of: "2026-10-20" }, headers: auth_headers
+      ids = JSON.parse(response.body).fetch("work_orders").pluck("id")
+      assert_includes ids, ordinary.id
+      assert_not_includes ids, closed.id
+      assert_not_includes ids, future.id
+      get "/api/v1/work_orders", params: { page: 1, as_of: "invalid" }, headers: auth_headers
+      assert_response :bad_request
     end
   end
 
@@ -604,29 +637,5 @@ class WorkOrdersControllerTest < ActionDispatch::IntegrationTest
       user.role = email.start_with?("viewer") ? "viewer" : "dispatcher"
     end
     { "Authorization" => "Bearer test_token:#{clerk_id}:#{email}" }
-  end
-  test "manager drilldowns exclude PA from KPI and keep dated open follow-ups exact" do
-    ordinary = work_order(status: "needs_assessment", reported_at: 10.days.ago, pa_project: false)
-    ordinary.update!(follow_up_due_on: Date.new(2026, 10, 20), parts_eta: Date.new(2026, 10, 25))
-    pa = work_order(status: "needs_assessment", reported_at: 10.days.ago, pa_project: true)
-    closed = work_order(status: "closed")
-    closed.update!(follow_up_due_on: Date.new(2026, 10, 20), parts_eta: Date.new(2026, 10, 25))
-    with_auth_env do
-      get "/api/v1/work_orders", params: { archived: "active", page: 1, sla_status: "overdue", exclude_pa: true }, headers: auth_headers
-      assert_response :success
-      ids = JSON.parse(response.body).fetch("work_orders").pluck("id")
-      assert_includes ids, ordinary.id
-      assert_not_includes ids, pa.id
-      get "/api/v1/work_orders", params: { page: 1, open: true, follow_up_due: true, as_of: "2026-10-20" }, headers: auth_headers
-      ids = JSON.parse(response.body).fetch("work_orders").pluck("id")
-      assert_includes ids, ordinary.id
-      assert_not_includes ids, closed.id
-      get "/api/v1/work_orders", params: { page: 1, open: true, parts_eta_due: true, as_of: "2026-10-20" }, headers: auth_headers
-      ids = JSON.parse(response.body).fetch("work_orders").pluck("id")
-      assert_includes ids, ordinary.id
-      assert_not_includes ids, closed.id
-      get "/api/v1/work_orders", params: { page: 1, as_of: "invalid" }, headers: auth_headers
-      assert_response :bad_request
-    end
   end
 end

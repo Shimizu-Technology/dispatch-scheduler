@@ -2,12 +2,12 @@ import type { ReactNode } from 'react'
 import { AlertTriangle, ArrowRight, CalendarDays, Clock3, FileText, FolderKanban, ListChecks, Radio, ShieldCheck, Users, Wrench } from 'lucide-react'
 import { Card, PanelHeader } from './ui'
 import { workOrderViewQuery, type WorkOrderView } from '../lib/workOrderViews'
-import type { AuditEvent, Dashboard, DispatchSchedule, PmTask, Team, Technician, WorkOrder } from '../types'
+import type { AuditEvent, Dashboard, DispatchSchedule, Team, Technician } from '../types'
 
 type Props = {
-  dashboard: Dashboard | null; workOrders: WorkOrder[]; teams: Team[]; technicians: Technician[]; pmTasks: PmTask[]
+  dashboard: Dashboard | null; teams: Team[]; technicians: Technician[]
   schedule: DispatchSchedule | null; auditEvents: AuditEvent[]; canEdit: boolean; working: boolean
-  loading?: boolean; loadError?: string; onRetry?: () => void
+  asOfDate?: string; loading?: boolean; loadError?: string; onRetry?: () => void
   onGoToSection: (section: 'work-orders' | 'pa-projects' | 'teams' | 'dispatch' | 'pm-tasks' | 'whatsapp' | 'activity') => void
   onDateChange?: (date: string) => void
   onOpenWorkOrders: (query: string) => void
@@ -20,10 +20,13 @@ function Metric({ label, value, detail, icon, tone = 'steel', onClick }: { label
   </button>
 }
 
-export function DashboardMetrics({ dashboard, teams, technicians, schedule, auditEvents, canEdit, working, loading = false, loadError = '', onRetry, onDateChange, onGoToSection, onOpenWorkOrders }: Props) {
+export function DashboardMetrics({ dashboard, teams, technicians, schedule, auditEvents, canEdit, working, asOfDate, loading = false, loadError = '', onRetry, onDateChange, onGoToSection, onOpenWorkOrders }: Props) {
+  const header = <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2"><h2 className="text-lg font-bold text-[var(--ink)]">Queue health</h2>{onDateChange ? <label className="inline-flex items-center gap-2 text-sm">As of<input aria-label="As of date" type="date" value={(asOfDate || dashboard?.date || '')} onChange={(event) => { if (event.target.value) onDateChange(event.target.value) }} className="field-control rounded-xl px-2 py-1" /></label> : <p className="text-sm text-[var(--ink-soft)]">As of {(asOfDate || dashboard?.date || '')}</p>}</div>
   // Dashboard totals come from its complete server scope, never the current queue page.
   if (loading || !dashboard) return <section aria-label="Operations overview" className="space-y-3">
+    <div>{header}
     {loadError ? <div role="alert" className="rounded-xl border border-[var(--warning-border)] bg-[var(--warning-soft)] p-4 text-sm text-[var(--warning-ink-strong)]"><p>Operations data is unavailable. {loadError}</p><button type="button" onClick={onRetry} className="mt-2 min-h-11 rounded-xl border border-[var(--warning-border-strong)] bg-[var(--paper)] px-3 font-bold">Retry dashboard</button></div> : <><p role="status" className="text-sm text-[var(--ink-soft)]">Loading operations overview...</p><div aria-hidden="true" className="grid grid-cols-2 gap-3 sm:grid-cols-4">{['Open', 'Overdue', 'Waiting parts', 'PA projects'].map((label) => <div key={label} className="min-h-24 rounded-xl border border-[var(--border)] bg-[var(--paper)] p-3"><span className="block text-2xl">—</span><span className="text-sm text-[var(--ink-soft)]">{label}</span></div>)}</div></>}
+    </div>
   </section>
   const c = dashboard.counts
   const openView = (view: WorkOrderView) => () => onOpenWorkOrders(workOrderViewQuery(view, dashboard.date))
@@ -45,7 +48,7 @@ export function DashboardMetrics({ dashboard, teams, technicians, schedule, audi
   ]
   return <section className="space-y-4">
     <div>
-      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2"><h2 className="text-lg font-bold text-[var(--ink)]">Queue health</h2>{onDateChange ? <label className="inline-flex items-center gap-2 text-sm">As of<input aria-label="As of date" type="date" value={dashboard.date} onChange={(event) => { if (event.target.value) onDateChange(event.target.value) }} className="field-control rounded-xl px-2 py-1" /></label> : <p className="text-sm text-[var(--ink-soft)]">As of {dashboard.date}</p>}</div>
+      {header}
       {loadError && <p role="alert" className="mb-3 text-sm text-[var(--warning-ink-strong)]">Refresh failed. Showing the last loaded overview. <button type="button" onClick={onRetry} className="min-h-11 underline">Retry dashboard</button></p>}
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-4">{queueMetrics.map((metric) => <Metric key={metric.view} {...metric} tone={metric.urgent && (metric.value ?? 0) > 0 ? 'red' : 'steel'} onClick={openView(metric.view)} />)}</div>
     </div>

@@ -1,7 +1,6 @@
 module Api
   module V1
     class WorkOrdersController < ApplicationController
-      rescue_from ActiveRecord::StaleObjectError, with: :render_concurrent_work_order_update
       before_action :require_dispatch_edit!, only: [ :create, :update, :archive, :unarchive, :update_status ]
 
       def index
@@ -190,24 +189,6 @@ module Api
         valid ||= value.is_a?(String) && value.match?(/\A\d+\z/)
         raise ArgumentError, "Expected lock version must be a nonnegative integer" unless valid
         value.to_i
-      end
-
-      def render_stale_work_order(work_order)
-        render json: {
-          code: "stale_work_order",
-          errors: [ "This work order changed while you were editing. Review the latest version before saving again." ],
-          latest_work_order: Serializers.work_order(work_order)
-        }, status: :conflict
-      end
-
-      def render_concurrent_work_order_update(error)
-        if error.record.is_a?(WorkOrder)
-          render_stale_work_order(WorkOrder.find(error.record.id))
-        else
-          render json: { errors: [ "This record changed concurrently. Reload it before trying again." ] }, status: :conflict
-        end
-      rescue ActiveRecord::RecordNotFound
-        render json: { errors: [ "This work order is no longer available." ] }, status: :not_found
       end
 
       def archive_scope(scope)

@@ -64,7 +64,7 @@ export function UserManagementPanel({ deliveryNotice, users, currentUserId, savi
   }
 
   async function deleteUser(user: ManagedUser) {
-    if (!window.confirm(`Delete ${user.email}? This removes their local dispatch access and cannot be undone.`)) return
+    if (!window.confirm(`Delete ${user.email}? This removes their JMI Dispatch access and cannot be undone.`)) return
     await onDelete(user.id)
   }
 

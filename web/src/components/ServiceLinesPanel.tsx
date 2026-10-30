@@ -66,7 +66,7 @@ export function ServiceLinesPanel({ serviceLines, canAdmin, saving, onCreate, on
     <PanelHeader
       eyebrow="Admin configuration"
       title="Service Lines"
-      description="Manage JMI's contract/division labels without hard-coding Mobil, HKR, or school assumptions into the app. Work orders can be filtered and reported by this list."
+      description="Manage contract and division labels used to organize work orders, filter the queue, and group reports."
       action={canAdmin ? <button type="button" onClick={() => { setEditing(null); setShowForm(true) }} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl button-primary bg-[var(--primary)] px-4 py-2.5 font-display text-sm font-extrabold text-[var(--paper)] transition-colors  hover:bg-[var(--jmi-red-deep)] sm:w-auto"><Plus size={16} /> New Service Line</button> : undefined}
     />
     {showForm && <ServiceLineForm key={editing?.id || 'new'} initialValues={initialValues} saving={saving} onCancel={() => { setEditing(null); setShowForm(false) }} onSubmit={submit} />}

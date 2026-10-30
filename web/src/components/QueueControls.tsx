@@ -46,7 +46,7 @@ export function MoreViews({ views, matchesView, onSelect }: { views: WorkOrderVi
       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); initialIndex.current = event.key === 'ArrowUp' ? views.length - 1 : 0; setOpen(true) }
       if (event.key === 'Escape') close(true)
     }} className="flex min-h-11 items-center rounded-xl px-1 text-xs font-semibold text-[var(--jmi-blue)]">More views <span aria-hidden="true" className="ml-1">⌄</span></button>
-    {open && createPortal(<div ref={menu} id={id} role="menu" aria-label="More views" className="fixed z-40 grid w-56 max-w-[calc(100vw-16px)] gap-1 overflow-y-auto rounded-xl border border-[var(--line)] bg-[var(--paper)] p-2 shadow-[var(--shadow-float)]" onKeyDown={(event) => {
+    {open && createPortal(<section aria-label="Work order views"><div ref={menu} id={id} role="menu" aria-label="More views" className="fixed z-40 grid w-56 max-w-[calc(100vw-16px)] gap-1 overflow-y-auto rounded-xl border border-[var(--line)] bg-[var(--paper)] p-2 shadow-[var(--shadow-float)]" onKeyDown={(event) => {
       if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(true) }
       if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
         event.preventDefault()
@@ -55,7 +55,7 @@ export function MoreViews({ views, matchesView, onSelect }: { views: WorkOrderVi
         const next = event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1 : (index + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length
         items[next]?.focus()
       }
-    }}>{views.map((view) => <button key={view} type="button" role="menuitemradio" aria-checked={matchesView(view)} onClick={() => { onSelect(view); close(true) }} className="min-h-11 rounded-lg px-3 text-left text-sm text-[var(--jmi-blue)]">{WORK_ORDER_VIEWS[view].label}</button>)}</div>, document.body)}
+    }}>{views.map((view) => <button key={view} type="button" role="menuitemradio" aria-checked={matchesView(view)} onClick={() => { onSelect(view); close(true) }} className="min-h-11 rounded-lg px-3 text-left text-sm text-[var(--jmi-blue)]">{WORK_ORDER_VIEWS[view].label}</button>)}</div></section>, document.body)}
   </>
 }
 

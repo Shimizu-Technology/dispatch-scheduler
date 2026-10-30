@@ -21,6 +21,7 @@ describe('More views', () => {
     vi.spyOn(trigger, 'getBoundingClientRect').mockReturnValue({ left: width === 375 ? 24 : width - 80, bottom: 390 } as DOMRect)
     await user.click(trigger)
     const menu = screen.getByRole('menu')
+    expect(screen.getByRole('region', { name: 'Work order views' }).contains(menu)).toBe(true)
     const left = parseFloat(menu.style.left), top = parseFloat(menu.style.top)
     expect(left).toBeGreaterThanOrEqual(8)
     expect(left + 224).toBeLessThanOrEqual(width - 8)

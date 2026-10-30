@@ -123,7 +123,7 @@ input:is([type="date"], [type="month"], [type="time"], [type="datetime-local"]) 
   -webkit-appearance: none;
   text-align: left;
 }
-input::-webkit-date-and-time-value { min-width: 0; text-align: left; }
+input::-webkit-date-and-time-value { min-width: 0; text-align: left; white-space: nowrap; }
 input::-webkit-datetime-edit { padding: 0; }
 label:has(input, select, textarea) { min-width: 0; }
 input::placeholder, textarea::placeholder { color: var(--muted); opacity: 1; }

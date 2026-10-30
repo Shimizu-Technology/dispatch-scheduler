@@ -48,3 +48,13 @@ it('retains overview data after refresh failure and offers a working retry', () 
   fireEvent.click(screen.getByRole('button', { name: 'Retry dashboard' }))
   expect(onRetry).toHaveBeenCalledOnce()
 })
+
+it('reserves a full date-value track after native calendar selections', () => {
+  const onDateChange = vi.fn()
+  render(<DashboardMetrics {...props} asOfDate="2026-11-21" onDateChange={onDateChange} />)
+  const date = screen.getByLabelText('As of date') as HTMLInputElement
+  expect(date.parentElement?.className).toContain('w-[10.5rem]')
+  expect(date.parentElement?.className).toContain('shrink-0')
+  fireEvent.change(date, { target: { value: '2026-11-22' } })
+  expect(onDateChange).toHaveBeenCalledWith('2026-11-22')
+})

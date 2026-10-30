@@ -18,5 +18,5 @@ it('constrains native Safari date and time fields without replacing their picker
   const nativeRule = css.match(/input:is\(\[type="date"\][\s\S]*?\n\}/)?.[0] || ''
   for (const type of ['date', 'month', 'time', 'datetime-local']) expect(nativeRule).toContain(`[type="${type}"]`)
   for (const declaration of ['min-width: 0', 'width: 100%', 'max-width: 100%', 'height: 44px', '-webkit-appearance: none', 'text-align: left']) expect(nativeRule).toContain(declaration)
-  expect(css).toContain('input::-webkit-date-and-time-value { min-width: 0; text-align: left; }')
+  expect(css).toContain('input::-webkit-date-and-time-value { min-width: 0; text-align: left; white-space: nowrap; }')
 })

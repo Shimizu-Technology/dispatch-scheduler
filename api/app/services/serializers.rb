@@ -91,35 +91,40 @@ module Serializers
     notes.presence&.join(" ") || "No eligible or blocked items were held out."
   end
 
+  def precise_timestamp(value)
+    value&.iso8601(value.usec.zero? ? 0 : 6)
+  end
+
   def work_order(work_order, include_dispatch_history: true)
     last_dispatch = include_dispatch_history ? last_dispatch_for(work_order) : nil
     {
       id: work_order.id,
+      lock_version: work_order.lock_version,
       external_id: work_order.external_id,
       client: work_order.client.name,
       location: work_order.location.name,
       region: work_order.location.region,
       title: work_order.title,
       description: work_order.description,
-      created_at: work_order.created_at&.iso8601,
+      created_at: precise_timestamp(work_order.created_at),
       priority: work_order.priority,
       normalized_priority: work_order.normalized_priority,
       status: work_order.status,
       original_status_text: work_order.original_status_text,
       trade_category: work_order.trade_category,
-      requested_at: work_order.requested_at&.iso8601,
-      reported_at: work_order.reported_at&.iso8601,
-      assessment_due_at: work_order.assessment_due_at&.iso8601,
-      response_due_at: work_order.response_due_at&.iso8601,
-      repair_due_at: work_order.repair_due_at&.iso8601,
-      assessed_at: work_order.assessed_at&.iso8601,
-      sla_due_at: work_order.sla_due_at&.iso8601,
+      requested_at: precise_timestamp(work_order.requested_at),
+      reported_at: precise_timestamp(work_order.reported_at),
+      assessment_due_at: precise_timestamp(work_order.assessment_due_at),
+      response_due_at: precise_timestamp(work_order.response_due_at),
+      repair_due_at: precise_timestamp(work_order.repair_due_at),
+      assessed_at: precise_timestamp(work_order.assessed_at),
+      sla_due_at: precise_timestamp(work_order.sla_due_at),
       sla_status: sla_status(work_order),
       scheduled_date: work_order.scheduled_date,
       estimated_hours: work_order.estimated_hours&.to_f,
       required_technician_count: work_order.required_technician_count,
       source: work_order.source,
-      archived_at: work_order.archived_at&.iso8601,
+      archived_at: precise_timestamp(work_order.archived_at),
       archived: work_order.archived?,
       team_name: work_order.team&.name,
       notes: work_order.notes,
@@ -132,7 +137,7 @@ module Serializers
       estimate_number: work_order.estimate_number,
       parts_status: work_order.parts_status,
       parts_ordered: work_order.parts_ordered,
-      parts_ordered_at: work_order.parts_ordered_at&.iso8601,
+      parts_ordered_at: precise_timestamp(work_order.parts_ordered_at),
       parts_eta: work_order.parts_eta,
       follow_up_due_on: work_order.follow_up_due_on,
       follow_up_owner: work_order.follow_up_owner,

@@ -1,6 +1,7 @@
 module Api
   module V1
     class WorkOrdersController < ApplicationController
+      rescue_from ActiveRecord::StaleObjectError, with: :render_concurrent_work_order_update
       before_action :require_dispatch_edit!, only: [ :create, :update, :archive, :unarchive, :update_status ]
 
       def index
@@ -28,7 +29,7 @@ module Api
           return render json: scope.limit(200).map { |wo| Serializers.work_order(wo) }
         end
 
-        total_count = scope.count
+        total_count = scope.except(:select).count
         page = pagination_page
         per_page = pagination_per_page
         work_orders = scope.offset((page - 1) * per_page).limit(per_page).map { |wo| Serializers.work_order(wo) }
@@ -56,17 +57,39 @@ module Api
 
       def create
         attrs = work_order_attrs
-        duplicate = duplicate_work_order(attrs[:source], attrs[:external_id])
-        if duplicate
-          return render json: { errors: [ "A work order with this source and WO number already exists" ], duplicate: Serializers.work_order(duplicate) }, status: :conflict
-        end
-
         wo = nil
-        ApplicationRecord.transaction do
-          wo = WorkOrder.create!(work_order_record_attributes(attrs))
-          AuditEvent.record!(action: "work_order.created", record: wo, user: current_user, metadata: work_order_audit_metadata(wo))
+        replayed = false
+        if params.key?(:client_request_id)
+          request_id = params[:client_request_id].to_s.strip.downcase
+          unless WorkOrderCreateReceipt::UUID_FORMAT.match?(request_id)
+            return render json: { errors: [ "Client request id must be a UUID" ] }, status: :unprocessable_entity
+          end
+
+          digest = WorkOrderCreateReceipt.fingerprint(attrs)
+          receipt = WorkOrderCreateReceipt.create_or_find_by!(user_id: current_user.id, client_request_id: request_id) do |record|
+            record.payload_digest = digest
+          end
+          receipt.with_lock do
+            if receipt.payload_digest != digest
+              render json: { errors: [ "This client request id was already used for different work-order details. Start a new request." ] }, status: :conflict
+            elsif receipt.completed_at.present?
+              wo = receipt.work_order
+              if wo
+                replayed = true
+              else
+                render json: { errors: [ "The work order saved for this request is no longer available." ] }, status: :conflict
+              end
+            else
+              wo = persist_work_order(attrs)
+              receipt.update!(work_order: wo, completed_at: Time.current) if wo && !performed?
+            end
+          end
+        else
+          wo = persist_work_order(attrs)
         end
-        render json: Serializers.work_order(wo), status: :created
+        return if performed?
+
+        render json: Serializers.work_order(wo), status: replayed ? :ok : :created
       rescue ActiveRecord::RecordNotFound => e
         render json: { errors: [ e.message ] }, status: :not_found
       rescue ActiveRecord::RecordInvalid => e
@@ -78,16 +101,29 @@ module Api
       def update
         wo = WorkOrder.find(params[:id])
         attrs = work_order_attrs
-        duplicate = duplicate_work_order(attrs[:source].presence || wo.source, attrs.key?(:external_id) ? attrs[:external_id] : wo.external_id, excluding_id: wo.id)
-        if duplicate
-          return render json: { errors: [ "A work order with this source and WO number already exists" ], duplicate: Serializers.work_order(duplicate) }, status: :conflict
+        expected_revision = expected_lock_version
+        wo.with_lock do
+          if expected_revision && wo.lock_version != expected_revision
+            render_stale_work_order(wo)
+            next
+          end
+          source = attrs[:source].presence || wo.source
+          number = attrs.key?(:external_id) ? attrs[:external_id] : wo.external_id
+          identity_changed = WorkOrderIdentityLock.normalized_pair(source, number) != WorkOrderIdentityLock.normalized_pair(wo.source, wo.external_id)
+          WorkOrderIdentityLock.synchronize(source, number) do
+            # Existing duplicate identities must remain editable until reconciled.
+            duplicate = duplicate_work_order(source, number, excluding_id: wo.id) if identity_changed
+            if duplicate
+              render_duplicate(duplicate)
+            else
+              wo.update!(work_order_record_attributes(attrs, existing: wo))
+              changes = wo.previous_changes.except("updated_at", "description", "notes")
+              AuditEvent.record!(action: "work_order.updated", record: wo, user: current_user, metadata: work_order_audit_metadata(wo).merge(changes: changes))
+            end
+          end
         end
+        return if performed?
 
-        ApplicationRecord.transaction do
-          wo.update!(work_order_record_attributes(attrs, existing: wo))
-          changes = wo.previous_changes.except("updated_at", "description", "notes")
-          AuditEvent.record!(action: "work_order.updated", record: wo, user: current_user, metadata: work_order_audit_metadata(wo).merge(changes: changes))
-        end
         render json: Serializers.work_order(wo)
       rescue ActiveRecord::RecordNotFound => e
         render json: { errors: [ e.message ] }, status: :not_found
@@ -144,6 +180,33 @@ module Api
 
       private
 
+      def expected_lock_version
+        return nil unless params.key?(:expected_lock_version)
+        value = params[:expected_lock_version]
+        valid = value.is_a?(Integer) && value >= 0
+        valid ||= value.is_a?(String) && value.match?(/\A\d+\z/)
+        raise ArgumentError, "Expected lock version must be a nonnegative integer" unless valid
+        value.to_i
+      end
+
+      def render_stale_work_order(work_order)
+        render json: {
+          code: "stale_work_order",
+          errors: [ "This work order changed while you were editing. Review the latest version before saving again." ],
+          latest_work_order: Serializers.work_order(work_order)
+        }, status: :conflict
+      end
+
+      def render_concurrent_work_order_update(error)
+        if error.record.is_a?(WorkOrder)
+          render_stale_work_order(WorkOrder.find(error.record.id))
+        else
+          render json: { errors: [ "This record changed concurrently. Reload it before trying again." ] }, status: :conflict
+        end
+      rescue ActiveRecord::RecordNotFound
+        render json: { errors: [ "This work order is no longer available." ] }, status: :not_found
+      end
+
       def archive_scope(scope)
         case params[:archived]
         when "all" then scope
@@ -187,13 +250,17 @@ module Api
         when "status"
           scope.order(status: direction, scheduled_date: :asc, id: :asc)
         when "location"
-          scope.left_joins(:location).order(locations: { name: direction }).order(id: :asc)
+          scope.left_joins(:location).select("work_orders.*", "locations.name AS queue_location_sort").order(Arel.sql(direction == :desc ? "queue_location_sort DESC" : "queue_location_sort ASC"), id: :asc)
         when "sla_due_at"
-          scope.order(Arel.sql(direction == :desc ? "COALESCE(work_orders.repair_due_at, work_orders.assessment_due_at, work_orders.response_due_at) DESC" : "COALESCE(work_orders.repair_due_at, work_orders.assessment_due_at, work_orders.response_due_at) ASC"), id: :asc)
+          # Project the missing-value rank so DISTINCT/ORDER BY is valid on
+          # PostgreSQL and missing deadlines stay last on both database adapters.
+          scope.select("work_orders.*", Arel.sql("#{WorkOrder.sla_due_sql} AS queue_sla_sort"), Arel.sql("CASE WHEN #{WorkOrder.sla_due_sql} IS NULL THEN 1 ELSE 0 END AS queue_sla_missing"))
+            .order(Arel.sql(direction == :desc ? "queue_sla_missing ASC, queue_sla_sort DESC" : "queue_sla_missing ASC, queue_sla_sort ASC"), id: :asc)
         when "created_at"
           scope.order(created_at: direction, id: :asc)
         else
-          scope.order(scheduled_date: direction, id: :asc)
+          scope.select("work_orders.*", Arel.sql("CASE WHEN work_orders.scheduled_date IS NULL THEN 1 ELSE 0 END AS queue_scheduled_missing"))
+            .order(Arel.sql("queue_scheduled_missing ASC"), scheduled_date: direction, id: :asc)
         end
       end
 
@@ -225,7 +292,7 @@ module Api
       end
 
       def work_order_sub_counts(scope)
-        count_scope = scope.except(:order, :limit, :offset)
+        count_scope = scope.except(:select, :order, :limit, :offset)
         {
           waiting_for_parts: count_scope.where(status: "waiting_for_parts").count,
           estimate_required: count_scope.where(estimate_required: true).count,
@@ -239,13 +306,34 @@ module Api
         raise ActionController::BadRequest, "Invalid scheduled date"
       end
 
+      def persist_work_order(attrs)
+        wo = nil
+        WorkOrderIdentityLock.synchronize(attrs[:source], attrs[:external_id]) do
+          duplicate = duplicate_work_order(attrs[:source], attrs[:external_id])
+          if duplicate
+            render_duplicate(duplicate)
+          else
+            ApplicationRecord.transaction do
+              wo = WorkOrder.create!(work_order_record_attributes(attrs))
+              AuditEvent.record!(action: "work_order.created", record: wo, user: current_user, metadata: work_order_audit_metadata(wo))
+            end
+          end
+        end
+        wo
+      end
+
       def work_order_record_attributes(attrs, existing: nil)
         client_name = attrs[:client].to_s.strip.presence || existing&.client&.name || "Manual"
         location_name = attrs[:location].to_s.strip.presence || existing&.location&.name || "Unknown"
         region = attrs[:region].to_s.strip.presence || existing&.location&.region || "Unknown"
         client = Client.find_or_create_by!(name: client_name)
         location = Location.find_or_initialize_by_normalized_name(client: client, name: location_name)
-        location.name = location_name.to_s.strip
+        location.name = location_name.to_s.strip if location.new_record? || existing.present?
+        # Quick intake can leave the region unknown; preserve the shared site's
+        # known region instead of resetting routing for its other work and PMs.
+        if existing.nil? && location.persisted? && region == "Unknown" && location.region.present?
+          region = location.region
+        end
         location.region = region.presence || location.region.presence || "Unknown"
         location.save!
 
@@ -274,7 +362,13 @@ module Api
           status: status,
           original_status_text: attrs[:original_status_text].presence || existing&.original_status_text || status,
           trade_category: attrs[:trade_category].presence || existing&.trade_category || "General",
-          requested_at: reported_at || datetime_attr(attrs, :requested_at, existing&.requested_at),
+          requested_at: if attrs.key?(:requested_at)
+            datetime_attr(attrs, :requested_at, existing&.requested_at)
+                        elsif existing && reported_at == existing.reported_at
+            existing.requested_at
+                        else
+            reported_at || existing&.requested_at
+                        end,
           reported_at: reported_at,
           assessment_due_at: datetime_attr(attrs, :assessment_due_at, existing&.assessment_due_at),
           assessed_at: datetime_attr(attrs, :assessed_at, existing&.assessed_at),
@@ -385,11 +479,31 @@ module Api
       end
 
       def duplicate_work_order(source, external_id, excluding_id: nil)
-        return nil if external_id.blank?
+        normalized_source, normalized_number = WorkOrderIdentityLock.normalized_pair(source, external_id)
+        return nil if normalized_number.nil?
 
-        scope = WorkOrder.where(source: source.presence || "manual", external_id: external_id)
+        table = WorkOrder.arel_table
+        source_node = Arel::Nodes::NamedFunction.new("COALESCE", [
+          Arel::Nodes::NamedFunction.new("NULLIF", [ WorkOrderIdentityLock.normalized_node(table[:source]), Arel::Nodes.build_quoted("") ]),
+          Arel::Nodes.build_quoted("manual")
+        ])
+        scope = WorkOrder.where(source_node.eq(normalized_source)).where(WorkOrderIdentityLock.normalized_node(table[:external_id]).eq(normalized_number))
         scope = scope.where.not(id: excluding_id) if excluding_id
-        scope.first
+        duplicate = scope.first
+        return duplicate if duplicate
+
+        # Ruby and database Unicode case folding can differ (notably SQLite).
+        # Check only the slim identity projection when the fast SQL lookup misses.
+        legacy = WorkOrder.where.not(external_id: [ nil, "" ])
+        legacy = legacy.where.not(id: excluding_id) if excluding_id
+        match = legacy.order(:id).pluck(:id, :source, :external_id).find do |_id, legacy_source, legacy_number|
+          WorkOrderIdentityLock.normalized_pair(legacy_source, legacy_number) == [ normalized_source, normalized_number ]
+        end
+        WorkOrder.find(match.first) if match
+      end
+
+      def render_duplicate(work_order)
+        render json: { errors: [ "A work order with this source and WO number already exists" ], duplicate: Serializers.work_order(work_order) }, status: :conflict
       end
 
       def work_order_attrs

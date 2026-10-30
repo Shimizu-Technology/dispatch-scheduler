@@ -51,6 +51,7 @@ class WorkOrderImportsControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1, payload.size
     assert_equal "WO-900", payload.first.fetch("external_id")
     assert_equal "Sink leak", payload.first.fetch("title")
+    assert_not JSON.parse(response.body).key?("warnings")
   end
 
   test "dispatcher previews pasted intake text" do
@@ -122,7 +123,77 @@ class WorkOrderImportsControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ "OpenRouter API key not configured" ], JSON.parse(response.body).fetch("errors")
   end
 
+  test "returns optional extraction cap warnings with the preview rows" do
+    warnings = [ "Only the first 25 requests are shown; split the remaining requests." ]
+    original_extract = WorkOrderOcrExtractor.method(:extract)
+    begin
+      WorkOrderOcrExtractor.define_singleton_method(:extract) { |_file = nil, **_kwargs| { success: true, work_orders: [], warnings: warnings } }
+      with_auth_env do
+        post "/api/v1/work_order_imports/preview", params: { text: "Synthetic batch" }, headers: auth_headers
+      end
+    ensure
+      WorkOrderOcrExtractor.define_singleton_method(:extract, original_extract)
+    end
+    assert_response :success
+    assert_equal warnings, JSON.parse(response.body).fetch("warnings")
+    assert_equal [], JSON.parse(response.body).fetch("work_orders")
+  end
+
+  test "rejects oversized text through the real extraction guard" do
+    with_auth_env do
+      post "/api/v1/work_order_imports/preview", params: { text: "x" * 20_001 }, headers: auth_headers
+    end
+    assert_response :unprocessable_entity
+    assert_includes JSON.parse(response.body).fetch("errors").first, "Split"
+  end
+
+  test "malformed provider content returns 422 without creating operational records" do
+    headers = auth_headers
+    [ [], "synthetic", nil, {}, { work_orders: [ { title: "Real proposal" }, false ] } ].each do |data|
+      with_provider_content(data.to_json) do
+        with_auth_env do
+          assert_no_difference [ "WorkOrder.count", "PmTask.count", "Client.count", "Location.count" ] do
+            post "/api/v1/work_order_imports/preview", params: { text: "Keep this source for retry" }, headers: headers
+          end
+        end
+      end
+      assert_response :unprocessable_entity
+      payload = JSON.parse(response.body)
+      assert_includes payload.fetch("errors").first, "invalid structure"
+      assert_not payload.key?("work_orders")
+    end
+  end
+
+  test "legitimate empty provider content remains a successful preview with no writes" do
+    with_provider_content({ work_orders: [] }.to_json) do
+      with_auth_env do
+        assert_no_difference "WorkOrder.count" do
+          post "/api/v1/work_order_imports/preview", params: { text: "No requests here" }, headers: auth_headers
+        end
+      end
+    end
+    assert_response :success
+    assert_equal [], JSON.parse(response.body).fetch("work_orders")
+  end
+
   private
+
+  def with_provider_content(content)
+    response = Struct.new(:code, :body).new("200", { choices: [ { message: { content: content } } ] }.to_json)
+    fake_http = Object.new
+    fake_http.define_singleton_method(:use_ssl=) { |_value| }
+    fake_http.define_singleton_method(:open_timeout=) { |_value| }
+    fake_http.define_singleton_method(:read_timeout=) { |_value| }
+    fake_http.define_singleton_method(:request) { |_request| response }
+    original_new = Net::HTTP.method(:new)
+    previous_key = ENV["OPENROUTER_API_KEY"]
+    ENV["OPENROUTER_API_KEY"] = "test-key"
+    Net::HTTP.define_singleton_method(:new) { |_host, _port| fake_http }
+    yield
+  ensure
+    Net::HTTP.define_singleton_method(:new, original_new)
+    previous_key.nil? ? ENV.delete("OPENROUTER_API_KEY") : ENV["OPENROUTER_API_KEY"] = previous_key
+  end
 
   def image_upload
     file = Tempfile.new([ "work-order", ".png" ])

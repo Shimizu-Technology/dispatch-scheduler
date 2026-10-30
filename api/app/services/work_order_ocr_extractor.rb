@@ -9,6 +9,8 @@ class WorkOrderOcrExtractor
   OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
   DEFAULT_MODEL = "google/gemini-2.5-flash"
   MAX_FILE_SIZE = 10.megabytes
+  MAX_TEXT_LENGTH = 20_000
+  MAX_WORK_ORDERS = 25
   SUPPORTED_IMAGE_CONTENT_TYPES = %w[image/jpeg image/png image/webp].freeze
   SUPPORTED_TEXT_CONTENT_TYPES = %w[application/pdf text/plain].freeze
   SUPPORTED_CONTENT_TYPES = (SUPPORTED_IMAGE_CONTENT_TYPES + SUPPORTED_TEXT_CONTENT_TYPES).freeze
@@ -58,6 +60,9 @@ class WorkOrderOcrExtractor
 
     def extract_from_text(text, source_label:, default_source: "pasted_text")
       return { success: false, error: "Paste work-order text before previewing intake." } if text.to_s.strip.blank?
+      if text.to_s.length > MAX_TEXT_LENGTH
+        return { success: false, error: "Intake text exceeds 20,000 characters. Split it into smaller requests and preview each part; no text has been sent for extraction." }
+      end
 
       api_key = ENV["OPENROUTER_API_KEY"]
       return { success: false, error: "OpenRouter API key not configured" } if api_key.blank?
@@ -67,7 +72,7 @@ class WorkOrderOcrExtractor
         messages: [
           {
             role: "user",
-            content: "#{PROMPT}\n\nSource: #{source_label}\n\nDefault source value if no source is visible: #{default_source}\n\nWORK ORDER TEXT:\n#{text.to_s.first(20_000)}"
+            content: "#{PROMPT}\n\nSource: #{source_label}\n\nDefault source value if no source is visible: #{default_source}\n\nWORK ORDER TEXT:\n#{text}"
           }
         ],
         temperature: 0.05,
@@ -107,10 +112,18 @@ class WorkOrderOcrExtractor
       parsed = parse_json_content(response[:content].to_s)
       return parsed if parsed[:success] == false
 
-      rows = parsed.dig(:data, "work_orders")
-      rows = [] unless rows.is_a?(Array)
+      data = parsed[:data]
+      rows = data["work_orders"] if data.is_a?(Hash)
+      unless rows.is_a?(Array) && rows.all? { |row| row.is_a?(Hash) }
+        return { success: false, error: "Extracted work order data has an invalid structure. Preview the source again." }
+      end
 
-      { success: true, work_orders: rows.first(25).map { |row| normalize_row(row) }, raw_response: response[:content].to_s }
+      result = { success: true, work_orders: rows.first(MAX_WORK_ORDERS).map { |row| normalize_row(row) }, raw_response: response[:content].to_s }
+      if rows.length > MAX_WORK_ORDERS
+        omitted = rows.length - MAX_WORK_ORDERS
+        result[:warnings] = [ "Extraction returned #{rows.length} requests. Only the first #{MAX_WORK_ORDERS} are shown; #{omitted} additional #{'request'.pluralize(omitted)} omitted. Split the source and preview the remaining requests separately." ]
+      end
+      result
     end
 
     def validate_upload(uploaded_file)
@@ -197,12 +210,25 @@ class WorkOrderOcrExtractor
 
     def normalize_row(row)
       source = row.is_a?(Hash) ? row : {}
-      priority = source["priority"].presence_in(%w[P1 P2 P3 P4]) || "P3"
-      status = source["status"].presence_in(%w[new needs_assessment approved scheduled waiting_for_parts waiting_for_approval]) || "needs_assessment"
-      trade = source["trade_category"].presence_in(%w[General Plumbing HVAC Electrical Carpentry Painting Landscaping Masonry]) || "General"
+      normalization_issues = []
+      priority = normalize_choice(source["priority"], %w[P1 P2 P3 P4], "P3", "Priority", normalization_issues)
+      status = normalize_choice(source["status"], %w[new needs_assessment approved scheduled waiting_for_parts waiting_for_approval], "needs_assessment", "Status", normalization_issues)
+      trade = normalize_choice(source["trade_category"], %w[General Plumbing HVAC Electrical Carpentry Painting Landscaping Masonry], "General", "Trade", normalization_issues)
       description = source["description"].to_s.squish
       title = source["title"].to_s.squish.presence || description.truncate(60)
+      normalization_issues << "No title or scope was extracted. Review the source before saving." if title.blank?
       location = source["location"].to_s.squish.presence || "Unknown"
+      normalization_issues << "Location is unknown. Identify the site before saving this request." if location.casecmp?("Unknown")
+      dates = %w[scheduled_date parts_eta follow_up_due_on].index_with do |field|
+        normalized = normalize_date(source[field])
+        normalization_issues << "#{field.humanize} was not recognized and was cleared. Check the source before saving." if !missing_value?(source[field]) && normalized.nil?
+        normalized
+      end
+      times = %w[reported_at parts_ordered_at].index_with do |field|
+        normalized = normalize_time_value(source[field])
+        normalization_issues << "#{field.humanize} was not recognized and was cleared. Check the source before saving." if !missing_value?(source[field]) && normalized.nil?
+        normalized
+      end
 
       {
         client: source["client"].to_s.squish.presence || "Manual",
@@ -215,10 +241,10 @@ class WorkOrderOcrExtractor
         priority: priority,
         normalized_priority: priority,
         status: status,
-        original_status_text: status,
+        original_status_text: source["status"].to_s.squish.presence || status,
         trade_category: trade,
-        scheduled_date: normalize_date(source["scheduled_date"]),
-        reported_at: normalize_time_value(source["reported_at"]),
+        scheduled_date: dates["scheduled_date"],
+        reported_at: times["reported_at"],
         notes: source["notes"].to_s.squish.presence,
         pa_project: boolean_value(source["pa_project"]),
         pa_project_notes: source["pa_project_notes"].to_s.squish.presence,
@@ -227,19 +253,32 @@ class WorkOrderOcrExtractor
         estimate_number: source["estimate_number"].to_s.squish.presence,
         parts_status: source["parts_status"].to_s.squish.presence,
         parts_ordered: boolean_value(source["parts_ordered"]),
-        parts_ordered_at: normalize_time_value(source["parts_ordered_at"]),
-        parts_eta: normalize_date(source["parts_eta"]),
-        follow_up_due_on: normalize_date(source["follow_up_due_on"]),
+        parts_ordered_at: times["parts_ordered_at"],
+        parts_eta: dates["parts_eta"],
+        follow_up_due_on: dates["follow_up_due_on"],
         follow_up_owner: source["follow_up_owner"].to_s.squish.presence,
         vendor_reference: source["vendor_reference"].to_s.squish.presence,
         latest_follow_up_note: source["latest_follow_up_note"].to_s.squish.presence,
-        confidence: source["confidence"].presence_in(%w[high medium low]) || "low",
-        issues: Array(source["issues"]).map { |issue| issue.to_s.squish }.reject(&:blank?)
+        confidence: normalization_issues.any? ? "low" : source["confidence"].presence_in(%w[high medium low]) || "low",
+        issues: (Array(source["issues"]).map { |issue| issue.to_s.squish }.reject(&:blank?) + normalization_issues).uniq
       }
+    end
+
+    def normalize_choice(value, choices, fallback, label, issues)
+      return value if choices.include?(value)
+
+      reason = missing_value?(value) ? "missing" : "not recognized"
+      issues << "#{label} was #{reason}. Review the #{fallback} default before saving."
+      fallback
+    end
+
+    def missing_value?(value)
+      value.nil? || (value.is_a?(String) && value.strip.empty?)
     end
 
     def normalize_date(value)
       return nil if value.blank?
+      return nil unless complete_calendar_date?(value)
 
       Date.parse(value.to_s).iso8601
     rescue Date::Error
@@ -248,10 +287,18 @@ class WorkOrderOcrExtractor
 
     def normalize_time_value(value)
       return nil if value.blank?
+      return nil unless complete_calendar_date?(value)
 
       Time.zone.parse(value.to_s)&.iso8601
     rescue ArgumentError
       nil
+    end
+
+    def complete_calendar_date?(value)
+      parts = Date._parse(value.to_s)
+      return false unless %i[year mon mday].all? { |part| parts[part] }
+
+      Date.valid_date?(parts[:year], parts[:mon], parts[:mday])
     end
 
     def boolean_value(value)

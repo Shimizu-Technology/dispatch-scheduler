@@ -12,6 +12,7 @@ vi.mock('./contexts/useAuthContext', () => ({ useAuthContext: () => ({
 }) }))
 vi.mock('@clerk/react', () => ({ UserButton: () => <span>Account</span>, SignInButton: ({ children }: { children: ReactNode }) => children }))
 vi.mock('./lib/api', async (original) => ({ ...await original<typeof import('./lib/api')>(), ...api }))
+vi.mock('./components/ReportsPanel', () => ({ ReportsPanel: () => <p>Reports workspace</p> }))
 vi.mock('./components/DashboardMetrics', () => ({ DashboardMetrics: () => <p>Dashboard workspace</p> }))
 
 const order = {
@@ -143,4 +144,18 @@ describe('intake route and saved queue context', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.getByLabelText('Search work orders')).toHaveProperty('value', 'kept')
   })
+})
+
+it.each(['/work-orders', '/admin/users', '/reports', '/pm', '/activity', '/dashboard'])('keeps dispatch generation out of %s', async (path) => {
+  window.history.replaceState({}, '', path)
+  render(<App />)
+  await waitFor(() => expect(api.getJson).toHaveBeenCalled())
+  expect(screen.queryByRole('button', { name: 'Generate Draft' })).toBeNull()
+})
+
+it('shows draft generation and the schedule date on dispatch', async () => {
+  window.history.replaceState({}, '', '/dispatch/today')
+  render(<App />)
+  expect(await screen.findByRole('button', { name: 'Generate Draft' })).toBeTruthy()
+  expect(screen.getByLabelText('Schedule date')).toBeTruthy()
 })

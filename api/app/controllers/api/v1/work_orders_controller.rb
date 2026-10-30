@@ -16,9 +16,12 @@ module Api
         scope = scope.where(source: params[:source]) if params[:source].present?
         scope = scope.where(service_line_id: params[:service_line_id]) if params[:service_line_id].present?
         scope = scope.where(pa_project: true) if truthy_param?(:pa_project)
+        scope = scope.where(pa_project: [ false, nil ]) if truthy_param?(:exclude_pa)
         scope = scope.where(corrective_maintenance: true) if truthy_param?(:corrective_maintenance)
         scope = scope.where(estimate_required: true) if truthy_param?(:estimate_required)
-        scope = scope.where("follow_up_due_on <= ?", Date.current) if truthy_param?(:follow_up_due)
+        as_of = drilldown_date
+        scope = scope.where("follow_up_due_on <= ?", as_of) if truthy_param?(:follow_up_due)
+        scope = scope.where(parts_eta: ..(as_of + 7.days)) if truthy_param?(:parts_eta_due)
         scope = apply_sla_status(scope, params[:sla_status]) if params[:sla_status].present?
         scope = scope.where(scheduled_date: scheduled_date_param) if params[:scheduled_date].present?
         scope = scope.where("LOWER(clients.name) LIKE ?", "%#{ActiveRecord::Base.sanitize_sql_like(params[:client].to_s.downcase)}%") if params[:client].present?
@@ -225,6 +228,12 @@ module Api
           "LOWER(work_orders.external_id) LIKE :q OR LOWER(work_orders.title) LIKE :q OR LOWER(work_orders.description) LIKE :q OR LOWER(work_orders.notes) LIKE :q OR LOWER(clients.name) LIKE :q OR LOWER(locations.name) LIKE :q",
           q: pattern
         )
+      end
+
+      def drilldown_date
+        params[:as_of].present? ? Date.iso8601(params[:as_of].to_s) : Date.current
+      rescue Date::Error
+        raise ActionController::BadRequest, "Invalid as_of date"
       end
 
       def apply_sla_status(scope, status)

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { WorkOrdersPanel } from './WorkOrdersPanel'
@@ -7,6 +7,7 @@ import { ApiError, postForm, postJson } from '../lib/api'
 import type { WorkOrder } from '../types'
 
 vi.mock('../lib/api', async (importOriginal) => ({ ...await importOriginal<typeof import('../lib/api')>(), postForm: vi.fn(), postJson: vi.fn() }))
+beforeEach(() => { vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined) })
 afterEach(() => { cleanup(); vi.restoreAllMocks() })
 
 function order(overrides: Partial<WorkOrder> = {}): WorkOrder {
@@ -382,12 +383,12 @@ describe('work-order intake and editing', () => {
     const { user } = setup()
     await user.click(screen.getByRole('button', { name: 'New Work Order' }))
     await fillRequest(user)
-    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    await user.click(screen.getByRole('button', { name: 'Close work order editor' }))
     expect(screen.getByRole('alert').textContent).toContain('Discard the unsaved changes')
     await user.click(screen.getByRole('button', { name: 'Keep editing' }))
     expect(document.activeElement).toBe(screen.getByLabelText('Description'))
     expect(screen.getByLabelText('Description')).toHaveProperty('value', 'New request')
-    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    await user.click(screen.getByRole('button', { name: 'Close work order editor' }))
     await user.click(screen.getByRole('button', { name: 'Discard changes' }))
     expect(screen.queryByRole('dialog')).toBeNull()
   })
@@ -419,7 +420,7 @@ it('confirms an interrupted create with the same receipt and locked original inp
  await user.click(screen.getByRole('button', { name: 'Save Work Order' }))
  expect(await screen.findByRole('alert')).toHaveProperty('textContent', expect.stringContaining('may already be in the queue'))
  expect(screen.getByLabelText('Description').matches(':disabled')).toBe(true)
- await user.click(screen.getByRole('button', { name: 'Cancel' }))
+ await user.click(screen.getByRole('button', { name: 'Close work order editor' }))
  expect(screen.getByRole('button', { name: 'Close without confirming' })).toBeTruthy()
  await user.click(screen.getByRole('button', { name: 'Keep editing' }))
  await user.click(screen.getByRole('button', { name: 'Retry and confirm save' }))
@@ -482,7 +483,7 @@ it('protects an untouched prefilled review after an uncertain save', async () =>
  await startPrefilledReview(user)
  await user.click(screen.getByRole('button', { name: 'Save Work Order' }))
  await screen.findByRole('button', { name: 'Retry and confirm save' })
- await user.click(screen.getByRole('button', { name: 'Cancel' }))
+ await user.click(screen.getByRole('button', { name: 'Close work order editor' }))
  expect(screen.getByRole('button', { name: 'Close without confirming' })).toBeTruthy()
  await user.click(screen.getByRole('button', { name: 'Keep editing' }))
  await user.click(screen.getByRole('button', { name: 'Retry and confirm save' }))
@@ -566,7 +567,7 @@ it('retains the complete pasted source after the server rejects oversized intake
  const source = 'x'.repeat(20001)
  fireEvent.change(input, { target: { value: source } })
  await user.click(screen.getByRole('button', { name: 'Preview pasted text' }))
- expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'Pasted intake is limited to 20,000 characters.')
+ expect((await screen.findByRole('alert')).textContent).toContain('Pasted intake is limited to 20,000 characters.')
  expect(input).toHaveProperty('value', source)
  expect(onCreate).not.toHaveBeenCalled()
 })
@@ -575,7 +576,7 @@ it('retains the complete pasted source after the server rejects oversized intake
 it('preserves pasted source and earlier proposals when the next preview finds no work', async () => {
  const { user, onCreate } = setup()
  await startPrefilledReview(user)
- await user.click(screen.getByRole('button', { name: 'Cancel' }))
+ await user.click(screen.getByRole('button', { name: 'Close work order editor' }))
  const input = screen.getByRole('textbox', { name: 'Incoming request text or screenshot' })
  await user.type(input, 'Latest source needs more detail')
  vi.mocked(postJson).mockResolvedValueOnce({ work_orders: [], warnings: [] })
@@ -589,7 +590,7 @@ it('preserves pasted source and earlier proposals when the next preview finds no
 it('shows empty upload recovery without removing earlier proposals', async () => {
  const { user, onCreate } = setup()
  await startPrefilledReview(user)
- await user.click(screen.getByRole('button', { name: 'Cancel' }))
+ await user.click(screen.getByRole('button', { name: 'Close work order editor' }))
  vi.mocked(postForm).mockResolvedValueOnce({ work_orders: [], warnings: [] })
  await user.upload(document.querySelector<HTMLInputElement>('input[type="file"]')!, new File(['synthetic-no-work'], 'empty.png', { type: 'image/png' }))
  expect(await screen.findByRole('alert')).toHaveProperty('textContent', expect.stringContaining('clearer screenshot'))
@@ -739,7 +740,7 @@ it('keeps prior omission warning and full source when the next split preview fai
  vi.mocked(postJson).mockRejectedValueOnce(new Error('Synthetic preview unavailable'))
  fireEvent.change(input, { target: { value: 'Split request that still needs processing' } })
  await user.click(screen.getByRole('button', { name: 'Preview pasted text' }))
- await screen.findByText('Synthetic preview unavailable')
+ await screen.findByText('Automatic extraction is unavailable. Your text is kept.')
  expect(screen.getByText(warning)).toBeTruthy()
  expect(input).toHaveProperty('value', 'Split request that still needs processing')
  expect(screen.getByRole('button', { name: 'Review/Edit' })).toBeTruthy()
@@ -901,10 +902,10 @@ describe('same-identity work-order permissions', () => {
     expect(screen.getByLabelText('Description')).toHaveProperty('value', 'Human corrected proposal')
     expect(screen.getByText('Original request text')).toBeTruthy()
     expect(screen.getByText('Original source evidence')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Close work order editor' }))
     fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }))
     expect(screen.getByLabelText('Description')).toHaveProperty('value', 'Human corrected proposal')
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Close work order editor' }))
     fireEvent.click(screen.getByRole('button', { name: 'Discard changes' }))
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.getByRole('button', { name: 'Review/Edit' })).toHaveProperty('disabled', true)
@@ -923,4 +924,31 @@ it('does not carry a previously authorized deep-link editor into another read-on
   expect(screen.getByRole('dialog').textContent).toContain('Second saved record')
   expect(screen.queryByLabelText('Description')).toBeNull()
   expect(screen.queryByRole('button', { name: 'Save Work Order' })).toBeNull()
+})
+
+it('carries unavailable pasted extraction into a manual draft without exposing provider details', async () => {
+  vi.mocked(postJson).mockRejectedValueOnce(new ApiError('OpenRouter API key not configured', 422))
+  const { user } = setup()
+  await user.click(screen.getByRole('button', { name: 'Paste Intake' }))
+  await user.type(screen.getByRole('textbox', { name: 'Incoming request text or screenshot' }), 'OFFICE AC LEAKING')
+  await user.click(screen.getByRole('button', { name: 'Preview pasted text' }))
+  expect((await screen.findByRole('alert')).textContent).toContain('Automatic extraction is unavailable. Your text is kept.')
+  expect(screen.queryByText(/OpenRouter/)).toBeNull()
+  await user.click(screen.getByRole('button', { name: 'Create manually' }))
+  expect((screen.getByLabelText('Description') as HTMLTextAreaElement).value).toBe('OFFICE AC LEAKING')
+})
+
+it('restores the edited row anchor and focus without scrolling focus into view', async () => {
+  const scroll = vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined)
+  const { user } = setup()
+  const row = document.querySelector<HTMLElement>('[data-work-order-id="1"]')!
+  vi.spyOn(row, 'getBoundingClientRect').mockReturnValue({ top: 210 } as DOMRect)
+  const edit = screen.getByRole('button', { name: 'Edit' })
+  const focus = vi.spyOn(edit, 'focus')
+  await user.click(edit)
+  await user.type(screen.getByLabelText('Description'), ' updated')
+  await user.click(screen.getByRole('button', { name: 'Save Work Order' }))
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  expect(scroll).toHaveBeenCalledWith({ top: 0, behavior: 'instant' })
+  expect(focus).toHaveBeenCalledWith({ preventScroll: true })
 })

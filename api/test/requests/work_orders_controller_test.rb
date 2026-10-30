@@ -605,4 +605,29 @@ class WorkOrdersControllerTest < ActionDispatch::IntegrationTest
     end
     { "Authorization" => "Bearer test_token:#{clerk_id}:#{email}" }
   end
+  test "manager drilldowns exclude PA from KPI and keep dated open follow-ups exact" do
+    ordinary = work_order(status: "needs_assessment", reported_at: 10.days.ago, pa_project: false)
+    ordinary.update!(follow_up_due_on: Date.new(2026, 10, 20), parts_eta: Date.new(2026, 10, 25))
+    pa = work_order(status: "needs_assessment", reported_at: 10.days.ago, pa_project: true)
+    closed = work_order(status: "closed")
+    closed.update!(follow_up_due_on: Date.new(2026, 10, 20), parts_eta: Date.new(2026, 10, 25))
+    with_auth_env do
+      get "/api/v1/work_orders", params: { archived: "active", page: 1, sla_status: "overdue", exclude_pa: true }, headers: auth_headers
+      assert_response :success
+      ids = JSON.parse(response.body).fetch("work_orders").pluck("id")
+      assert_includes ids, ordinary.id
+      assert_not_includes ids, pa.id
+      get "/api/v1/work_orders", params: { page: 1, open: true, follow_up_due: true, as_of: "2026-10-20" }, headers: auth_headers
+      ids = JSON.parse(response.body).fetch("work_orders").pluck("id")
+      assert_includes ids, ordinary.id
+      assert_not_includes ids, closed.id
+      get "/api/v1/work_orders", params: { page: 1, open: true, parts_eta_due: true, as_of: "2026-10-20" }, headers: auth_headers
+      ids = JSON.parse(response.body).fetch("work_orders").pluck("id")
+      assert_includes ids, ordinary.id
+      assert_not_includes ids, closed.id
+      get "/api/v1/work_orders", params: { page: 1, as_of: "invalid" }, headers: auth_headers
+      assert_response :bad_request
+    end
+  end
+
 end

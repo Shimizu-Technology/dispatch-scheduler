@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useAuth, useUser } from '@clerk/react'
 import { AuthContext } from './authContextValue'
-import { getJson, setAuthTokenGetter } from '../lib/api'
+import { ApiError, getJson, setAuthTokenGetter } from '../lib/api'
 import type { CurrentUser } from '../types'
 
 function ClerkAuthProvider({ children }: { children: ReactNode }) {
@@ -32,7 +32,7 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
       setAuthError(null)
     } catch (error) {
       setUser(null)
-      setAuthError(error instanceof Error ? error.message : 'Unable to verify access')
+      setAuthError(error instanceof ApiError && error.status === null ? 'The dispatch service could not be reached. Check your connection and retry.' : error instanceof ApiError && error.status === 401 ? 'Your session could not be verified. Sign in again or retry access.' : error instanceof ApiError && error.status === 403 ? 'This account does not have dispatch access. Ask an administrator to check your invitation.' : 'Access could not be verified. Retry or ask an administrator to check sign-in settings.')
     } finally {
       setIsCheckingApi(false)
     }

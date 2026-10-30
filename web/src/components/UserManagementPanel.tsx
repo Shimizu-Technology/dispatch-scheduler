@@ -24,7 +24,8 @@ type UserFormState = {
   role: UserRole
 }
 
-export function UserManagementPanel({ users, currentUserId, savingUserId, onCreate, onUpdate, onResendInvitation, onDelete }: {
+export function UserManagementPanel({ deliveryNotice, users, currentUserId, savingUserId, onCreate, onUpdate, onResendInvitation, onDelete }: {
+  deliveryNotice?: string
   users: ManagedUser[]
   currentUserId: number | null
   savingUserId: number | null
@@ -44,7 +45,8 @@ export function UserManagementPanel({ users, currentUserId, savingUserId, onCrea
       return
     }
     setFormError('')
-    await onCreate({ email, name: form.name.trim() || undefined, role: form.role })
+    try { await onCreate({ email, name: form.name.trim() || undefined, role: form.role }) }
+    catch { setFormError('The invitation could not be saved. Check your connection and try again.'); return }
     setForm({ email: '', name: '', role: 'dispatcher' })
     setShowInvite(false)
   }
@@ -71,6 +73,7 @@ export function UserManagementPanel({ users, currentUserId, savingUserId, onCrea
     />
 
     <div className="space-y-4 p-4">
+      {deliveryNotice && <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">{deliveryNotice}</p>}
       <div className="grid gap-3 lg:grid-cols-3">
         {roles.map((role) => <div key={role.value} className="rounded-2xl border border-[#244393]/12 bg-[#f8faff] p-4">
           <div className="flex items-center gap-2">

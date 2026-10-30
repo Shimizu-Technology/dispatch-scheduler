@@ -16,7 +16,7 @@ import { WhatsAppExport } from './components/WhatsAppExport'
 import { WorkOrdersPanel, type WorkOrderEditorState } from './components/WorkOrdersPanel'
 import { useAuthContext } from './contexts/useAuthContext'
 import { RequestGuard } from './lib/requestGuard'
-import { deleteJson, getBlob, getJson, patchJson, postJson } from './lib/api'
+import { ApiError, deleteJson, getBlob, getJson, patchJson, postJson } from './lib/api'
 import type { AuditEvent, Dashboard, DispatchOutcomeStatus, DispatchSchedule, ManagedUser, MonthlyReport, PaginationMeta, PmTask, PmTaskBulkCreatePayload, PmTaskInput, PmTemplate, PmTemplateGenerationPayload, PmTemplateInput, ServiceLine, ServiceLineInput, Team, TeamInput, Technician, TechnicianInput, WhatsAppCrewExport, WhatsAppExportPayload, WorkOrder, WorkOrderInput, WorkOrderListPayload, WorkOrderStatus } from './types'
 import './index.css'
 
@@ -284,6 +284,7 @@ function DispatchApp() {
   const [whatsApp, setWhatsApp] = useState('')
   const [whatsAppCrews, setWhatsAppCrews] = useState<WhatsAppCrewExport[]>([])
   const [loading, setLoading] = useState(false)
+  const [overviewReady, setOverviewReady] = useState(false)
   const [working, setWorking] = useState(false)
   const [availabilitySavingId, setAvailabilitySavingId] = useState<number | null>(null)
   const [teamSavingId, setTeamSavingId] = useState<number | null>(null)
@@ -291,6 +292,7 @@ function DispatchApp() {
   const [serviceLineSaving, setServiceLineSaving] = useState(false)
   const [pmTaskSavingId, setPmTaskSavingId] = useState<number | null>(null)
   const [savingUserId, setSavingUserId] = useState<number | null>(null)
+  const [invitationNotice, setInvitationNotice] = useState('')
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState('')
 
@@ -328,7 +330,9 @@ function DispatchApp() {
     else window.history.pushState(state, '', url)
     acceptedHistoryIndex.current = index
     acceptRoute()
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    const destination = routeForLocation(new URL(url, window.location.origin))
+    const current = context.current.route
+    if (!(current.section === 'work-orders' && destination.section === 'work-orders' && queueQueryKey(current.search) === queueQueryKey(destination.search))) window.scrollTo({ top: 0, behavior: 'instant' })
   }, [acceptRoute])
   const mayNavigate = useCallback((target: PendingWorkOrderLeave) => {
     const url = new URL(target.url, window.location.origin)
@@ -406,6 +410,7 @@ function DispatchApp() {
     setPmTemplates(templates.pm_templates)
     setServiceLines(lines.service_lines)
     setSchedule(schedulePayload.schedule)
+    setOverviewReady(true)
     void refreshAuditEvents()
     if (schedulePayload.schedule) {
       await refreshWhatsApp(schedulePayload.schedule.id)
@@ -611,12 +616,13 @@ function DispatchApp() {
   }
 
   async function createManagedUser(values: { email: string; name?: string; role: ManagedUser['role'] }) {
+    setInvitationNotice('')
     setSavingUserId(0)
     setError('')
     try {
       const payload = await postJson<{ user: ManagedUser; invitation_sent: boolean; invitation_error?: string | null }>('/users', values)
       setManagedUsers((currentUsers) => [...currentUsers, payload.user].sort((a, b) => a.email.localeCompare(b.email)))
-      if (payload.invitation_error) setError(`User invited, but email delivery needs attention: ${payload.invitation_error}`)
+      if (payload.invitation_error) setInvitationNotice('Access was saved, but the invitation email was not sent. Check delivery settings and use Resend invitation.')
       await afterAuditedChange()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to invite user')
@@ -643,12 +649,13 @@ function DispatchApp() {
   }
 
   async function resendManagedUserInvitation(userId: number) {
+    setInvitationNotice('')
     setSavingUserId(userId)
     setError('')
     try {
       const payload = await postJson<{ user: ManagedUser; invitation_sent: boolean; invitation_error?: string | null }>(`/users/${userId}/resend_invitation`, {})
       setManagedUsers((currentUsers) => currentUsers.map((candidate) => candidate.id === userId ? payload.user : candidate))
-      if (payload.invitation_error) setError(`Invitation recreated, but email delivery needs attention: ${payload.invitation_error}`)
+      if (payload.invitation_error) setInvitationNotice('The invitation email was not sent. Access is still pending. Check delivery settings and try again.')
       await afterAuditedChange()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to resend invitation')
@@ -692,7 +699,7 @@ function DispatchApp() {
     if (!queueCurrent()) return
     setQueueLoading(false)
     if (orders.status === 'rejected') {
-      const message = orders.reason instanceof Error ? orders.reason.message : 'Unable to load work orders'
+      const message = orders.reason instanceof ApiError && orders.reason.status === null ? 'Work orders could not load. Check your connection and retry.' : orders.reason instanceof Error ? orders.reason.message : 'Unable to load work orders'
       setQueueError(message)
       throw orders.reason
     }
@@ -1394,7 +1401,7 @@ function DispatchApp() {
 
   const activeSectionMeta = sections.find((section) => section.id === currentSection) || sections[0]
   const scheduleActionLabel = working ? 'Working...' : schedule?.status && schedule.status !== 'draft' ? 'Schedule Locked' : 'Generate Draft'
-  const needsTokenClaims = authError?.toLowerCase().includes('missing clerk email')
+  const dispatchScreen = currentSection === 'dispatch' || currentSection === 'whatsapp'
   const isAuthBlocked = isSignedIn && !user && !authLoading && !isVerifyingApi
 
   if (authLoading) {
@@ -1424,86 +1431,19 @@ function DispatchApp() {
         />
 
         <div className="flex min-w-0 flex-col gap-3">
-        <header className="soft-reveal overflow-hidden rounded-[1.05rem] border border-[#1d336c]/12 bg-white/96 shadow-[0_12px_34px_rgba(23,32,51,0.08)] backdrop-blur sm:rounded-[1.2rem]">
-          <div className={`grid gap-0 ${currentSection === 'work-orders' && user ? '' : 'xl:grid-cols-[minmax(0,1fr)_minmax(20rem,28rem)]'}`}>
-            <div className="relative border-b border-[rgba(23,32,51,0.1)] bg-[#172b63] px-3 py-3 text-white sm:px-4 xl:border-b-0 xl:border-r xl:border-white/10 xl:px-5">
-              <div className="absolute inset-y-0 left-0 w-1 bg-[#d84332]" />
-              <div className="flex flex-col justify-between gap-2 pl-2">
-                <div className="flex flex-wrap items-center gap-3">
-                  <button type="button" onClick={() => setMobileNavOpen(true)} className="inline-flex items-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-3 py-2 font-display text-xs font-extrabold uppercase tracking-[0.14em] text-white shadow-[0_10px_24px_rgba(0,0,0,0.12)] backdrop-blur transition hover:bg-white/16 xl:hidden" aria-label="Open navigation" aria-expanded={mobileNavOpen}>
-                    <Menu size={17} /> Menu
-                  </button>
-                  {schedule && currentSection !== 'work-orders' && <span className={`inline-flex items-center rounded-full border px-3 py-1.5 font-display text-[0.66rem] font-extrabold uppercase tracking-[0.14em] ${schedule.status === 'sent' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : schedule.status === 'finalized' ? 'border-blue-200 bg-blue-50 text-blue-900' : 'border-white/15 bg-white/10 text-blue-50'}`}>{schedule.status}</span>}
-                </div>
-                <div>
-                  <p className="font-display text-[0.68rem] font-extrabold uppercase tracking-[0.28em] text-blue-100/80">{currentSection === 'work-orders' ? 'JMI work order tracking' : 'Operations management board'}</p>
-                  <div className="mt-1 flex flex-wrap items-end gap-x-3 gap-y-1">
-                    <h1 className="font-display text-xl font-black tracking-[-0.03em] sm:text-2xl md:text-3xl">{activeSectionMeta?.label || 'Daily Dispatch'}</h1>
-                    <p className="pb-1 text-xs font-semibold leading-5 text-blue-50/72 sm:text-sm">{activeSectionMeta?.description || 'Daily dispatch command center'}</p>
-                  </div>
-                  <p className="mt-2 font-display text-[0.66rem] font-extrabold uppercase tracking-[0.18em] text-blue-100/60">JMI / {activeSectionMeta?.label || 'Dashboard'}{currentRoute.month ? ` / ${currentRoute.month}` : currentRoute.date ? ` / ${currentRoute.date}` : ''}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className={`${currentSection === 'work-orders' && user ? 'xl:hidden' : ''} grid gap-2 bg-white px-3 py-3 sm:grid-cols-2 sm:gap-3 sm:px-4 xl:grid-cols-1 xl:px-4`}>
-              {!user && isSignedIn ? <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
-                <div className="flex items-start gap-3">
-                  <span className="rounded-xl bg-amber-100 p-2 text-amber-800">{isVerifyingApi ? <RefreshCw className="animate-spin" size={18} /> : <LockKeyhole size={18} />}</span>
-                  <div>
-                    <span className="font-display block font-extrabold">{isVerifyingApi ? 'Verifying your access' : 'Signed in, access needs setup'}</span>
-                    <span className="text-amber-900/80">{isVerifyingApi ? 'Checking your JMI dispatch role...' : 'Clerk worked. The API still needs profile access.'}</span>
-                  </div>
-                </div>
-              </div> : !user ? <div className="rounded-2xl border border-[#244393]/15 bg-[#f8faff] p-3 text-sm text-[#334155]">
-                <div className="flex items-start gap-3">
-                  <span className="rounded-xl bg-[#e8eefc] p-2 text-[#244393]"><LockKeyhole size={18} /></span>
-                  <div>
-                    <span className="font-display block font-extrabold text-[#172033]">Sign in to JMI</span>
-                    <span className="text-[#526071]">Sign in to access work orders and operations.</span>
-                  </div>
-                </div>
-              </div> : null}
-
-              {user && currentSection !== 'work-orders' && <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 sm:col-span-2 xl:col-span-1">
-                <label className="rounded-2xl border border-[rgba(23,32,51,0.1)] bg-[#f8faff] px-3 py-2">
-                  <span className="font-display block text-[0.64rem] font-extrabold uppercase tracking-[0.16em] text-[#64748b]">Schedule date</span>
-                  <input
-                    type="date"
-                    value={selectedDate}
-                    onChange={(event) => handleSelectedDateChange(event.target.value)}
-                    className="tabular mt-1 w-full rounded-xl border border-[rgba(23,32,51,0.12)] bg-white px-3 py-2 font-display text-sm font-extrabold text-[#172033] outline-none transition focus:border-[#244393] focus:ring-4 focus:ring-[#244393]/12"
-                  />
-                </label>
-                <button
-                  type="button"
-                  disabled={selectedDate === todayDate}
-                  onClick={() => handleSelectedDateChange(todayDate)}
-                  className="min-h-11 rounded-2xl border border-[rgba(36,67,147,0.18)] bg-white px-4 py-2 font-display text-xs font-extrabold uppercase tracking-[0.14em] text-[#244393] transition hover:-translate-y-0.5 hover:bg-[#e8eefc] disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Today
-                </button>
-              </div>}
-
-              <div className="flex flex-col gap-2 sm:col-span-2 sm:flex-row sm:flex-wrap sm:items-center xl:col-span-1">
-                {canEditDispatch && currentSection !== 'overview' && currentSection !== 'work-orders' && <button disabled={working || Boolean(schedule && schedule.status !== 'draft')} onClick={suggestSchedule} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#d84332] px-4 py-2.5 font-display text-sm font-extrabold text-white shadow-[0_10px_22px_rgba(216,67,50,0.18)] transition hover:-translate-y-0.5 hover:bg-[#bf3228] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:flex-none">
-                  <ClipboardList size={17} /> {scheduleActionLabel}
-                </button>}
-                {user && <div className="inline-flex w-full items-center gap-3 rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white px-3 py-2 text-sm text-[#526071] shadow-sm sm:w-auto sm:flex-none xl:hidden">
-                  <UserButton />
-                  <span className="leading-tight">
-                    <span className="font-display block font-extrabold text-[#172033]">{user.name}</span>
-                    <span className="text-xs capitalize text-[#64748b]">{user.role}</span>
-                  </span>
-                </div>}
-                {!isSignedIn && <SignInButton mode="modal">
-                  <button className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#172b63] px-5 py-3 font-display text-sm font-extrabold text-white shadow-[0_16px_34px_rgba(23,43,99,0.2)] transition hover:-translate-y-0.5 hover:bg-[#244393] sm:w-auto sm:flex-none">
-                    <LockKeyhole size={18} /> Sign In
-                  </button>
-                </SignInButton>}
-              </div>
-            </div>
+        <header className="app-header rounded-xl border border-slate-200 bg-white">
+          <div className="flex min-h-14 items-center gap-3 px-3">
+            <button type="button" onClick={() => setMobileNavOpen(true)} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-[#244393] xl:hidden" aria-label="Open navigation" aria-expanded={mobileNavOpen}><Menu size={20} /></button>
+            <span className="font-display font-extrabold text-[#244393]">JMI</span>
+            <h1 className="min-w-0 flex-1 text-lg font-bold text-[#172033]">{activeSectionMeta?.label || 'Dispatch'}</h1>
+            {user && <UserButton />}
+            {!isSignedIn && <SignInButton mode="modal"><button className="min-h-11 rounded-xl bg-[#172b63] px-3 text-sm font-bold text-white">Sign in</button></SignInButton>}
           </div>
+          {user && dispatchScreen && <div className="flex flex-wrap items-end gap-2 border-t border-slate-200 p-3">
+            <label className="min-w-0 flex-1 text-xs font-semibold text-[#526071]">Schedule date<input type="date" value={selectedDate} onChange={(event) => handleSelectedDateChange(event.target.value)} className="field-control mt-1 block w-full rounded-xl px-3 py-2" /></label>
+            <button type="button" disabled={selectedDate === todayDate} onClick={() => handleSelectedDateChange(todayDate)} className="min-h-11 rounded-xl border border-slate-200 px-3 text-sm font-bold">Today</button>
+            {canEditDispatch && currentSection === 'whatsapp' && <button disabled={working || Boolean(schedule && schedule.status !== 'draft')} onClick={suggestSchedule} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#c53c2e] px-3 text-sm font-bold text-white disabled:opacity-60"><ClipboardList size={17} />{scheduleActionLabel}</button>}
+          </div>}
         </header>
 
         {!user && !authError && !isVerifyingApi && <SignInRequiredPanel />}
@@ -1518,19 +1458,18 @@ function DispatchApp() {
           <RefreshCw size={16} className="animate-spin" /> Loading live dispatch data...
         </div>}
 
-        {isAuthBlocked && <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-900">
-          {needsTokenClaims
-            ? 'Your Clerk sign-in worked, but the API needs access to your email. Add CLERK_SECRET_KEY to api/.env, or configure Clerk token email claims.'
-            : `Your Clerk sign-in worked, but the dispatch API could not confirm your role yet: ${authError || 'Unable to verify access'}`}
+        {isAuthBlocked && <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+          <p>{authError || 'Your access could not be verified.'}</p>
+          <button type="button" onClick={() => void refreshUser()} className="mt-2 min-h-11 rounded-xl border border-amber-300 bg-white px-3 font-bold">Retry access</button>
         </div>}
 
         {user && !canEditDispatch && <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-900">Viewer mode: you can inspect dashboard, work orders, teams, PMs, and generated schedules, but editing controls are hidden.</div>}
 
         {error && <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-800">{error}</div>}
 
-        {currentSection === 'overview' && <DashboardMetrics dashboard={dashboard} workOrders={workOrders.filter((workOrder) => !workOrder.archived)} teams={teams} technicians={technicians} pmTasks={pmTasks} schedule={schedule} auditEvents={auditEvents} canEdit={canEditDispatch} working={working} onGoToSection={goToSection} onSuggest={suggestSchedule} />}
+        {currentSection === 'overview' && <DashboardMetrics dashboard={overviewReady ? dashboard : null} workOrders={workOrders.filter((workOrder) => !workOrder.archived)} teams={teams} technicians={technicians} pmTasks={pmTasks} schedule={schedule} auditEvents={auditEvents} canEdit={canEditDispatch} working={working} loading={loading} loadError={error} onRetry={() => void loadInitialData(selectedDate).catch((err) => { setError(err.message); setLoading(false) })} onGoToSection={goToSection} onOpenWorkOrders={(query) => navigateTo(`/work-orders?${query}`)} />}
 
-        {currentSection === 'work-orders' && (user ? <WorkOrdersPanel loading={queueLoading} loadError={queueError} onRetry={() => void fetchWorkOrders(currentRoute.search)} onEditorStateChange={reportWorkOrderEditor} pendingLeave={Boolean(pendingWorkOrderLeave)} onKeepEditing={() => setPendingWorkOrderLeave(null)} onDiscardAndLeave={discardAndLeaveWorkOrders} leaveBlocked={workOrderLeaveBlocked} workOrders={workOrders} meta={workOrderMeta} serviceLines={serviceLines} canEdit={canEditDispatch} saving={workOrderSaving} routeSearch={currentRoute.search} workOrderToEdit={workOrderToEdit} onEditConsumed={clearWorkOrderToEdit} onRouteQueryChange={updateWorkOrderRouteQuery} onFetch={fetchWorkOrders} onCreate={createWorkOrder} onUpdate={updateWorkOrder} onArchive={archiveWorkOrder} /> : <SignInRequiredPanel title="Sign in to review work orders" />)}
+        {currentSection === 'work-orders' && (user ? <WorkOrdersPanel loading={queueLoading} loadError={queueError} onRetry={() => void fetchWorkOrders(currentRoute.search)} onEditorStateChange={reportWorkOrderEditor} pendingLeave={Boolean(pendingWorkOrderLeave)} onKeepEditing={() => setPendingWorkOrderLeave(null)} onDiscardAndLeave={discardAndLeaveWorkOrders} leaveBlocked={workOrderLeaveBlocked} workOrders={workOrders} meta={workOrderMeta} serviceLines={serviceLines} canAdmin={Boolean(user.permissions.can_admin)} canEdit={canEditDispatch} saving={workOrderSaving} routeSearch={currentRoute.search} workOrderToEdit={workOrderToEdit} onEditConsumed={clearWorkOrderToEdit} onRouteQueryChange={updateWorkOrderRouteQuery} onFetch={fetchWorkOrders} onCreate={createWorkOrder} onUpdate={updateWorkOrder} onArchive={archiveWorkOrder} /> : <SignInRequiredPanel title="Sign in to review work orders" />)}
 
         {currentSection === 'pa-projects' && (user ? <PaProjectsPanel workOrders={paProjectWorkOrders} meta={paProjectMeta} canEdit={canEditDispatch} onPage={fetchPaProjects} onEdit={openWorkOrderFromPaProject} /> : <SignInRequiredPanel title="Sign in to review PA Projects" />)}
 
@@ -1548,7 +1487,7 @@ function DispatchApp() {
 
         {currentSection === 'activity' && (user ? <ActivityPanel events={auditEvents} /> : <SignInRequiredPanel title="Sign in to review activity" />)}
 
-        {currentSection === 'users' && user?.permissions.can_admin && <UserManagementPanel users={managedUsers} currentUserId={user.id} savingUserId={savingUserId} onCreate={createManagedUser} onUpdate={updateManagedUser} onResendInvitation={resendManagedUserInvitation} onDelete={deleteManagedUser} />}
+        {currentSection === 'users' && user?.permissions.can_admin && <UserManagementPanel deliveryNotice={invitationNotice} users={managedUsers} currentUserId={user.id} savingUserId={savingUserId} onCreate={createManagedUser} onUpdate={updateManagedUser} onResendInvitation={resendManagedUserInvitation} onDelete={deleteManagedUser} />}
         </div>
       </div>
     </main>

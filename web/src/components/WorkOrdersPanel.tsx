@@ -2,7 +2,8 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ClipboardEvent, FormEvent, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Archive, ArchiveRestore, ClipboardPaste, Edit3, FileUp, Plus, Search, Sparkles, X } from 'lucide-react'
-import { Badge, Card, PanelHeader } from './ui'
+import { Badge, Card } from './ui'
+import { activeWorkOrderContext, DEFAULT_WORK_ORDER_QUERY, WORK_ORDER_VIEWS, workOrderViewQuery, type WorkOrderView } from '../lib/workOrderViews'
 import { ApiError, postForm, postJson } from '../lib/api'
 import type { OcrWorkOrderDraft, PaginationMeta, ServiceLine, WorkOrder, WorkOrderImportPreview, WorkOrderInput, WorkOrderStatus } from '../types'
 
@@ -11,7 +12,8 @@ const statuses: WorkOrderStatus[] = ['new', 'needs_assessment', 'approved', 'sch
 const trades = ['General', 'Plumbing', 'HVAC', 'Electrical', 'Carpentry', 'Painting', 'Landscaping', 'Masonry']
 const regions = ['North', 'Central', 'South', 'Islandwide', 'Unknown']
 const sources = ['whatsapp', 'phone', 'email', 'mywork', 'sodexo', 'manual', 'upload']
-const DEFAULT_WORK_ORDER_QUERY = 'archived=active&page=1&per_page=50&sort=created_at&direction=desc'
+// George's intake defaults are pending confirmation; change them together here.
+const WORK_ORDER_CREATION_DEFAULTS = { client: 'Mobil', source: 'whatsapp', priority: 'P3', status: 'needs_assessment', region: 'Unknown', trade_category: 'General', required_technician_count: 1 } as const
 
 export type WorkOrderEditorState = { open: boolean; dirty: boolean; saving: boolean; unconfirmed: boolean }
 type WorkOrderNavigationProps = {
@@ -155,22 +157,16 @@ function statusSummary(status: string) {
 
 function emptyForm(): WorkOrderInput {
   return {
-    client: 'Mobil',
+    ...WORK_ORDER_CREATION_DEFAULTS,
     location: '',
-    region: 'Unknown',
     external_id: '',
-    source: 'whatsapp',
     title: '',
     description: '',
-    priority: 'P3',
-    status: 'needs_assessment',
-    trade_category: 'General',
     scheduled_date: '',
     notes: '',
     reported_at: datetimeLocalNow(),
     assessed_at: '',
     estimated_hours: '',
-    required_technician_count: 1,
     service_line_id: '',
     pa_project: false,
     pa_project_notes: '',
@@ -269,7 +265,7 @@ function WorkOrderRow({ workOrder, canEdit, onEdit, onArchive }: { workOrder: Wo
     finally { setArchiving(false) }
   }
   const details = [
-    ['Client', workOrder.client], ['Service line', workOrder.service_line || 'Unassigned'],
+    ['Location', workOrder.location], ['Client', workOrder.client], ['Service line', workOrder.service_line || 'Unassigned'],
     ['Trade / region', `${workOrder.trade_category} / ${workOrder.region || 'Unknown'}`],
     ['Source', workOrder.source], ['Reported', shortDateTime(workOrder.reported_at)],
     ['Scheduled', shortDate(workOrder.scheduled_date)], ['KPI due', shortDateTime(workOrder.sla_due_at)],
@@ -279,7 +275,7 @@ function WorkOrderRow({ workOrder, canEdit, onEdit, onArchive }: { workOrder: Wo
     ['Parts ETA', shortDate(workOrder.parts_eta)], ['Follow-up owner', workOrder.follow_up_owner || 'Unassigned'],
     ['Follow-up due', shortDate(workOrder.follow_up_due_on)], ['Vendor reference', workOrder.vendor_reference || 'Not set'],
   ]
-  return <article className="rounded-xl border border-slate-200 bg-white p-4">
+  return <article data-work-order-id={workOrder.id} tabIndex={-1} className="work-order-row rounded-xl border border-slate-200 bg-white p-4">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
@@ -289,10 +285,10 @@ function WorkOrderRow({ workOrder, canEdit, onEdit, onArchive }: { workOrder: Wo
           {workOrder.archived && <Badge kind="waiting">Archived</Badge>}
           {workOrder.pa_project && <Badge kind="waiting">PA Project</Badge>}
         </div>
-        <h3 className="mt-2 break-words text-base font-bold text-[#172033]">{workOrder.location}</h3>
-        <p className="mt-1 line-clamp-2 break-words text-sm leading-5 text-[#526071]">{workOrder.description || workOrder.title}</p>
-        <p className="mt-2 text-xs text-[#64748b]">{workOrder.client} · {statusSummary(workOrder.status)}</p>
-        {(workOrder.latest_follow_up_note || workOrder.parts_status || workOrder.follow_up_due_on) && <p className="mt-2 break-words text-xs leading-5 text-amber-900">
+        <h3 className="mt-2 break-words [overflow-wrap:anywhere] text-base font-bold text-[#172033]">{workOrder.location}</h3>
+        <p className="mt-1 line-clamp-2 break-words [overflow-wrap:anywhere] text-sm leading-5 text-[#526071]">{workOrder.description || workOrder.title}</p>
+        <p className="mt-2 break-words [overflow-wrap:anywhere] text-xs text-[#64748b]">{workOrder.client} · {statusSummary(workOrder.status)}</p>
+        {(workOrder.latest_follow_up_note || workOrder.parts_status || workOrder.follow_up_due_on) && <p className="mt-2 break-words [overflow-wrap:anywhere] text-xs leading-5 text-amber-900">
           {workOrder.latest_follow_up_note || (workOrder.parts_status ? `Parts: ${workOrder.parts_status}` : 'Follow-up required')}
           {workOrder.follow_up_due_on ? ` · Follow up ${shortDate(workOrder.follow_up_due_on)}` : ''}
         </p>}
@@ -301,23 +297,23 @@ function WorkOrderRow({ workOrder, canEdit, onEdit, onArchive }: { workOrder: Wo
     </div>
     <details className="mt-3 border-t border-slate-100 pt-2">
       <summary className="cursor-pointer text-sm font-semibold text-[#244393]">Details and notes</summary>
-      {workOrder.title && workOrder.title !== workOrder.description && <p className="mt-3 break-words text-sm font-bold text-[#172033]">{workOrder.title}</p>}
-      <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-[#334155]">{workOrder.description || workOrder.title}</p>
+      {workOrder.title && workOrder.title !== workOrder.description && <p className="mt-3 break-words [overflow-wrap:anywhere] text-sm font-bold text-[#172033]">{workOrder.title}</p>}
+      <p className="mt-3 whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-sm leading-6 text-[#334155]">{workOrder.description || workOrder.title}</p>
       <div className="my-3 flex flex-wrap gap-2">
         <Badge kind={slaBadgeKind(workOrder)}>{slaLabel(workOrder)}</Badge>
         {workOrder.corrective_maintenance && <Badge kind="approved">Corrective maintenance</Badge>}
         {workOrder.estimate_required && <Badge kind="scheduled">Estimate{workOrder.estimate_number ? ` #${workOrder.estimate_number}` : ' required'}</Badge>}
       </div>
-      <dl className="grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-4">{details.map(([label, value]) => <div key={label} className="min-w-0"><dt className="text-xs text-[#64748b]">{label}</dt><dd className="mt-1 break-words text-[#172033]">{value}</dd></div>)}</dl>
-      {workOrder.pa_project_notes && <p className="mt-3 whitespace-pre-wrap break-words text-sm text-[#334155]"><strong>PA Project: </strong>{workOrder.pa_project_notes}</p>}
-      {workOrder.notes && <p className="mt-3 whitespace-pre-wrap break-words text-sm text-[#334155]"><strong>Notes: </strong>{workOrder.notes}</p>}
+      <dl className="grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-4">{details.map(([label, value]) => <div key={label} className="min-w-0"><dt className="text-xs text-[#64748b]">{label}</dt><dd className="mt-1 break-words [overflow-wrap:anywhere] text-[#172033]">{value}</dd></div>)}</dl>
+      {workOrder.pa_project_notes && <p className="mt-3 whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-sm text-[#334155]"><strong>PA Project: </strong>{workOrder.pa_project_notes}</p>}
+      {workOrder.notes && <p className="mt-3 whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-sm text-[#334155]"><strong>Notes: </strong>{workOrder.notes}</p>}
       {archiveError && <p role="alert" className="mt-3 text-sm text-red-800">{archiveError}</p>}
       {canEdit && <button type="button" disabled={archiving} onClick={() => void archive()} className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm text-[#526071] disabled:opacity-50">{workOrder.archived ? <ArchiveRestore size={15} /> : <Archive size={15} />}{archiving ? 'Saving...' : workOrder.archived ? 'Restore' : 'Archive'}</button>}
     </details>
   </article>
 }
 
-function WorkOrderForm({ initialValues, serviceLines, serviceLineCatalog, onRefreshServiceLines, currentServiceLine, canEdit, saving, notice, allowAddAnother, isNew, review, onUnconfirmed, onDirty, onCancel, onSubmit }: { initialValues: WorkOrderInput; serviceLines: ServiceLine[]; currentServiceLine?: { id: number; name: string | null }; canEdit: boolean; saving: boolean; notice: string; allowAddAnother: boolean; isNew: boolean; review?: Pick<ImportDraft, 'confidence' | 'issues' | 'originalRequestText'>; onUnconfirmed: (value: boolean) => void; onDirty: () => void; onCancel: () => void; onSubmit: (values: WorkOrderInput, addAnother: boolean) => Promise<void> } & ServiceLineCatalogProps) {
+function WorkOrderForm({ initialValues, serviceLines, serviceLineCatalog, onRefreshServiceLines, currentServiceLine, canEdit, saving, notice, allowAddAnother, isNew, review, onUnconfirmed, onDirty, onSubmit }: { initialValues: WorkOrderInput; serviceLines: ServiceLine[]; currentServiceLine?: { id: number; name: string | null }; canEdit: boolean; saving: boolean; notice: string; allowAddAnother: boolean; isNew: boolean; review?: Pick<ImportDraft, 'confidence' | 'issues' | 'originalRequestText'>; onUnconfirmed: (value: boolean) => void; onDirty: () => void; onSubmit: (values: WorkOrderInput, addAnother: boolean) => Promise<void> } & ServiceLineCatalogProps) {
   const [values, setValues] = useState<WorkOrderInput>(initialValues)
   const [saveError, setSaveError] = useState('')
   const [unconfirmed, setUnconfirmed] = useState(false)
@@ -336,7 +332,7 @@ function WorkOrderForm({ initialValues, serviceLines, serviceLineCatalog, onRefr
   useEffect(() => {
     if (!canEdit) {
       accessNoticeRef.current?.scrollIntoView?.({ block: 'nearest' })
-      accessNoticeRef.current?.focus()
+      accessNoticeRef.current?.focus({ preventScroll: true })
     }
   }, [canEdit])
   useEffect(() => {
@@ -345,7 +341,7 @@ function WorkOrderForm({ initialValues, serviceLines, serviceLineCatalog, onRefr
   useEffect(() => {
     if (saveError) {
       saveErrorRef.current?.scrollIntoView?.({ block: 'nearest' })
-      saveErrorRef.current?.focus()
+      saveErrorRef.current?.focus({ preventScroll: true })
     }
   }, [saveError])
   const selectedServiceLineId = values.service_line_id ? String(values.service_line_id) : ''
@@ -430,7 +426,7 @@ function WorkOrderForm({ initialValues, serviceLines, serviceLineCatalog, onRefr
     <fieldset disabled={!canEdit || saving || unconfirmed} className="min-h-0 min-w-0 flex-1 overflow-y-auto border-0 p-4 pb-6">
     {notice && <p role="status" className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-900">{notice}</p>}
     {saveError && <p ref={saveErrorRef} tabIndex={-1} role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-900">{saveError}{conflict && <><span className="mt-2 block">Your entries are still here. Load the latest saved version to review the other changes before editing again.</span><button type="button" onClick={() => { const latest = formFromWorkOrder(conflict); dateBaseline.current = latest; setValues(latest); setConflict(null); setSaveError(''); onDirty(); formRef.current?.querySelector<HTMLElement>('[data-autofocus]')?.focus() }} className="mt-2 rounded-xl border border-red-300 bg-white px-3 py-2 font-bold">Discard my edits and load latest</button></>}</p>}
-    <p className="mb-4 text-sm text-[#526071]">Capture the request below. Expand the other sections when you need to schedule work or track a follow-up. Unsaved entries stay in this view only; they are not autosaved.</p>
+    <p className="mb-4 text-sm text-[#526071]">Enter the request, then save. Unsaved changes stay here until you close.</p>
     {review && <div role="note" aria-label="Extraction review" className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
       <p className="font-bold">Extraction confidence: {review.confidence}</p>
       {review.issues.length > 0 && <ul className="mt-2 list-disc space-y-1 pl-5">{review.issues.map((issue, index) => <li key={index}>{issue}</li>)}</ul>}
@@ -438,8 +434,8 @@ function WorkOrderForm({ initialValues, serviceLines, serviceLineCatalog, onRefr
     </div>}
     {review?.originalRequestText && <details className="mb-4 rounded-xl border border-slate-200 bg-white p-3">
       <summary className="cursor-pointer font-bold text-[#172033]">Original request text</summary>
-      <p className="mt-2 text-xs text-[#64748b]">Kept in this browser review only. This text is not saved with the work order.</p>
-      <pre className="mt-3 max-h-64 overflow-y-auto whitespace-pre-wrap break-words rounded-lg bg-slate-50 p-3 text-sm leading-6 text-[#334155]">{review.originalRequestText}</pre>
+      <p className="mt-2 break-words [overflow-wrap:anywhere] text-xs text-[#64748b]">Kept in this browser review only. This text is not saved with the work order.</p>
+      <pre className="mt-3 max-h-64 overflow-y-auto whitespace-pre-wrap break-words [overflow-wrap:anywhere] rounded-lg bg-slate-50 p-3 text-sm leading-6 text-[#334155]">{review.originalRequestText}</pre>
     </details>}
     <div className="grid gap-3 lg:grid-cols-4">
       <label className="text-xs font-extrabold uppercase tracking-[0.11em] text-[#64748b]">
@@ -634,14 +630,9 @@ function WorkOrderForm({ initialValues, serviceLines, serviceLineCatalog, onRefr
     </label>
 
     </fieldset>
-    <div className="sticky bottom-0 z-10 flex flex-col gap-2 border-t border-[rgba(23,32,51,0.1)] bg-white/95 p-4 shadow-[0_-14px_30px_rgba(23,32,51,0.08)] backdrop-blur sm:flex-row sm:flex-wrap sm:justify-end">
-      <button disabled={saving} type="button" onClick={onCancel} className="w-full rounded-2xl border border-[rgba(23,32,51,0.12)] bg-white px-4 py-2.5 font-display text-sm font-extrabold text-[#334155] transition hover:-translate-y-0.5 hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60 sm:w-auto">
-        Cancel
-      </button>
-      {allowAddAnother && <button disabled={!canEdit || saving || unconfirmed || Boolean(conflict)} type="submit" name="intent" value="another" className="rounded-xl border border-[#244393]/25 bg-white px-4 py-2.5 font-bold text-[#244393] disabled:opacity-50">Save and add another</button>}
-      <button disabled={!canEdit || saving || Boolean(conflict)} type="submit" className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#244393] px-4 py-2.5 font-display text-sm font-extrabold text-white shadow-[0_12px_26px_rgba(36,67,147,0.18)] transition hover:-translate-y-0.5 hover:bg-[#172b63] disabled:cursor-wait disabled:opacity-60 sm:w-auto">
-        {saving ? 'Saving...' : unconfirmed ? 'Retry and confirm save' : 'Save Work Order'}
-      </button>
+    <div className="editor-footer sticky bottom-0 z-10 flex shrink-0 items-center justify-end gap-2 border-t border-slate-200 bg-white p-3">
+      {allowAddAnother && <button aria-label="Save and add another" disabled={!canEdit || saving || unconfirmed || Boolean(conflict)} type="submit" name="intent" value="another" className="min-h-11 rounded-xl border border-[#244393]/25 bg-white px-3 text-sm font-bold text-[#244393] disabled:opacity-50">Save + next</button>}
+      <button aria-label={unconfirmed ? 'Retry and confirm save' : 'Save Work Order'} disabled={!canEdit || saving || Boolean(conflict)} type="submit" className="min-h-11 rounded-xl bg-[#c53c2e] px-5 text-sm font-bold text-white disabled:opacity-60">{saving ? 'Saving...' : unconfirmed ? 'Retry save' : 'Save'}</button>
     </div>
   </form>
 }
@@ -680,8 +671,8 @@ function WorkOrderEditorDrawer({ open, title, subtitle, saving, onClose, onEdito
     return () => {
       document.body.style.overflow = previousOverflow
       window.removeEventListener('keydown', handleKeyDown)
-      if (previousFocus?.isConnected && previousFocus !== document.body) previousFocus.focus()
-      else document.querySelector<HTMLElement>('[aria-label="Search work orders"]')?.focus()
+      if (previousFocus?.isConnected && previousFocus !== document.body) previousFocus.focus({ preventScroll: true })
+      else document.querySelector<HTMLElement>('[aria-label="Search work orders"]')?.focus({ preventScroll: true })
     }
   }, [open])
 
@@ -690,14 +681,13 @@ function WorkOrderEditorDrawer({ open, title, subtitle, saving, onClose, onEdito
   return createPortal(
     <div className="fixed inset-0 z-50 flex justify-end">
       <button type="button" aria-hidden="true" tabIndex={-1} aria-label="Close work order editor" disabled={saving} onClick={onClose} className="absolute inset-0 bg-[#07111f]/48 backdrop-blur-sm transition disabled:cursor-wait" />
-      <aside ref={dialogRef} onFocusCapture={(event) => { if (event.target instanceof HTMLElement && event.target.matches('input, textarea, select')) onEditorFocus?.(event.target) }} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="work-order-editor-title" className="relative flex h-full w-full max-w-5xl flex-col overflow-hidden border-l border-white/20 bg-[#f8faff] shadow-[-28px_0_60px_rgba(7,17,31,0.26)] sm:w-[92vw] xl:w-[78vw]">
-        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[rgba(23,32,51,0.1)] bg-white px-4 py-4 sm:px-5">
+      <aside ref={dialogRef} onFocusCapture={(event) => { if (event.target instanceof HTMLElement && event.target.matches('input, textarea, select')) onEditorFocus?.(event.target) }} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="work-order-editor-title" className="editor-drawer relative flex h-full w-full max-w-5xl flex-col overflow-hidden border-l border-white/20 bg-[#f8faff] shadow-[-28px_0_60px_rgba(7,17,31,0.26)] sm:w-[92vw] xl:w-[78vw]">
+        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[rgba(23,32,51,0.1)] bg-white px-4 py-2 sm:px-5">
           <div>
-            <p className="font-display text-xs font-extrabold uppercase tracking-[0.16em] text-[#244393]">Work order editor</p>
             <h2 id="work-order-editor-title" className="font-display mt-1 text-xl font-black tracking-tight text-[#172033]">{title}</h2>
             <p className="mt-1 text-sm font-semibold leading-5 text-[#64748b]">{subtitle}</p>
           </div>
-          <button type="button" aria-label="Close work order editor" disabled={saving} onClick={onClose} className="rounded-2xl border border-[rgba(23,32,51,0.12)] bg-white p-2 text-[#526071] transition hover:-translate-y-0.5 hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60"><X size={18} /></button>
+          <button type="button" aria-label="Close work order editor" disabled={saving} onClick={onClose} className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white p-2 text-[#526071] transition hover:-translate-y-0.5 hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60"><X size={18} /></button>
         </div>
         {children}
       </aside>
@@ -706,7 +696,7 @@ function WorkOrderEditorDrawer({ open, title, subtitle, saving, onClose, onEdito
   )
 }
 
-export function WorkOrdersPanel({ workOrders, meta, serviceLines, serviceLineCatalog, onRefreshServiceLines, canEdit, saving, loading = false, loadError = '', onRetry, routeSearch = '', workOrderToEdit, onEditConsumed, onRouteQueryChange, onFetch, onCreate, onUpdate, onArchive, onEditorStateChange, pendingLeave = false, onKeepEditing, onDiscardAndLeave, leaveBlocked = false }: { workOrders: WorkOrder[]; meta: PaginationMeta | null; serviceLines: ServiceLine[]; canEdit: boolean; saving: boolean; loading?: boolean; loadError?: string; onRetry?: () => void; routeSearch?: string; workOrderToEdit?: WorkOrder | null; onEditConsumed?: () => void; onRouteQueryChange?: (query: string) => void; onFetch: (query: string) => Promise<void>; onCreate: (values: WorkOrderInput) => Promise<WorkOrder>; onUpdate: (id: number, values: WorkOrderInput) => Promise<WorkOrder>; onArchive: (workOrderId: number, archived: boolean) => Promise<void> } & WorkOrderNavigationProps & ServiceLineCatalogProps) {
+export function WorkOrdersPanel({ canAdmin = false, workOrders, meta, serviceLines, serviceLineCatalog, onRefreshServiceLines, canEdit, saving, loading = false, loadError = '', onRetry, routeSearch = '', workOrderToEdit, onEditConsumed, onRouteQueryChange, onFetch, onCreate, onUpdate, onArchive, onEditorStateChange, pendingLeave = false, onKeepEditing, onDiscardAndLeave, leaveBlocked = false }: { canAdmin?: boolean; workOrders: WorkOrder[]; meta: PaginationMeta | null; serviceLines: ServiceLine[]; canEdit: boolean; saving: boolean; loading?: boolean; loadError?: string; onRetry?: () => void; routeSearch?: string; workOrderToEdit?: WorkOrder | null; onEditConsumed?: () => void; onRouteQueryChange?: (query: string) => void; onFetch: (query: string) => Promise<void>; onCreate: (values: WorkOrderInput) => Promise<WorkOrder>; onUpdate: (id: number, values: WorkOrderInput) => Promise<WorkOrder>; onArchive: (workOrderId: number, archived: boolean) => Promise<void> } & WorkOrderNavigationProps & ServiceLineCatalogProps) {
   const initialFilters = workOrderFiltersFromQuery(routeSearch)
   const latestCanEdit = useRef(canEdit)
   useLayoutEffect(() => { latestCanEdit.current = canEdit }, [canEdit])
@@ -740,6 +730,10 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, serviceLineCat
     setIntakePreview((current) => ({ ...current, warnings }))
   }
   const [importError, setImportError] = useState('')
+  const [importDiagnostic, setImportDiagnostic] = useState('')
+  const [manualFallback, setManualFallback] = useState(false)
+  const returnAnchor = useRef<{ id: number; top: number; scrollY: number } | null>(null)
+  const [restoreAnchor, setRestoreAnchor] = useState(false)
   const [pasteText, setPasteText] = useState('')
   const [query, setQuery] = useState(initialFilters.query)
   const [statusFilter, setStatusFilter] = useState(initialFilters.status)
@@ -766,6 +760,19 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, serviceLineCat
   // A permission change must disable an existing draft, not replace its state.
   // Fresh Viewer deep links continue to use the separate read-only details view.
   const isFormOpen = showForm || Boolean(reviewDraft) || Boolean(workOrderToEdit && (canEdit || deepEditorId === deepEditId))
+  useLayoutEffect(() => {
+    if (!restoreAnchor || isFormOpen || loading) return
+    const anchor = returnAnchor.current
+    const row = anchor && document.querySelector<HTMLElement>(`[data-work-order-id="${anchor.id}"]`)
+    if (row && anchor) {
+      window.scrollTo({ top: window.scrollY + row.getBoundingClientRect().top - anchor.top, behavior: 'instant' })
+      row.querySelector<HTMLElement>('button')?.focus({ preventScroll: true })
+    } else if (anchor) {
+      window.scrollTo({ top: anchor.scrollY, behavior: 'instant' })
+      document.querySelector<HTMLElement>('[data-saved-receipt]')?.focus({ preventScroll: true })
+    }
+    setRestoreAnchor(false) // eslint-disable-line react-hooks/set-state-in-effect
+  }, [restoreAnchor, loading, workOrders, isFormOpen])
   useLayoutEffect(() => {
     if (canEdit && deepEditId !== null) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -825,6 +832,10 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, serviceLineCat
     params.set('per_page', String(meta?.per_page || 50))
     params.set('sort', sort)
     params.set('direction', direction)
+    for (const key of ['exclude_pa', 'parts_eta_due', 'as_of']) {
+      const value = new URLSearchParams(appliedQuery).get(key)
+      if (value) params.set(key, value)
+    }
     if (query.trim()) params.set('q', query.trim())
     if (statusFilter) params.set('status', statusFilter)
     if (priorityFilter) params.set('priority', priorityFilter)
@@ -886,14 +897,15 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, serviceLineCat
   const editorSubtitle = activeEditing
     ? `WO #${activeEditing.external_id || 'N/A'} · ${statusLabel(activeEditing.status)} · ${activeEditing.normalized_priority}`
     : reviewDraft
-      ? 'Confirm the AI/OCR fields before this becomes a live dispatch record.'
-      : 'Add the request now. Scheduling and follow-up details can be updated later.'
+      ? 'Check the extracted fields before saving.'
+      : 'Capture now; schedule later.'
 
   async function submitForm(values: WorkOrderInput, addAnother: boolean) {
     if (!canEdit) throw new Error('Viewer access cannot save work orders.')
     if (activeEditing) {
       const saved = await onUpdate(activeEditing.id, values)
       setSavedRecord(saved || null)
+      setRestoreAnchor(true)
     } else {
       const saved = await onCreate(values)
       setSavedRecord(saved || null)
@@ -933,6 +945,8 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, serviceLineCat
   }
 
   function startEdit(workOrder: WorkOrder) {
+    const row = document.querySelector<HTMLElement>(`[data-work-order-id="${workOrder.id}"]`)
+    returnAnchor.current = { id: workOrder.id, top: row?.getBoundingClientRect().top ?? 120, scrollY: window.scrollY }
     setSaveNotice('')
     setSaveUnconfirmed(false)
     setEditorDirty(false)
@@ -965,6 +979,8 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, serviceLineCat
     extractingSource.current = true
     setUploading(true)
     setImportError('')
+    setImportDiagnostic('')
+    setManualFallback(false)
     try {
       const data = new FormData()
       data.append('file', file)
@@ -974,7 +990,9 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, serviceLineCat
       if (newDrafts.length) setImportDrafts((currentDrafts) => [...currentDrafts, ...newDrafts])
       else setImportError('No work orders found in this source. Add more detail or try a clearer screenshot, then preview again. Earlier proposals are still available.')
     } catch (err) {
-      setImportError(err instanceof Error ? err.message : 'Unable to scan uploaded work order')
+      setImportError('Automatic extraction is unavailable. Your text is kept. You can enter the request manually from your file.')
+      setImportDiagnostic(err instanceof Error ? err.message : 'Scan failed')
+      setManualFallback(true)
     } finally {
       extractingSource.current = false
       setUploading(false)
@@ -988,6 +1006,8 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, serviceLineCat
     extractingSource.current = true
     setUploading(true)
     setImportError('')
+    setImportDiagnostic('')
+    setManualFallback(false)
     try {
       const payload = await postJson<WorkOrderImportPreview>('/work_order_imports/preview', { text: originalRequestText })
       const newDrafts = payload.work_orders.map((draft, index) => ({ ...draft, draftId: draftId(draft, index), originalRequestText }))
@@ -998,7 +1018,9 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, serviceLineCat
         if (!payload.warnings?.length) setPasteText('')
       } else setImportError('No work orders found in this source. Add more detail or try a clearer screenshot, then preview again. Earlier proposals are still available.')
     } catch (err) {
-      setImportError(err instanceof Error ? err.message : 'Unable to preview pasted intake')
+      setImportError(err instanceof Error && err.message.startsWith('Pasted intake is limited to ') ? err.message : 'Automatic extraction is unavailable. Your text is kept.')
+      setImportDiagnostic(err instanceof Error ? err.message : 'Extraction failed')
+      setManualFallback(true)
     } finally {
       extractingSource.current = false
       setUploading(false)
@@ -1014,43 +1036,34 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, serviceLineCat
     }
   }
 
-  const quickFilters = [
-    { label: 'Active Queue', query: DEFAULT_WORK_ORDER_QUERY },
-    { label: 'Open', query: `${DEFAULT_WORK_ORDER_QUERY}&open=true` },
-    { label: 'Needs Assessment', query: `${DEFAULT_WORK_ORDER_QUERY}&status=needs_assessment` },
-    { label: 'Ready to Schedule', query: `${DEFAULT_WORK_ORDER_QUERY}&status=approved` },
-    { label: 'Waiting Parts', query: `${DEFAULT_WORK_ORDER_QUERY}&status=waiting_for_parts` },
-    { label: 'Waiting Approval', query: `${DEFAULT_WORK_ORDER_QUERY}&status=waiting_for_approval` },
-    { label: 'KPI Overdue', query: 'archived=active&page=1&per_page=50&sort=sla_due_at&direction=asc&sla_status=overdue' },
-    { label: 'KPI Due Soon', query: 'archived=active&page=1&per_page=50&sort=sla_due_at&direction=asc&sla_status=due_soon' },
-    { label: 'Follow-up Due', query: `${DEFAULT_WORK_ORDER_QUERY}&follow_up_due=true` },
-    { label: 'PA Projects', query: `${DEFAULT_WORK_ORDER_QUERY}&pa_project=true` },
-    { label: 'Estimates', query: `${DEFAULT_WORK_ORDER_QUERY}&estimate_required=true` },
-    { label: 'Closed', query: 'archived=all&page=1&per_page=50&sort=created_at&direction=desc&closed=true' },
-  ]
-  const normalizedAppliedQuery = normalizedWorkOrderQuery(appliedQuery)
+  const coreViews: WorkOrderView[] = ['open', 'waiting', 'overdue']
+  const moreViews = (Object.keys(WORK_ORDER_VIEWS) as WorkOrderView[]).filter((view) => !coreViews.includes(view))
+  function matchesView(view: WorkOrderView) {
+    const current = new URLSearchParams(appliedQuery)
+    const target = new URLSearchParams(workOrderViewQuery(view))
+    current.delete('page'); target.delete('page'); current.sort(); target.sort()
+    return current.toString() === target.toString()
+  }
 
   return <Card className="work-order-workspace overflow-hidden">
-    <PanelHeader
-      eyebrow="Work orders"
-      title="Work orders"
-      description="Capture incoming requests, find existing work, and keep follow-ups moving."
-      action={canEdit ? <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
-        <button type="button" onClick={startCreate} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#c53c2e] px-4 py-2.5 font-display text-sm font-extrabold text-white shadow-[0_12px_26px_rgba(216,67,50,0.2)] transition hover:-translate-y-0.5 hover:bg-[#bf3228] sm:w-auto"><Plus size={16} /> New Work Order</button>
-        <button type="button" onClick={() => setShowPasteIntake((current) => !current)} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-[#244393]/15 bg-white px-4 py-2.5 font-display text-sm font-extrabold text-[#244393] transition hover:-translate-y-0.5 hover:bg-[#e8eefc] sm:w-auto"><ClipboardPaste size={16} /> Paste Intake</button>
-        <label className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-[#244393]/15 bg-[#e8eefc] px-4 py-2.5 font-display text-sm font-extrabold text-[#244393] transition hover:-translate-y-0.5 hover:bg-[#dfe8ff] sm:w-auto">
-          <FileUp size={16} /> {uploading ? 'Scanning...' : 'Scan File'}
-          <input type="file" accept="image/png,image/jpeg,image/webp,application/pdf,text/plain" disabled={uploading} onChange={(event) => { const file = event.target.files?.[0] || null; event.target.value = ''; void previewUpload(file) }} className="sr-only" />
-        </label>
-
-      </div> : <span className="tabular rounded-full bg-[#172b63] px-3 py-1.5 font-display text-xs font-extrabold uppercase tracking-[0.14em] text-white">{workOrders.length} records</span>}
-    />
+    <div className="queue-actions flex flex-wrap items-center gap-2 border-b border-slate-200 p-3">
+      <h2 className="mr-auto text-base font-bold text-[#172033]">Requests</h2>
+      {canEdit && <>
+        <button type="button" onClick={startCreate} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#c53c2e] px-3 text-sm font-bold text-white"><Plus size={16} /><span>New Work Order</span></button>
+        <button type="button" aria-expanded={showPasteIntake} onClick={() => setShowPasteIntake((current) => !current)} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm font-bold text-[#244393]"><ClipboardPaste size={16} />Paste Intake</button>
+        <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm font-bold text-[#244393] focus-within:ring-2"><FileUp size={16} />{uploading ? 'Scanning...' : 'Scan File'}<input aria-label="Scan File" type="file" accept="image/png,image/jpeg,image/webp,application/pdf,text/plain" disabled={uploading} onChange={(event) => { const file = event.target.files?.[0] || null; event.target.value = ''; void previewUpload(file) }} className="sr-only" /></label>
+      </>}
+    </div>
 
     {saveNotice && !isFormOpen && <div className="flex flex-wrap items-center justify-between gap-2 border-b border-emerald-100 bg-emerald-50 px-4 py-3">
       <p role="status" className="text-sm font-semibold text-emerald-900">{saveNotice}</p>
-      {savedRecord && <button type="button" onClick={() => startEdit(savedRecord)} className="min-h-10 rounded-xl border border-emerald-800 px-3 py-2 text-sm font-bold text-emerald-900">View saved work order</button>}
+      {savedRecord && <button type="button" data-saved-receipt onClick={() => startEdit(savedRecord)} className="min-h-10 rounded-xl border border-emerald-800 px-3 py-2 text-sm font-bold text-emerald-900">View saved work order</button>}
     </div>}
-    {importError && <div role="alert" className="border-b border-red-100 bg-red-50 p-4 text-sm font-bold text-red-800">{importError}</div>}
+    {importError && <div role="alert" className="border-b border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+      <p>{importError}</p>
+      {manualFallback && canEdit && <button type="button" onClick={() => { startCreate(); setNewDefaults({ description: pasteText }); setShowPasteIntake(false) }} className="mt-2 min-h-11 rounded-xl border border-amber-300 bg-white px-3 font-bold">Create manually</button>}
+      {canAdmin && importDiagnostic && <details className="mt-2"><summary>Admin diagnostics</summary><p className="break-words">{importDiagnostic}</p></details>}
+    </div>}
 
     {showPasteIntake && <div className="border-b border-[rgba(23,32,51,0.1)] bg-[#f8faff] p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
@@ -1117,37 +1130,22 @@ export function WorkOrdersPanel({ workOrders, meta, serviceLines, serviceLineCat
           <button type="button" disabled={saving} onClick={() => { if (pendingLeave) { discardEditor(false); onDiscardAndLeave?.() } else discardEditor() }} className="rounded-xl bg-amber-950 px-3 py-2 font-bold text-white">{saveUnconfirmed ? 'Close without confirming' : 'Discard changes'}</button>
         </div>
       </div>}
-      <WorkOrderForm key={activeEditing?.id || reviewDraft?.draftId || `new-${editorInstance}`} initialValues={formInitialValues} serviceLines={serviceLines} serviceLineCatalog={serviceLineCatalog} onRefreshServiceLines={onRefreshServiceLines} currentServiceLine={activeEditing?.service_line_id ? { id: activeEditing.service_line_id, name: activeEditing.service_line } : undefined} canEdit={canEdit} saving={saving} notice={saveNotice} allowAddAnother={!activeEditing && !reviewDraft} isNew={!activeEditing} review={reviewDraft || undefined} onUnconfirmed={setSaveUnconfirmed} onDirty={() => setEditorDirty(true)} onCancel={closeEditor} onSubmit={submitForm} />
+      <WorkOrderForm key={activeEditing?.id || reviewDraft?.draftId || `new-${editorInstance}`} initialValues={formInitialValues} serviceLines={serviceLines} serviceLineCatalog={serviceLineCatalog} onRefreshServiceLines={onRefreshServiceLines} currentServiceLine={activeEditing?.service_line_id ? { id: activeEditing.service_line_id, name: activeEditing.service_line } : undefined} canEdit={canEdit} saving={saving} notice={saveNotice} allowAddAnother={!activeEditing && !reviewDraft} isNew={!activeEditing} review={reviewDraft || undefined} onUnconfirmed={setSaveUnconfirmed} onDirty={() => setEditorDirty(true)} onSubmit={submitForm} />
     </WorkOrderEditorDrawer>
 
-    <div className="border-b border-[rgba(23,32,51,0.1)] bg-[#f8faff] p-3 sm:p-4">
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <p className="font-display text-xs font-extrabold uppercase tracking-[0.16em] text-[#244393]">Queue views</p>
-        <span className="text-xs font-bold text-[#64748b]">Choose a view, or search for a specific request.</span>
+    <div className="queue-toolbar border-b border-slate-200 bg-white p-3">
+      <div className="flex gap-2">
+        <label className="relative block min-w-0 flex-1"><span className="sr-only">Search work orders</span><Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#64748b]" size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} aria-label="Search work orders" enterKeyHint="search" onKeyDown={(event) => { if (event.key === 'Enter') applyFilters() }} placeholder="WO #, site, description or notes" className="field-control min-h-11 w-full rounded-xl py-2 pl-9 pr-3" /></label>
+        <button type="button" onClick={applyFilters} className="min-h-11 rounded-xl border border-slate-200 px-3 text-sm font-bold text-[#244393]">Search</button>
       </div>
-      <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1">
-        {quickFilters.map((filter) => {
-          const isActive = normalizedAppliedQuery === normalizedWorkOrderQuery(filter.query)
-          return <button key={filter.label} type="button" aria-pressed={isActive} onClick={() => applyQuickFilter(filter.query)} className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-extrabold uppercase tracking-[0.1em] transition ${isActive ? 'border-[#172b63] bg-[#172b63] text-white shadow-[0_10px_24px_rgba(23,43,99,0.16)]' : 'border-[rgba(36,67,147,0.16)] bg-white text-[#244393] hover:bg-[#e8eefc]'}`}>{filter.label}</button>
-        })}
+      <div className="mt-2 flex flex-wrap items-center gap-1">
+        {coreViews.map((view) => <button key={view} type="button" aria-pressed={matchesView(view)} onClick={() => applyQuickFilter(workOrderViewQuery(view))} className={`min-h-11 rounded-xl border px-3 text-sm font-semibold ${matchesView(view) ? 'border-[#172b63] bg-[#172b63] text-white' : 'border-slate-200 text-[#244393]'}`}>{WORK_ORDER_VIEWS[view].label}</button>)}
+        <details className="relative"><summary className="flex min-h-11 cursor-pointer items-center rounded-xl px-2 text-sm font-semibold text-[#244393]">More views</summary><div className="absolute right-0 z-20 grid w-56 gap-1 rounded-xl border border-slate-200 bg-white p-2 shadow-xl">{moreViews.map((view) => <button key={view} type="button" aria-pressed={matchesView(view)} onClick={(event) => { applyQuickFilter(workOrderViewQuery(view)); event.currentTarget.closest('details')?.removeAttribute('open') }} className="min-h-11 rounded-lg px-3 text-left text-sm text-[#244393]">{WORK_ORDER_VIEWS[view].label}</button>)}</div></details>
       </div>
-    </div>
-
-    <div className="border-b border-[rgba(23,32,51,0.1)] bg-white p-3 sm:p-4">
-      <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_12rem_auto]">
-        <label className="relative block">
-          <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#64748b]" size={16} />
-          <input value={query} onChange={(event) => setQuery(event.target.value)} aria-label="Search work orders" onKeyDown={(event) => { if (event.key === 'Enter') applyFilters() }} placeholder="Search WO #, site, description or notes" className="field-control w-full rounded-xl py-2 pl-9 pr-3 text-sm font-semibold text-[#172033]" />
-        </label>
-        <select aria-label="Status filter" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="field-control rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]">
-          <option value="">All statuses</option>
-          {statuses.map((status) => <option key={status} value={status}>{statusLabel(status)}</option>)}
-        </select>
-        <button type="button" onClick={applyFilters} className="min-h-10 rounded-xl bg-[#244393] px-4 py-2 text-sm font-bold text-white">Search</button>
-      </div>
-      <details className="mt-3" open={Boolean(initialFilters.archive !== 'active' || initialFilters.priority || initialFilters.region || initialFilters.serviceLine || initialFilters.slaStatus || initialFilters.paProject || initialFilters.correctiveMaintenance || initialFilters.estimateRequired || initialFilters.followUpDue || initialFilters.openOnly || initialFilters.closed || (initialFilters.sort !== 'created_at') || (initialFilters.direction !== 'desc'))}>
-        <summary className="cursor-pointer text-sm font-semibold text-[#244393]">More filters and sorting{hasActiveFilters ? ' · filters selected' : ''}</summary>
-
+      <p aria-label="Active filters" className="mt-2 break-words text-xs text-[#526071]">{activeWorkOrderContext(appliedQuery)}</p>
+      <details className="mt-2">
+        <summary className="flex min-h-11 cursor-pointer items-center text-sm font-semibold text-[#244393]">Filters and sorting{hasActiveFilters ? ' · selected' : ''}</summary>
+        <select aria-label="Status filter" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="field-control my-2 w-full rounded-xl px-3 py-2"><option value="">All statuses</option>{statuses.map((status) => <option key={status} value={status}>{statusLabel(status)}</option>)}</select>
       <div className="grid gap-2 sm:gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-[1fr_150px_160px_150px_150px_180px_150px]">
 
         <select aria-label="Archive filter" value={archiveFilter} onChange={(event) => setArchiveFilter(event.target.value as 'active' | 'archived' | 'all')} className="field-control rounded-xl px-3 py-2 text-sm font-semibold text-[#172033]">

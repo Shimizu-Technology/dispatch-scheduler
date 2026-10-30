@@ -1529,7 +1529,7 @@ function DispatchApp() {
 
         {currentSection === 'reports' && <ReportsPanel month={selectedDate.slice(0, 7)} onMonthChange={(month) => handleSelectedDateChange(dateFromMonth(month, selectedDate))} report={monthlyReport} loading={reportLoading} onDownloadCsv={downloadMonthlyReportCsv} />}
 
-        {currentSection === 'whatsapp' && <WhatsAppExport schedule={schedule} message={whatsApp} crews={whatsAppCrews} copied={copied} working={working} canEdit={canEditDispatch} onCopy={copyWhatsApp} onMarkSent={markScheduleSent} />}
+        {currentSection === 'whatsapp' && <WhatsAppExport schedule={schedule} message={whatsApp} crews={whatsAppCrews} copied={copied} working={working} canEdit={canEditDispatch} onCopy={copyWhatsApp} onMarkSent={markScheduleSent} onOpenDispatch={() => goToSection('dispatch')} />}
 
         {currentSection === 'activity' && <ActivityPanel events={auditEvents} />}
 

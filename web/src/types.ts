@@ -18,7 +18,7 @@ export type WorkOrder = {
   description: string
   created_at: string
   priority: string
-  normalized_priority: string
+  normalized_priority: string | null
   status: WorkOrderStatus
   original_status_text: string
   trade_category: string

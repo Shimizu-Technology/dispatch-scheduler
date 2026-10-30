@@ -11,6 +11,7 @@ type WhatsAppExportProps = {
   canEdit: boolean
   onCopy: () => Promise<void>
   onMarkSent: () => Promise<void>
+  onOpenDispatch: () => void
 }
 
 function statusCopy(schedule: DispatchSchedule | null) {
@@ -20,7 +21,7 @@ function statusCopy(schedule: DispatchSchedule | null) {
   return 'Draft preview. Finalize the schedule before marking it sent.'
 }
 
-export function WhatsAppExport({ schedule, message, crews, copied, working, canEdit, onCopy, onMarkSent }: WhatsAppExportProps) {
+export function WhatsAppExport({ schedule, message, crews, copied, working, canEdit, onCopy, onMarkSent, onOpenDispatch }: WhatsAppExportProps) {
   const canMarkSent = Boolean(message && schedule?.status === 'finalized' && canEdit)
   const totalStops = crews.reduce((sum, crew) => sum + crew.stops_count, 0)
 
@@ -39,6 +40,11 @@ export function WhatsAppExport({ schedule, message, crews, copied, working, canE
           </button>}
         </div>}
       />
+
+      {!schedule && <div className="border-b border-[var(--line)] p-3 sm:p-4">
+        <p className="text-sm leading-6 text-[var(--ink-soft)]">{canEdit ? 'Create a dispatch plan for this date to prepare the WhatsApp message.' : 'A dispatcher needs to create a plan for this date before a message is available.'}</p>
+        <button type="button" onClick={onOpenDispatch} className="mt-3 min-h-11 rounded-xl border border-[var(--border)] px-4 text-sm font-bold text-[var(--jmi-blue)]">Open dispatch</button>
+      </div>}
 
       {message && <div className="grid gap-3 border-b border-[var(--line)] bg-[var(--surface-subtle)] p-3 sm:p-4 md:grid-cols-3">
         <div className="rounded-2xl border border-[var(--line)] bg-[var(--paper)] p-4">

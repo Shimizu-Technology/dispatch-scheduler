@@ -29,7 +29,7 @@ export function ActivityPanel({ events }: { events: AuditEvent[] }) {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="font-display text-sm font-extrabold capitalize text-[var(--ink)]">{eventSummary(event)}</p>
-            <p className="mt-1 text-xs font-semibold text-[var(--muted)]">{event.user_name || 'System'} • {event.record_type} #{event.record_id || 'N/A'}</p>
+            <p className="mt-1 text-xs font-semibold text-[var(--muted)]">{event.user_name || 'System'} • {event.record_type.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/\bPm\b/g, 'PM')} #{event.record_id || 'N/A'}</p>
           </div>
           <time className="tabular text-xs font-bold  tracking-normal text-[var(--muted)]">{eventTime(event.occurred_at)}</time>
         </div>

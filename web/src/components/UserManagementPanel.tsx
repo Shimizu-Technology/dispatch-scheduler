@@ -72,7 +72,7 @@ export function UserManagementPanel({ deliveryNotice, users, currentUserId, savi
     <PanelHeader
       eyebrow="Admin"
       title="User invitations and access"
-      description="Invite JMI dispatch users, resend pending invitations, and control who can edit schedules or administer the workspace. Uninvited Clerk sign-ins are blocked."
+      description="Invite JMI dispatch users, resend pending invitations, and control who can edit schedules or administer the workspace. Only invited users can access the workspace."
       action={<button type="button" onClick={() => setShowInvite((current) => !current)} className="inline-flex items-center gap-2 rounded-2xl button-action bg-[var(--jmi-blue)] px-4 py-2 font-display text-xs font-extrabold  tracking-normal text-[var(--paper)] shadow-none transition-colors  hover:bg-[var(--jmi-blue-deep)]"><Plus size={16} /> Invite user</button>}
     />
 
@@ -93,7 +93,7 @@ export function UserManagementPanel({ deliveryNotice, users, currentUserId, savi
           <div>
             <p className="font-display text-xs font-extrabold  tracking-normal text-[var(--jmi-blue)]">New invitation</p>
             <h3 className="font-display mt-1 text-xl font-extrabold tracking-tight text-[var(--ink)]">Send dispatch access</h3>
-            <p className="mt-1 text-sm font-semibold text-[var(--ink-soft)]">The user receives a Clerk/Resend invitation and their role is ready when they sign in with this email.</p>
+            <p className="mt-1 text-sm font-semibold text-[var(--ink-soft)]">The user receives an email invitation. Their role is ready when they sign in with this email.</p>
           </div>
           <button type="button" onClick={() => setShowInvite(false)} className="rounded-xl border border-[var(--line)] bg-[var(--paper)] px-3 py-2 font-display text-xs font-extrabold  tracking-normal text-[var(--ink-soft)] transition-colors hover:bg-[var(--jmi-blue-soft)]">Cancel</button>
         </div>
@@ -118,7 +118,7 @@ export function UserManagementPanel({ deliveryNotice, users, currentUserId, savi
       {users.map((managedUser) => {
         const isCurrentUser = managedUser.id === currentUserId
         const isSaving = savingUserId === managedUser.id
-        return <article key={managedUser.id} className={`grid gap-4 rounded-3xl border p-4 shadow-none xl:grid-cols-[1fr_auto] xl:items-center ${managedUser.active ? 'border-[var(--line)] bg-[var(--paper)]/90' : 'border-[var(--border)] bg-[var(--surface-hover)]/80 opacity-80'}`}>
+        return <article key={managedUser.id} className={`grid gap-4 rounded-3xl border p-4 shadow-none xl:grid-cols-[1fr_auto] xl:items-center ${managedUser.active ? 'border-[var(--line)] bg-[var(--paper)]/90' : 'border-[var(--border)] bg-[var(--surface-hover)]/80'}`}>
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="font-display text-lg font-extrabold tracking-tight text-[var(--ink)]">{managedUser.name}</h3>

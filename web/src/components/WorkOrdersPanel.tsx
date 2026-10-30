@@ -914,7 +914,7 @@ export function WorkOrdersPanel({ canAdmin = false, workOrders, meta, serviceLin
   const formInitialValues = activeEditing ? formFromWorkOrder(activeEditing) : reviewDraft ? formFromImportDraft(reviewDraft) : { ...emptyForm(), ...newDefaults }
   const editorTitle = activeEditing ? `Edit ${activeEditing.location}` : reviewDraft ? 'Review scanned intake' : 'New work order'
   const editorSubtitle = activeEditing
-    ? `WO #${activeEditing.external_id || 'N/A'} · ${statusLabel(activeEditing.status)} · ${activeEditing.normalized_priority}`
+    ? `WO #${activeEditing.external_id || 'N/A'} · ${statusLabel(activeEditing.status)} · ${activeEditing.normalized_priority || activeEditing.priority || 'Priority unknown'}`
     : reviewDraft
       ? 'Check the extracted fields before saving.'
       : 'Capture now; schedule later.'

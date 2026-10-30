@@ -33,7 +33,7 @@ export function PaProjectsPanel({ workOrders, meta, onPage, onEdit, canEdit }: {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <Badge kind={workOrder.normalized_priority}>{workOrder.normalized_priority}</Badge>
+              <Badge kind={workOrder.normalized_priority || workOrder.priority}>{workOrder.normalized_priority || workOrder.priority || 'Priority unknown'}</Badge>
               <Badge kind={workOrder.status}>{statusLabel(workOrder.status)}</Badge>
               {workOrder.corrective_maintenance && <Badge kind="approved">CM</Badge>}
               {workOrder.estimate_required && <Badge kind="scheduled">Estimate</Badge>}

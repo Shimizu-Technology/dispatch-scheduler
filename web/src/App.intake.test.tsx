@@ -136,6 +136,15 @@ describe('intake route and saved queue context', () => {
     } finally { vi.useRealTimers() }
   })
 
+  it('offers a way to create the missing dispatch from WhatsApp', () => {
+    window.history.replaceState(null, '', '/whatsapp')
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'Open dispatch' }))
+    expect(window.location.pathname).toMatch(/^\/dispatch\//)
+    expect(screen.getByRole('heading', { name: 'Dispatch plan' })).toBeTruthy()
+    expect(screen.queryByText('Finalized and sent schedules are locked until reopened.')).toBeNull()
+  })
+
   it('hides the closed phone drawer while keeping the desktop sidebar visible', async () => {
     render(<App />)
     await screen.findByText('WO #SYNTHETIC-1')

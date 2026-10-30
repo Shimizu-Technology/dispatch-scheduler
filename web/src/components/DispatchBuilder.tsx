@@ -125,7 +125,8 @@ function DispatchCard({ item, scheduleDate, teams, technicians, disabled, canEdi
   const workOrderStatusDirty = Boolean(wo && workOrderStatus !== wo.status)
   const isSaving = disabled || saveState === 'saving'
   const title = wo ? `${wo.location} - ${wo.title}` : `${pm?.location} - ${pm?.task_name}`
-  const kind = wo?.normalized_priority || 'pm'
+  const priority = wo?.normalized_priority || wo?.priority
+  const kind = item.kind === 'work_order' ? priority || 'new' : 'pm'
   const estimatedHours = estimatedHoursLabel(wo?.estimated_hours)
   const assignedCrewLine = item.assigned_technicians.map((technician) => `${technician.name}${technician.is_driver ? ' (Driver)' : ''}`).join(', ')
   const activeTechnicians = technicians.filter((technician) => technician.active)
@@ -160,7 +161,7 @@ function DispatchCard({ item, scheduleDate, teams, technicians, disabled, canEdi
         <h4 className="font-display mt-1 line-clamp-2 font-extrabold tracking-tight text-[var(--ink)]">{title}</h4>
       </div>
       <div className="flex shrink-0 flex-col items-end gap-1">
-        <Badge kind={kind}>{wo?.normalized_priority || 'PM'}</Badge>
+        <Badge kind={kind}>{item.kind === 'work_order' ? priority || 'WO' : 'PM'}</Badge>
         {item.capacity_overflow && <Badge kind="waiting">Over capacity</Badge>}
       </div>
     </div>
@@ -287,8 +288,8 @@ export function DispatchBuilder({ schedule, teams, technicians, working, canEdit
   return <Card className="overflow-hidden">
     <PanelHeader
       eyebrow="Today’s dispatch"
-      title="Dispatch Draft"
-      description={canEditItems ? 'Draft assignments are editable. Review crew, time, route order, warnings, and notes before copying WhatsApp.' : 'Finalized and sent schedules are locked until reopened.'}
+      title={schedule?.status === 'draft' ? 'Dispatch draft' : schedule?.status === 'finalized' ? 'Finalized dispatch' : schedule?.status === 'sent' ? 'Sent dispatch' : 'Dispatch plan'}
+      description={!schedule ? (canEdit ? 'Review crews and work for the selected date, then generate a draft.' : 'No dispatch plan has been created for the selected date.') : schedule.status === 'draft' ? (canEdit ? 'Review crew, time, route order, warnings, and notes before finalizing.' : 'A draft plan is being prepared. Assignments may still change.') : (canEdit ? 'Assignments are locked until the schedule is reopened. Work outcomes can still be recorded.' : 'Finalized assignments are locked. Contact a dispatcher if a change is needed.')}
       action={canEdit && <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
         {schedule?.status === 'draft' && <button disabled={working || schedule.items.length === 0} onClick={onFinalize} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl button-success bg-[var(--success)] px-4 py-2.5 font-display text-sm font-extrabold text-[var(--paper)] shadow-none transition-colors  hover:bg-[var(--success-deep)] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"><CheckCircle2 size={16} /> Finalize</button>}
         {schedule && schedule.status !== 'draft' && <button disabled={working} onClick={onReopen} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-[var(--brand-line)] bg-[var(--paper)] px-4 py-2.5 font-display text-sm font-extrabold text-[var(--jmi-blue)] transition-colors  hover:bg-[var(--jmi-blue-soft)] disabled:cursor-wait disabled:opacity-60 sm:w-auto"><Unlock size={16} /> Reopen</button>}
@@ -296,7 +297,7 @@ export function DispatchBuilder({ schedule, teams, technicians, working, canEdit
       </div>}
     />
     {!schedule ? (
-      <div className="p-8 text-center text-[var(--ink-soft)]">{canEdit ? <>Click <strong>Generate Draft</strong> to create the first-pass dispatch plan.</> : 'No draft schedule is loaded yet.'}</div>
+      <div className="p-8 text-center text-[var(--ink-soft)]">{canEdit ? <>Click <strong>Generate Draft</strong> to create the first-pass dispatch plan.</> : 'A dispatcher can generate a plan for this date.'}</div>
     ) : (
       <div className="space-y-3 p-3 sm:space-y-4 sm:p-4">
         <StatusNotice schedule={schedule} />

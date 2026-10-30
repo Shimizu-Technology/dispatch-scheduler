@@ -164,7 +164,7 @@ function TechnicianDayView({ technicians, schedule }: { technicians: Technician[
         </div>
         {assignments.length === 0 ? <p className="mt-3 rounded-xl border border-[var(--border)] bg-[var(--surface-hover)] px-3 py-2 text-xs font-bold text-[var(--muted)]">No dispatch assignment on the loaded schedule.</p> : <div className="mt-3 space-y-2">
           {assignments.map((item) => <div key={item.id} className="rounded-xl border border-[var(--brand-line)] bg-[var(--surface-subtle)] px-3 py-2">
-            <div className="flex flex-wrap items-center justify-between gap-2"><p className="font-display text-sm font-extrabold text-[var(--ink)]">{item.scheduled_time || 'TBD'} · {assignmentTitle(item)}</p><Badge kind={item.kind === 'work_order' ? item.work_order?.normalized_priority || 'approved' : 'scheduled'}>{item.kind === 'work_order' ? item.work_order?.normalized_priority || 'WO' : 'PM'}</Badge></div>
+            <div className="flex flex-wrap items-center justify-between gap-2"><p className="font-display text-sm font-extrabold text-[var(--ink)]">{item.scheduled_time || 'TBD'} · {assignmentTitle(item)}</p><Badge kind={item.kind === 'work_order' ? item.work_order?.normalized_priority || item.work_order?.priority || 'approved' : 'scheduled'}>{item.kind === 'work_order' ? item.work_order?.normalized_priority || item.work_order?.priority || 'WO' : 'PM'}</Badge></div>
             <p className="mt-1 text-xs font-semibold text-[var(--muted)]">{item.team_name} · Outcome: {item.outcome_status.replaceAll('_', ' ')}</p>
           </div>)}
         </div>}

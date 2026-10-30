@@ -15,7 +15,7 @@ type WhatsAppExportProps = {
 }
 
 function statusCopy(schedule: DispatchSchedule | null) {
-  if (!schedule) return 'Generate a schedule to preview the send-ready crew assignments.'
+  if (!schedule) return 'No dispatch plan for the selected date. Open dispatch to prepare the crew message.'
   if (schedule.status === 'sent') return `Marked sent${schedule.sent_by ? ` by ${schedule.sent_by}` : ''}.`
   if (schedule.status === 'finalized') return 'Finalized and ready to copy into WhatsApp. Mark sent after the message is sent.'
   return 'Draft preview. Finalize the schedule before marking it sent.'
@@ -31,7 +31,7 @@ export function WhatsAppExport({ schedule, message, crews, copied, working, canE
         eyebrow="Send-ready copy"
         title="WhatsApp Export"
         description={statusCopy(schedule)}
-        action={<div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
+        action={!schedule ? <button type="button" onClick={onOpenDispatch} className="min-h-11 rounded-xl border border-[var(--border)] px-4 text-sm font-bold text-[var(--jmi-blue)]">Open dispatch</button> : <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
           <button disabled={!message} onClick={onCopy} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl button-success bg-[var(--success)] px-4 py-2.5 font-display text-sm font-extrabold text-[var(--paper)] shadow-none transition-colors  hover:bg-[var(--success-deep)] disabled:cursor-not-allowed disabled:bg-[var(--border-strong)] disabled:shadow-none sm:w-auto">
             <Clipboard size={16} /> {copied ? 'Copied!' : 'Copy Dispatch'}
           </button>
@@ -40,11 +40,6 @@ export function WhatsAppExport({ schedule, message, crews, copied, working, canE
           </button>}
         </div>}
       />
-
-      {!schedule && <div className="border-b border-[var(--line)] p-3 sm:p-4">
-        <p className="text-sm leading-6 text-[var(--ink-soft)]">{canEdit ? 'Create a dispatch plan for this date to prepare the WhatsApp message.' : 'A dispatcher needs to create a plan for this date before a message is available.'}</p>
-        <button type="button" onClick={onOpenDispatch} className="mt-3 min-h-11 rounded-xl border border-[var(--border)] px-4 text-sm font-bold text-[var(--jmi-blue)]">Open dispatch</button>
-      </div>}
 
       {message && <div className="grid gap-3 border-b border-[var(--line)] bg-[var(--surface-subtle)] p-3 sm:p-4 md:grid-cols-3">
         <div className="rounded-2xl border border-[var(--line)] bg-[var(--paper)] p-4">
@@ -77,7 +72,7 @@ export function WhatsAppExport({ schedule, message, crews, copied, working, canE
         </article>)}
       </div>}
 
-      <pre tabIndex={0} aria-label="WhatsApp message" className="max-h-[720px] overflow-auto whitespace-pre-wrap bg-[var(--ink)] p-3 text-sm leading-6 text-[var(--info-soft)] shadow-inner sm:p-5">{message || 'Generate a schedule to preview the WhatsApp message.'}</pre>
+      {message && <pre tabIndex={0} aria-label="WhatsApp message" className="max-h-[720px] overflow-auto whitespace-pre-wrap bg-[var(--ink)] p-3 text-sm leading-6 text-[var(--info-soft)] shadow-inner sm:p-5">{message}</pre>}
     </Card>
   </div>
 }

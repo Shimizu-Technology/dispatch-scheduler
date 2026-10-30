@@ -44,6 +44,29 @@ async function fillRequest(user: ReturnType<typeof userEvent.setup>, description
 }
 
 describe('work-order intake and editing', () => {
+  it('keeps the editor inside the visible viewport during keyboard resize and scroll', () => {
+    const viewport = Object.assign(new EventTarget(), { height: 620, offsetTop: 0 })
+    const descriptor = Object.getOwnPropertyDescriptor(window, 'visualViewport')
+    Object.defineProperty(window, 'visualViewport', { configurable: true, value: viewport })
+    try {
+      setup()
+      fireEvent.click(screen.getByRole('button', { name: 'New Work Order' }))
+      const dialog = screen.getByRole('dialog')
+      expect(dialog.style.getPropertyValue('--editor-viewport-height')).toBe('620px')
+      act(() => { viewport.height = 310; viewport.offsetTop = 96; viewport.dispatchEvent(new Event('resize')) })
+      expect(dialog.style.getPropertyValue('--editor-viewport-height')).toBe('310px')
+      expect(dialog.style.getPropertyValue('--editor-viewport-top')).toBe('96px')
+      act(() => { viewport.offsetTop = 120; viewport.dispatchEvent(new Event('scroll')) })
+      expect(dialog.style.getPropertyValue('--editor-viewport-top')).toBe('120px')
+      fireEvent.click(screen.getAllByRole('button', { name: 'Close work order editor' }).at(-1)!)
+      act(() => { viewport.height = 620; viewport.dispatchEvent(new Event('resize')) })
+      expect(dialog.style.getPropertyValue('--editor-viewport-height')).toBe('310px')
+    } finally {
+      if (descriptor) Object.defineProperty(window, 'visualViewport', descriptor)
+      else Reflect.deleteProperty(window, 'visualViewport')
+    }
+  })
+
   it('shows the stored legacy priority and preserves it with exact clocks during unrelated edits', async () => {
     const reported = '2026-10-11T08:00:41.123456+10:00'
     const { user, onUpdate } = setup({ workOrders: [order({ priority: 'Level 1', normalized_priority: 'Level 1', reported_at: reported })] })

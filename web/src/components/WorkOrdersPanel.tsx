@@ -647,6 +647,17 @@ function WorkOrderEditorDrawer({ open, title, subtitle, saving, onClose, onEdito
   useLayoutEffect(() => {
     if (!open) return
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    // iOS keeps the layout viewport tall when the software keyboard opens.
+    // Pin the drawer to the visible viewport so its title and save actions stay reachable.
+    const viewport = window.visualViewport
+    const updateViewport = () => {
+      if (!viewport || !dialogRef.current) return
+      dialogRef.current.style.setProperty('--editor-viewport-height', `${viewport.height}px`)
+      dialogRef.current.style.setProperty('--editor-viewport-top', `${viewport.offsetTop}px`)
+    }
+    updateViewport()
+    viewport?.addEventListener('resize', updateViewport)
+    viewport?.addEventListener('scroll', updateViewport)
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     const focusable = () => Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), summary, [tabindex="0"]') || []).filter((element) => element.getClientRects().length > 0)
@@ -671,6 +682,8 @@ function WorkOrderEditorDrawer({ open, title, subtitle, saving, onClose, onEdito
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => {
+      viewport?.removeEventListener('resize', updateViewport)
+      viewport?.removeEventListener('scroll', updateViewport)
       document.body.style.overflow = previousOverflow
       window.removeEventListener('keydown', handleKeyDown)
       if (previousFocus?.isConnected && previousFocus !== document.body) previousFocus.focus({ preventScroll: true })

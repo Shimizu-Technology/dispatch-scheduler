@@ -138,7 +138,7 @@ p { text-wrap: pretty; }
 .field-control:focus { border-color: var(--jmi-blue); }
 .app-shell { padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); }
 .app-sidebar { padding-bottom: env(safe-area-inset-bottom, 0px); }
-.editor-drawer { height: 100dvh; box-shadow: var(--shadow-dialog); padding-top: env(safe-area-inset-top, 0px); }
+.editor-drawer { position: absolute; right: 0; top: var(--editor-viewport-top, 0px); height: var(--editor-viewport-height, 100dvh); box-shadow: var(--shadow-dialog); padding-top: env(safe-area-inset-top, 0px); }
 .editor-drawer fieldset { overscroll-behavior: contain; }
 .editor-footer { padding-bottom: max(12px, env(safe-area-inset-bottom, 0px)); }
 .filter-sheet .filter-actions { position: sticky; bottom: 0; }

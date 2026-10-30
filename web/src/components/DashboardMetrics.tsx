@@ -9,6 +9,7 @@ type Props = {
   schedule: DispatchSchedule | null; auditEvents: AuditEvent[]; canEdit: boolean; working: boolean
   loading?: boolean; loadError?: string; onRetry?: () => void
   onGoToSection: (section: 'work-orders' | 'pa-projects' | 'teams' | 'dispatch' | 'pm-tasks' | 'whatsapp' | 'activity') => void
+  onDateChange?: (date: string) => void
   onOpenWorkOrders: (query: string) => void
 }
 type Tone = 'blue' | 'red' | 'amber' | 'steel'
@@ -19,7 +20,7 @@ function Metric({ label, value, detail, icon, tone = 'steel', onClick }: { label
   </button>
 }
 
-export function DashboardMetrics({ dashboard, teams, technicians, schedule, auditEvents, canEdit, working, loading = false, loadError = '', onRetry, onGoToSection, onOpenWorkOrders }: Props) {
+export function DashboardMetrics({ dashboard, teams, technicians, schedule, auditEvents, canEdit, working, loading = false, loadError = '', onRetry, onDateChange, onGoToSection, onOpenWorkOrders }: Props) {
   // Dashboard totals come from its complete server scope, never the current queue page.
   if (loading || !dashboard) return <section aria-label="Operations overview" className="space-y-3">
     {loadError ? <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950"><p>Operations data is unavailable. {loadError}</p><button type="button" onClick={onRetry} className="mt-2 min-h-11 rounded-xl border border-amber-300 bg-white px-3 font-bold">Retry dashboard</button></div> : <><p role="status" className="text-sm text-[#526071]">Loading operations overview...</p><div aria-hidden="true" className="grid grid-cols-2 gap-3 sm:grid-cols-4">{['Open', 'Overdue', 'Waiting parts', 'PA projects'].map((label) => <div key={label} className="min-h-24 rounded-xl border border-slate-200 bg-white p-3"><span className="block text-2xl">—</span><span className="text-sm text-[#526071]">{label}</span></div>)}</div></>}
@@ -44,7 +45,7 @@ export function DashboardMetrics({ dashboard, teams, technicians, schedule, audi
   ]
   return <section className="space-y-4">
     <div>
-      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2"><h2 className="text-lg font-bold text-[#172033]">Queue health</h2><p className="text-sm text-[#526071]">As of {dashboard.date}</p></div>
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2"><h2 className="text-lg font-bold text-[#172033]">Queue health</h2>{onDateChange ? <label className="inline-flex items-center gap-2 text-sm">As of<input aria-label="As of date" type="date" value={dashboard.date} onChange={(event) => { if (event.target.value) onDateChange(event.target.value) }} className="field-control rounded-xl px-2 py-1" /></label> : <p className="text-sm text-[#526071]">As of {dashboard.date}</p>}</div>
       {loadError && <p role="alert" className="mb-3 text-sm text-amber-950">Refresh failed. Showing the last loaded overview. <button type="button" onClick={onRetry} className="min-h-11 underline">Retry dashboard</button></p>}
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-4">{queueMetrics.map((metric) => <Metric key={metric.view} {...metric} tone={metric.urgent && (metric.value ?? 0) > 0 ? 'red' : 'steel'} onClick={openView(metric.view)} />)}</div>
     </div>

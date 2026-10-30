@@ -3,6 +3,8 @@ import { Card, PanelHeader } from './ui'
 import type { MonthlyReport } from '../types'
 
 type ReportsPanelProps = {
+  month: string
+  onMonthChange: (month: string) => void
   report: MonthlyReport | null
   loading: boolean
   onDownloadCsv: () => Promise<void>
@@ -55,7 +57,7 @@ function Breakdown({ title, values, formatValue = (value: number) => value.toStr
   </div>
 }
 
-export function ReportsPanel({ report, loading, onDownloadCsv }: ReportsPanelProps) {
+export function ReportsPanel({ month, onMonthChange, report, loading, onDownloadCsv }: ReportsPanelProps) {
   return <Card className="overflow-hidden">
     <PanelHeader
       eyebrow="Monthly reporting"
@@ -63,6 +65,8 @@ export function ReportsPanel({ report, loading, onDownloadCsv }: ReportsPanelPro
       description="Export the numbers John needs for Mobil/CBRE conversations: KPI pressure, PM completion, CM, estimates, PA Projects, and follow-up visibility."
       action={<button type="button" disabled={!report || loading} onClick={() => void onDownloadCsv()} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#244393] px-4 py-2.5 font-display text-sm font-extrabold text-white shadow-[0_12px_28px_rgba(36,67,147,0.18)] transition hover:-translate-y-0.5 hover:bg-[#172b63] disabled:cursor-not-allowed disabled:bg-slate-300 sm:w-auto"><Download size={16} /> Download CSV</button>}
     />
+
+    <div className="border-b border-slate-200 px-3 py-2"><label className="inline-flex items-center gap-3 text-sm font-semibold">Report month<input type="month" value={month} onChange={(event) => { if (event.target.value) onMonthChange(event.target.value) }} className="field-control rounded-xl px-3 py-2" /></label></div>
 
     {loading && <p className="p-5 text-sm font-bold text-[#526071]">Loading monthly report...</p>}
     {!loading && !report && <p className="p-5 text-sm font-bold text-[#526071]">No report loaded yet.</p>}

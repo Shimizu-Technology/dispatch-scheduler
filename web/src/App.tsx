@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import { createPortal } from 'react-dom'
-import { Activity, BarChart3, CalendarDays, ClipboardList, FolderKanban, LayoutDashboard, LockKeyhole, Menu, MessageSquareText, PanelLeftClose, PanelLeftOpen, RefreshCw, Settings2, UserCog, Users, Wrench, X } from 'lucide-react'
+import { Activity, BarChart3, CalendarDays, ClipboardList, FolderKanban, LayoutDashboard, Menu, MessageSquareText, PanelLeftClose, PanelLeftOpen, RefreshCw, Settings2, UserCog, Users, Wrench, X } from 'lucide-react'
 import { SignInButton, UserButton } from '@clerk/react'
 import { ActivityPanel } from './components/ActivityPanel'
 import { DashboardMetrics } from './components/DashboardMetrics'
@@ -36,7 +36,6 @@ type SectionLink = {
 }
 
 const SECTION_IDS: ActiveSection[] = ['overview', 'work-orders', 'pm-tasks', 'pa-projects', 'dispatch', 'teams', 'reports', 'whatsapp', 'activity', 'service-lines', 'users']
-const SELECTED_DATE_STORAGE_KEY = 'dispatch-scheduler:selected-date'
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'dispatch-scheduler:sidebar-collapsed'
 function queueQueryKey(query: string) {
   const params = new URLSearchParams(query.replace(/^\?/, ''))
@@ -65,10 +64,6 @@ const ROUTE_PATHS: Record<ActiveSection, string> = {
 function localDateString(date = new Date()) {
   const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
   return offsetDate.toISOString().slice(0, 10)
-}
-
-function initialSelectedDate() {
-  return window.localStorage.getItem(SELECTED_DATE_STORAGE_KEY) || localDateString()
 }
 
 function initialSidebarCollapsed() {
@@ -265,7 +260,7 @@ function AppSidebar({ sections, currentSection, collapsed, mobileOpen, userName,
 function DispatchApp() {
   const { isSignedIn, isLoading: authLoading, isVerifyingApi, user, authError, canEditDispatch, refreshUser } = useAuthContext()
   const [currentRoute, setCurrentRoute] = useState<AppRoute>(() => routeForLocation())
-  const [selectedDate, setSelectedDate] = useState(initialSelectedDate)
+  const [selectedDate, setSelectedDate] = useState(localDateString)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [desktopSidebarCollapsed, setDesktopSidebarCollapsed] = useState(initialSidebarCollapsed)
   const todayDate = localDateString()
@@ -451,8 +446,24 @@ function DispatchApp() {
   }, [])
 
   useEffect(() => {
-    window.localStorage.setItem(SELECTED_DATE_STORAGE_KEY, selectedDate)
-  }, [selectedDate])
+    // Date choices belong to this visit. A bookmark with a date/month remains explicit.
+    let visitDay = localDateString()
+    const checkDay = () => {
+      const today = localDateString()
+      if (today === visitDay) return
+      visitDay = today
+      const route = context.current.route
+      if (!route.date && !route.month) setSelectedDate(today)
+    }
+    window.addEventListener('focus', checkDay)
+    document.addEventListener('visibilitychange', checkDay)
+    const interval = window.setInterval(checkDay, 60_000)
+    return () => {
+      window.removeEventListener('focus', checkDay)
+      document.removeEventListener('visibilitychange', checkDay)
+      window.clearInterval(interval)
+    }
+  }, [])
 
   useEffect(() => {
     window.localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, String(desktopSidebarCollapsed))
@@ -1435,14 +1446,29 @@ function DispatchApp() {
 
   const activeSectionMeta = sections.find((section) => section.id === currentSection) || sections[0]
   const dispatchScreen = currentSection === 'dispatch' || currentSection === 'whatsapp'
-  const isAuthBlocked = isSignedIn && !user && !authLoading && !isVerifyingApi
-
-  if (authLoading) {
-    return <main className="grid min-h-screen place-items-center px-6 text-[var(--ink-soft)]">
-      <div className="rounded-2xl border border-[var(--line)] bg-[var(--paper)]/90 p-8 text-center shadow-none">
-        <RefreshCw className="mx-auto mb-3 animate-spin text-[var(--jmi-blue)]" />
-        <p className="font-display font-bold">Loading JMI Management System...</p>
-      </div>
+  if (authLoading || !isSignedIn || !user) {
+    return <main className="grid min-h-dvh place-items-center px-6 py-10">
+      <section aria-labelledby="welcome-title" className="w-full max-w-sm text-center">
+        <BrandMark />
+        <h1 id="welcome-title" className="font-display mt-5 text-2xl font-extrabold tracking-tight text-[var(--ink)]">JMI Dispatch</h1>
+        {authLoading || (isSignedIn && isVerifyingApi)
+          ? <div role="status" className="mt-4 text-sm text-[var(--ink-soft)]">
+              <RefreshCw aria-hidden="true" size={20} className="mx-auto mb-3 animate-spin text-[var(--jmi-blue)]" />
+              {authLoading ? 'Loading sign-in…' : 'Checking your access…'}
+            </div>
+          : isSignedIn || authError
+            ? <div className="mt-4">
+                <p role="alert" className="text-sm leading-6 text-[var(--ink-soft)]">{authError || 'Your access could not be verified. Ask your JMI administrator for access.'}</p>
+                <button type="button" onClick={() => void refreshUser()} className="mt-5 min-h-11 rounded-xl border border-[var(--border)] bg-[var(--paper)] px-5 text-sm font-bold">Retry access</button>
+                {isSignedIn && <div className="mt-5 flex items-center justify-center gap-3 text-sm text-[var(--ink-soft)]"><UserButton /><span>Check or switch your account</span></div>}
+              </div>
+            : <>
+                <p className="mt-3 text-sm leading-6 text-[var(--ink-soft)]">Sign in with the account your JMI administrator invited.</p>
+                <SignInButton mode="modal" forceRedirectUrl={window.location.href}>
+                  <button type="button" className="button-action-deep mt-6 min-h-11 rounded-xl bg-[var(--jmi-blue-deep)] px-6 py-3 text-sm font-bold text-[var(--paper)]">Sign in</button>
+                </SignInButton>
+              </>}
+      </section>
     </main>
   }
 
@@ -1471,7 +1497,6 @@ function DispatchApp() {
             <h1 className="min-w-0 flex-1 text-xl font-bold text-[var(--ink)]">{activeSectionMeta?.label || 'Dispatch'}</h1>
             <span className="xl:hidden"><BrandMark compact /></span>
             <span className="hidden xl:inline-flex">{user && <UserButton />}</span>
-            {!isSignedIn && <SignInButton mode="modal"><button className="min-h-11 rounded-xl button-action-deep bg-[var(--jmi-blue-deep)] px-3 text-sm font-bold text-[var(--paper)]">Sign in</button></SignInButton>}
           </div>
           {user && dispatchScreen && <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-3 border-t border-[var(--border)] p-3">
             <label className="min-w-0 flex-1 text-xs font-semibold text-[var(--ink-soft)]">Schedule date<input type="date" value={selectedDate} onChange={(event) => handleSelectedDateChange(event.target.value)} className="field-control mt-1 block w-full rounded-xl px-3 py-2" /></label>
@@ -1480,21 +1505,8 @@ function DispatchApp() {
           </div>}
         </header>
 
-        {!user && !authError && !isVerifyingApi && <SignInRequiredPanel />}
-
-        {isVerifyingApi && !user && <section className="rounded-2xl border border-[var(--line)] bg-[var(--paper)]/90 p-6 shadow-none">
-          <div className="inline-flex items-center gap-3 text-sm font-bold text-[var(--jmi-blue)]">
-            <RefreshCw size={18} className="animate-spin" /> Verifying your Clerk session with the dispatch API...
-          </div>
-        </section>}
-
         {user && loading && <div className="inline-flex w-fit items-center gap-2 rounded-2xl border border-[var(--info-soft-strong)] bg-[var(--info-soft)]/90 px-4 py-2 text-sm font-bold text-[var(--info-ink-strong)]">
           <RefreshCw size={16} className="animate-spin" /> Loading live dispatch data...
-        </div>}
-
-        {isAuthBlocked && <div role="alert" className="rounded-xl border border-[var(--warning-border)] bg-[var(--warning-soft)] p-4 text-sm text-[var(--warning-ink-strong)]">
-          <p>{authError || 'Your access could not be verified.'}</p>
-          <button type="button" onClick={() => void refreshUser()} className="mt-2 min-h-11 rounded-xl border border-[var(--warning-border-strong)] bg-[var(--paper)] px-3 font-bold">Retry access</button>
         </div>}
 
         {user && !canEditDispatch && <div className="rounded-2xl border border-[var(--warning-border)] bg-[var(--warning-soft)] p-4 text-sm font-bold text-[var(--warning-ink)]">Viewer mode: you can inspect dashboard, work orders, teams, PMs, and generated schedules, but editing controls are hidden.</div>}
@@ -1503,44 +1515,29 @@ function DispatchApp() {
 
         {user && currentSection === 'overview' && <DashboardMetrics dashboard={overviewReady ? dashboard : null} teams={teams} technicians={technicians} schedule={schedule} auditEvents={auditEvents} canEdit={canEditDispatch} working={working} loading={loading} asOfDate={selectedDate} loadError={dashboardError} onRetry={() => void loadInitialData(selectedDate)} onDateChange={handleSelectedDateChange} onGoToSection={goToSection} onOpenWorkOrders={(query) => navigateTo(`/work-orders?${query}`)} />}
 
-        {currentSection === 'work-orders' && (user ? <WorkOrdersPanel loading={queueLoading} loadError={queueError} onRetry={() => void fetchWorkOrders(currentRoute.search)} onEditorStateChange={reportWorkOrderEditor} pendingLeave={Boolean(pendingWorkOrderLeave)} onKeepEditing={() => setPendingWorkOrderLeave(null)} onDiscardAndLeave={discardAndLeaveWorkOrders} leaveBlocked={workOrderLeaveBlocked} workOrders={workOrders} meta={workOrderMeta} serviceLines={serviceLines} canAdmin={Boolean(user.permissions.can_admin)} canEdit={canEditDispatch} saving={workOrderSaving} routeSearch={currentRoute.search} workOrderToEdit={workOrderToEdit} onEditConsumed={clearWorkOrderToEdit} onRouteQueryChange={updateWorkOrderRouteQuery} onFetch={fetchWorkOrders} onCreate={createWorkOrder} onUpdate={updateWorkOrder} onArchive={archiveWorkOrder} /> : <SignInRequiredPanel title="Sign in to review work orders" />)}
+        {currentSection === 'work-orders' && <WorkOrdersPanel loading={queueLoading} loadError={queueError} onRetry={() => void fetchWorkOrders(currentRoute.search)} onEditorStateChange={reportWorkOrderEditor} pendingLeave={Boolean(pendingWorkOrderLeave)} onKeepEditing={() => setPendingWorkOrderLeave(null)} onDiscardAndLeave={discardAndLeaveWorkOrders} leaveBlocked={workOrderLeaveBlocked} workOrders={workOrders} meta={workOrderMeta} serviceLines={serviceLines} canAdmin={Boolean(user.permissions.can_admin)} canEdit={canEditDispatch} saving={workOrderSaving} routeSearch={currentRoute.search} workOrderToEdit={workOrderToEdit} onEditConsumed={clearWorkOrderToEdit} onRouteQueryChange={updateWorkOrderRouteQuery} onFetch={fetchWorkOrders} onCreate={createWorkOrder} onUpdate={updateWorkOrder} onArchive={archiveWorkOrder} />}
 
-        {currentSection === 'pa-projects' && (user ? <PaProjectsPanel workOrders={paProjectWorkOrders} meta={paProjectMeta} canEdit={canEditDispatch} onPage={fetchPaProjects} onEdit={openWorkOrderFromPaProject} /> : <SignInRequiredPanel title="Sign in to review PA Projects" />)}
+        {currentSection === 'pa-projects' && <PaProjectsPanel workOrders={paProjectWorkOrders} meta={paProjectMeta} canEdit={canEditDispatch} onPage={fetchPaProjects} onEdit={openWorkOrderFromPaProject} />}
 
-        {currentSection === 'teams' && (user ? <TeamsPanel loading={loading || (crewDataDate !== selectedDate && !initialDataError)} loadError={crewDataDate !== selectedDate ? initialDataError : ''} onRetry={() => void loadInitialData(selectedDate)} selectedDate={selectedDate} onDateChange={handleSelectedDateChange} teams={teams} technicians={technicians} serviceLines={serviceLines} schedule={schedule} canEdit={canEditDispatch} savingTechnicianId={availabilitySavingId} savingTeamId={teamSavingId} onToggleAvailability={toggleAvailability} onUpdateDailyCrew={updateDailyCrew} onUpdateDefaultCrew={updateDefaultCrew} onCreateTeam={createTeam} onArchiveTeam={archiveTeam} onCreateTechnician={createTechnician} onUpdateTechnician={updateTechnician} onArchiveTechnician={archiveTechnician} /> : <SignInRequiredPanel title="Sign in to check crews" />)}
+        {currentSection === 'teams' && <TeamsPanel loading={loading || (crewDataDate !== selectedDate && !initialDataError)} loadError={crewDataDate !== selectedDate ? initialDataError : ''} onRetry={() => void loadInitialData(selectedDate)} selectedDate={selectedDate} onDateChange={handleSelectedDateChange} teams={teams} technicians={technicians} serviceLines={serviceLines} schedule={schedule} canEdit={canEditDispatch} savingTechnicianId={availabilitySavingId} savingTeamId={teamSavingId} onToggleAvailability={toggleAvailability} onUpdateDailyCrew={updateDailyCrew} onUpdateDefaultCrew={updateDefaultCrew} onCreateTeam={createTeam} onArchiveTeam={archiveTeam} onCreateTechnician={createTechnician} onUpdateTechnician={updateTechnician} onArchiveTechnician={archiveTechnician} />}
 
-        {currentSection === 'dispatch' && (user ? <DispatchBuilder schedule={schedule} teams={teams} technicians={technicians} working={working} canEdit={canEditDispatch} onSuggest={suggestSchedule} onUpdate={updateDispatchItem} onOutcome={updateDispatchItemOutcome} onWorkOrderStatus={updateWorkOrderStatus} onFinalize={finalizeSchedule} onReopen={reopenSchedule} /> : <SignInRequiredPanel title="Sign in to build today's dispatch" />)}
+        {currentSection === 'dispatch' && <DispatchBuilder schedule={schedule} teams={teams} technicians={technicians} working={working} canEdit={canEditDispatch} onSuggest={suggestSchedule} onUpdate={updateDispatchItem} onOutcome={updateDispatchItemOutcome} onWorkOrderStatus={updateWorkOrderStatus} onFinalize={finalizeSchedule} onReopen={reopenSchedule} />}
 
-        {currentSection === 'pm-tasks' && (user ? <PmTasksPanel key={selectedDate} pmTasks={pmTasks} pmTemplates={pmTemplates} serviceLines={serviceLines} canEdit={canEditDispatch} savingPmTaskId={pmTaskSavingId} selectedDate={selectedDate} onUpdate={updatePmTask} onCreate={createPmTask} onBulkCreate={bulkCreatePmTasks} onCompleteStation={completePmStation} onArchive={archivePmTask} onCreateTemplate={createPmTemplate} onUpdateTemplate={updatePmTemplate} onArchiveTemplate={archivePmTemplate} onPreviewTemplate={previewPmTemplate} onGenerateTemplate={generatePmTemplate} onMonthChange={(month) => handleSelectedDateChange(dateFromMonth(month, selectedDate))} /> : <SignInRequiredPanel title="Sign in to review PM tasks" />)}
+        {currentSection === 'pm-tasks' && <PmTasksPanel key={selectedDate} pmTasks={pmTasks} pmTemplates={pmTemplates} serviceLines={serviceLines} canEdit={canEditDispatch} savingPmTaskId={pmTaskSavingId} selectedDate={selectedDate} onUpdate={updatePmTask} onCreate={createPmTask} onBulkCreate={bulkCreatePmTasks} onCompleteStation={completePmStation} onArchive={archivePmTask} onCreateTemplate={createPmTemplate} onUpdateTemplate={updatePmTemplate} onArchiveTemplate={archivePmTemplate} onPreviewTemplate={previewPmTemplate} onGenerateTemplate={generatePmTemplate} onMonthChange={(month) => handleSelectedDateChange(dateFromMonth(month, selectedDate))} />}
 
-        {currentSection === 'service-lines' && (user ? <ServiceLinesPanel serviceLines={serviceLines} canAdmin={Boolean(user.permissions.can_admin)} saving={serviceLineSaving} onCreate={createServiceLine} onUpdate={updateServiceLine} /> : <SignInRequiredPanel title="Sign in to review service lines" />)}
+        {currentSection === 'service-lines' && <ServiceLinesPanel serviceLines={serviceLines} canAdmin={Boolean(user.permissions.can_admin)} saving={serviceLineSaving} onCreate={createServiceLine} onUpdate={updateServiceLine} />}
 
-        {currentSection === 'reports' && (user ? <ReportsPanel month={selectedDate.slice(0, 7)} onMonthChange={(month) => handleSelectedDateChange(dateFromMonth(month, selectedDate))} report={monthlyReport} loading={reportLoading} onDownloadCsv={downloadMonthlyReportCsv} /> : <SignInRequiredPanel title="Sign in to review monthly reports" />)}
+        {currentSection === 'reports' && <ReportsPanel month={selectedDate.slice(0, 7)} onMonthChange={(month) => handleSelectedDateChange(dateFromMonth(month, selectedDate))} report={monthlyReport} loading={reportLoading} onDownloadCsv={downloadMonthlyReportCsv} />}
 
-        {currentSection === 'whatsapp' && (user ? <WhatsAppExport schedule={schedule} message={whatsApp} crews={whatsAppCrews} copied={copied} working={working} canEdit={canEditDispatch} onCopy={copyWhatsApp} onMarkSent={markScheduleSent} /> : <SignInRequiredPanel title="Sign in to copy WhatsApp output" />)}
+        {currentSection === 'whatsapp' && <WhatsAppExport schedule={schedule} message={whatsApp} crews={whatsAppCrews} copied={copied} working={working} canEdit={canEditDispatch} onCopy={copyWhatsApp} onMarkSent={markScheduleSent} />}
 
-        {currentSection === 'activity' && (user ? <ActivityPanel events={auditEvents} /> : <SignInRequiredPanel title="Sign in to review activity" />)}
+        {currentSection === 'activity' && <ActivityPanel events={auditEvents} />}
 
         {currentSection === 'users' && user?.permissions.can_admin && <UserManagementPanel deliveryNotice={invitationNotice} users={managedUsers} currentUserId={user.id} savingUserId={savingUserId} onCreate={createManagedUser} onUpdate={updateManagedUser} onResendInvitation={resendManagedUserInvitation} onDelete={deleteManagedUser} />}
         </div>
       </div>
     </main>
   )
-}
-
-function SignInRequiredPanel({ title = 'Sign in to your workspace' }: { title?: string }) {
-  return <section className="rounded-2xl border border-[var(--line)] bg-[var(--paper)]/90 p-4 shadow-none sm:p-6">
-    <div className="max-w-2xl">
-      <p className="font-display text-xs font-extrabold  tracking-normal text-[var(--jmi-blue)]">Secure JMI workspace</p>
-      <h2 className="font-display mt-1 text-xl font-extrabold tracking-tight text-[var(--ink)] sm:text-2xl">{title}</h2>
-      <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">Sign in to view work orders, crews, and schedules. Ask an administrator if you need access.</p>
-      <SignInButton mode="modal">
-        <button className="mt-5 inline-flex items-center gap-2 rounded-2xl button-action bg-[var(--jmi-blue)] px-5 py-3 font-display text-sm font-extrabold text-[var(--paper)] shadow-none transition-colors  hover:bg-[var(--jmi-blue-deep)]">
-          <LockKeyhole size={18} /> Sign In With Clerk
-        </button>
-      </SignInButton>
-    </div>
-  </section>
 }
 
 function App() {

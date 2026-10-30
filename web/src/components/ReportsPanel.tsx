@@ -20,10 +20,10 @@ type MetricProps = {
 function metricTone(tone: MetricProps['tone'] = 'blue') {
   return {
     blue: 'border-[var(--jmi-blue)]/15 bg-[var(--surface-subtle)] text-[var(--jmi-blue)]',
-    green: 'border-emerald-200 bg-emerald-50 text-emerald-800',
-    amber: 'border-amber-200 bg-amber-50 text-amber-900',
-    red: 'border-red-200 bg-red-50 text-red-800',
-    slate: 'border-slate-200 bg-slate-50 text-slate-700',
+    green: 'border-[var(--success-border)] bg-[var(--success-soft)] text-[var(--success-ink)]',
+    amber: 'border-[var(--warning-border)] bg-[var(--warning-soft)] text-[var(--warning-ink)]',
+    red: 'border-[var(--danger-border)] bg-[var(--danger-soft)] text-[var(--danger-ink)]',
+    slate: 'border-[var(--border)] bg-[var(--surface-hover)] text-[var(--neutral-ink)]',
   }[tone]
 }
 
@@ -45,7 +45,7 @@ function formatMinutes(minutes = 0) {
 
 function Breakdown({ title, values, formatValue = (value: number) => value.toString() }: { title: string; values: Record<string, number>; formatValue?: (value: number) => string }) {
   const entries = Object.entries(values).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-  return <div className="rounded-2xl border border-[var(--line)] bg-white p-4">
+  return <div className="rounded-2xl border border-[var(--line)] bg-[var(--paper)] p-4">
     <h3 className="font-display text-sm font-extrabold text-[var(--ink)]">{title}</h3>
     <div className="mt-3 space-y-2">
       {entries.length === 0 && <p className="text-sm font-semibold text-[var(--muted)]">No records for this month.</p>}
@@ -63,10 +63,10 @@ export function ReportsPanel({ month, onMonthChange, report, loading, onDownload
       eyebrow="Monthly reporting"
       title={report ? `JMI Dispatch Report · ${report.month}` : 'JMI Dispatch Report'}
       description="Export the numbers John needs for Mobil/CBRE conversations: KPI pressure, PM completion, CM, estimates, PA Projects, and follow-up visibility."
-      action={<button type="button" disabled={!report || loading} onClick={() => void onDownloadCsv()} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[var(--jmi-blue)] px-4 py-2.5 font-display text-sm font-extrabold text-white shadow-none transition-colors  hover:bg-[var(--jmi-blue-deep)] disabled:cursor-not-allowed disabled:bg-slate-300 sm:w-auto"><Download size={16} /> Download CSV</button>}
+      action={<button type="button" disabled={!report || loading} onClick={() => void onDownloadCsv()} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl button-action bg-[var(--jmi-blue)] px-4 py-2.5 font-display text-sm font-extrabold text-[var(--paper)] shadow-none transition-colors  hover:bg-[var(--jmi-blue-deep)] disabled:cursor-not-allowed disabled:bg-[var(--border-strong)] sm:w-auto"><Download size={16} /> Download CSV</button>}
     />
 
-    <div className="border-b border-slate-200 px-3 py-2"><label className="inline-flex items-center gap-3 text-sm font-semibold">Report month<input type="month" value={month} onChange={(event) => { if (event.target.value) onMonthChange(event.target.value) }} className="field-control rounded-xl px-3 py-2" /></label></div>
+    <div className="border-b border-[var(--border)] px-3 py-2"><label className="inline-flex items-center gap-3 text-sm font-semibold">Report month<input type="month" value={month} onChange={(event) => { if (event.target.value) onMonthChange(event.target.value) }} className="field-control rounded-xl px-3 py-2" /></label></div>
 
     {loading && <p className="p-5 text-sm font-bold text-[var(--ink-soft)]">Loading monthly report...</p>}
     {!loading && !report && <p className="p-5 text-sm font-bold text-[var(--ink-soft)]">No report loaded yet.</p>}
@@ -95,15 +95,15 @@ export function ReportsPanel({ month, onMonthChange, report, loading, onDownload
       </div>
 
       <div className="grid gap-3 lg:grid-cols-2">
-        <div className="rounded-2xl border border-blue-100 bg-[var(--surface-subtle)] p-4">
-          <div className="flex items-center gap-3"><span className="rounded-xl bg-white p-2 text-[var(--jmi-blue)]"><Wrench size={18} /></span><div><p className="font-display font-extrabold text-[var(--ink)]">CSV includes work-order detail rows</p><p className="text-sm font-semibold text-[var(--muted)]">WO number, service line, KPI due, CM/estimate, PA Project, parts fields, follow-up owner/date, and notes.</p></div></div>
+        <div className="rounded-2xl border border-[var(--info-soft-strong)] bg-[var(--surface-subtle)] p-4">
+          <div className="flex items-center gap-3"><span className="rounded-xl bg-[var(--paper)] p-2 text-[var(--jmi-blue)]"><Wrench size={18} /></span><div><p className="font-display font-extrabold text-[var(--ink)]">CSV includes work-order detail rows</p><p className="text-sm font-semibold text-[var(--muted)]">WO number, service line, KPI due, CM/estimate, PA Project, parts fields, follow-up owner/date, and notes.</p></div></div>
         </div>
-        <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4">
-          <div className="flex items-center gap-3"><span className="rounded-xl bg-white p-2 text-amber-800"><FolderKanban size={18} /></span><div><p className="font-display font-extrabold text-amber-950">PA Projects stay visible</p><p className="text-sm font-semibold text-amber-900/80">Monthly reporting excludes PA Projects from KPI pressure but keeps them in follow-up totals.</p></div></div>
+        <div className="rounded-2xl border border-[var(--warning-soft-strong)] bg-[var(--warning-soft)] p-4">
+          <div className="flex items-center gap-3"><span className="rounded-xl bg-[var(--paper)] p-2 text-[var(--warning-text)]"><FolderKanban size={18} /></span><div><p className="font-display font-extrabold text-[var(--warning-ink-strong)]">PA Projects stay visible</p><p className="text-sm font-semibold text-[var(--warning-ink)]/80">Monthly reporting excludes PA Projects from KPI pressure but keeps them in follow-up totals.</p></div></div>
         </div>
       </div>
 
-      <p className="inline-flex items-center gap-2 rounded-2xl border border-[var(--line)] bg-white px-4 py-2 text-xs font-bold  tracking-normal text-[var(--muted)]"><FileText size={14} /> Generated {new Date(report.generated_at).toLocaleString()}</p>
+      <p className="inline-flex items-center gap-2 rounded-2xl border border-[var(--line)] bg-[var(--paper)] px-4 py-2 text-xs font-bold  tracking-normal text-[var(--muted)]"><FileText size={14} /> Generated {new Date(report.generated_at).toLocaleString()}</p>
     </div>}
   </Card>
 }

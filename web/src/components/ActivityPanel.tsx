@@ -25,7 +25,7 @@ export function ActivityPanel({ events }: { events: AuditEvent[] }) {
     />
     <div className="space-y-3 p-3 sm:p-4">
       {events.length === 0 && <p className="rounded-2xl border border-dashed border-[var(--line)] bg-[var(--surface-subtle)] p-5 text-sm font-semibold text-[var(--ink-soft)]">No activity has been recorded yet.</p>}
-      {events.map((event) => <article key={event.id} className="rounded-2xl border border-[var(--line)] bg-white/88 p-3 shadow-none sm:p-4">
+      {events.map((event) => <article key={event.id} className="rounded-2xl border border-[var(--line)] bg-[var(--paper)]/88 p-3 shadow-none sm:p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="font-display text-sm font-extrabold capitalize text-[var(--ink)]">{eventSummary(event)}</p>

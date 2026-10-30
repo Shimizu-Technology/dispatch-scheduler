@@ -69,11 +69,11 @@ export function UserManagementPanel({ deliveryNotice, users, currentUserId, savi
       eyebrow="Admin"
       title="User invitations and access"
       description="Invite JMI dispatch users, resend pending invitations, and control who can edit schedules or administer the workspace. Uninvited Clerk sign-ins are blocked."
-      action={<button type="button" onClick={() => setShowInvite((current) => !current)} className="inline-flex items-center gap-2 rounded-2xl bg-[var(--jmi-blue)] px-4 py-2 font-display text-xs font-extrabold  tracking-normal text-white shadow-none transition-colors  hover:bg-[var(--jmi-blue-deep)]"><Plus size={16} /> Invite user</button>}
+      action={<button type="button" onClick={() => setShowInvite((current) => !current)} className="inline-flex items-center gap-2 rounded-2xl button-action bg-[var(--jmi-blue)] px-4 py-2 font-display text-xs font-extrabold  tracking-normal text-[var(--paper)] shadow-none transition-colors  hover:bg-[var(--jmi-blue-deep)]"><Plus size={16} /> Invite user</button>}
     />
 
     <div className="space-y-4 p-4">
-      {deliveryNotice && <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">{deliveryNotice}</p>}
+      {deliveryNotice && <p role="status" className="rounded-xl border border-[var(--warning-border)] bg-[var(--warning-soft)] p-3 text-sm text-[var(--warning-ink-strong)]">{deliveryNotice}</p>}
       <div className="grid gap-3 lg:grid-cols-3">
         {roles.map((role) => <div key={role.value} className="rounded-2xl border border-[var(--jmi-blue)]/12 bg-[var(--surface-subtle)] p-4">
           <div className="flex items-center gap-2">
@@ -91,9 +91,9 @@ export function UserManagementPanel({ deliveryNotice, users, currentUserId, savi
             <h3 className="font-display mt-1 text-xl font-extrabold tracking-tight text-[var(--ink)]">Send dispatch access</h3>
             <p className="mt-1 text-sm font-semibold text-[var(--ink-soft)]">The user receives a Clerk/Resend invitation and their role is ready when they sign in with this email.</p>
           </div>
-          <button type="button" onClick={() => setShowInvite(false)} className="rounded-xl border border-[var(--line)] bg-white px-3 py-2 font-display text-xs font-extrabold  tracking-normal text-[var(--ink-soft)] transition-colors hover:bg-[var(--jmi-blue-soft)]">Cancel</button>
+          <button type="button" onClick={() => setShowInvite(false)} className="rounded-xl border border-[var(--line)] bg-[var(--paper)] px-3 py-2 font-display text-xs font-extrabold  tracking-normal text-[var(--ink-soft)] transition-colors hover:bg-[var(--jmi-blue-soft)]">Cancel</button>
         </div>
-        {formError && <p className="mt-3 rounded-2xl border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-800">{formError}</p>}
+        {formError && <p className="mt-3 rounded-2xl border border-[var(--danger-border)] bg-[var(--danger-soft)] p-3 text-sm font-bold text-[var(--danger-ink)]">{formError}</p>}
         <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_1fr_14rem_auto] lg:items-end">
           <label className="text-xs font-extrabold  tracking-normal text-[var(--ink-soft)]">Email
             <input type="email" value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} placeholder="name@company.com" className="field-control mt-1 w-full rounded-xl px-3 py-3 text-sm font-bold normal-case tracking-normal text-[var(--ink)]" />
@@ -106,7 +106,7 @@ export function UserManagementPanel({ deliveryNotice, users, currentUserId, savi
               {roles.map((role) => <option key={role.value} value={role.value}>{role.label}</option>)}
             </select>
           </label>
-          <button type="button" disabled={savingUserId !== null} onClick={() => void submitInvite()} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-[var(--jmi-red)] px-4 py-3 font-display text-sm font-extrabold text-white transition-colors  hover:bg-[var(--jmi-red-deep)] disabled:cursor-not-allowed disabled:opacity-60"><Mail size={17} /> {savingUserId === 0 ? 'Sending...' : 'Send invite'}</button>
+          <button type="button" disabled={savingUserId !== null} onClick={() => void submitInvite()} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl button-primary bg-[var(--primary)] px-4 py-3 font-display text-sm font-extrabold text-[var(--paper)] transition-colors  hover:bg-[var(--jmi-red-deep)] disabled:cursor-not-allowed disabled:opacity-60"><Mail size={17} /> {savingUserId === 0 ? 'Sending...' : 'Send invite'}</button>
         </div>
       </section>}
 
@@ -114,14 +114,14 @@ export function UserManagementPanel({ deliveryNotice, users, currentUserId, savi
       {users.map((managedUser) => {
         const isCurrentUser = managedUser.id === currentUserId
         const isSaving = savingUserId === managedUser.id
-        return <article key={managedUser.id} className={`grid gap-4 rounded-3xl border p-4 shadow-none xl:grid-cols-[1fr_auto] xl:items-center ${managedUser.active ? 'border-[var(--line)] bg-white/90' : 'border-slate-200 bg-slate-50/80 opacity-80'}`}>
+        return <article key={managedUser.id} className={`grid gap-4 rounded-3xl border p-4 shadow-none xl:grid-cols-[1fr_auto] xl:items-center ${managedUser.active ? 'border-[var(--line)] bg-[var(--paper)]/90' : 'border-[var(--border)] bg-[var(--surface-hover)]/80 opacity-80'}`}>
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="font-display text-lg font-extrabold tracking-tight text-[var(--ink)]">{managedUser.name}</h3>
               {isCurrentUser && <Badge kind="approved">You</Badge>}
               <Badge kind={managedUser.role}>{roleLabel(managedUser.role)}</Badge>
-              {managedUser.invitation_pending && <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-extrabold  tracking-normal text-amber-800"><Mail size={13} /> Pending invite</span>}
-              {!managedUser.active && <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-extrabold  tracking-normal text-slate-600"><UserX size={13} /> Inactive</span>}
+              {managedUser.invitation_pending && <span className="inline-flex items-center gap-1 rounded-full border border-[var(--warning-border)] bg-[var(--warning-soft)] px-2.5 py-1 text-xs font-extrabold  tracking-normal text-[var(--warning-text)]"><Mail size={13} /> Pending invite</span>}
+              {!managedUser.active && <span className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface-muted)] px-2.5 py-1 text-xs font-extrabold  tracking-normal text-[var(--neutral-ink-soft)]"><UserX size={13} /> Inactive</span>}
             </div>
             <p className="mt-1 text-sm font-semibold text-[var(--ink-soft)]">{managedUser.email}</p>
             <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs font-semibold  tracking-normal text-[var(--muted)]">
@@ -143,8 +143,8 @@ export function UserManagementPanel({ deliveryNotice, users, currentUserId, savi
               </select>
             </label>
             {managedUser.invitation_pending && <button type="button" disabled={savingUserId !== null} onClick={() => void onResendInvitation(managedUser.id)} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[var(--jmi-blue)]/15 bg-[var(--jmi-blue-soft)] px-4 py-3 font-display text-xs font-extrabold  tracking-normal text-[var(--jmi-blue)] transition-colors hover:bg-[var(--jmi-blue-hover)] disabled:cursor-not-allowed disabled:opacity-60"><RefreshCw className={isSaving ? 'animate-spin' : ''} size={16} /> Resend</button>}
-            {!isCurrentUser && <button type="button" disabled={savingUserId !== null} onClick={() => void toggleActive(managedUser)} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[var(--line)] bg-white px-4 py-3 font-display text-xs font-extrabold  tracking-normal text-[var(--ink)] transition-colors hover:bg-[var(--steel)] disabled:cursor-not-allowed disabled:opacity-60">{managedUser.active ? <UserX size={16} /> : <UserCheck size={16} />}{managedUser.active ? 'Deactivate' : 'Activate'}</button>}
-            {!isCurrentUser && <button type="button" disabled={savingUserId !== null} onClick={() => void deleteUser(managedUser)} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 font-display text-xs font-extrabold  tracking-normal text-red-700 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"><Trash2 size={16} /> Delete</button>}
+            {!isCurrentUser && <button type="button" disabled={savingUserId !== null} onClick={() => void toggleActive(managedUser)} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[var(--line)] bg-[var(--paper)] px-4 py-3 font-display text-xs font-extrabold  tracking-normal text-[var(--ink)] transition-colors hover:bg-[var(--steel)] disabled:cursor-not-allowed disabled:opacity-60">{managedUser.active ? <UserX size={16} /> : <UserCheck size={16} />}{managedUser.active ? 'Deactivate' : 'Activate'}</button>}
+            {!isCurrentUser && <button type="button" disabled={savingUserId !== null} onClick={() => void deleteUser(managedUser)} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[var(--danger-border)] bg-[var(--danger-soft)] px-4 py-3 font-display text-xs font-extrabold  tracking-normal button-destructive text-[var(--danger-text)] transition-colors hover:bg-[var(--danger-soft-strong)] disabled:cursor-not-allowed disabled:opacity-60"><Trash2 size={16} /> Delete</button>}
           </div>
         </article>
       })}

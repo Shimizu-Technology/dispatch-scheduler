@@ -24,12 +24,12 @@ export function PaProjectsPanel({ workOrders, meta, onPage, onEdit, canEdit }: {
       description="Status-independent tracking for CBRE/Mobil work that should stay visible while parts, materials, estimates, or long-lead follow-up are pending."
       action={<div className="grid w-full grid-cols-3 gap-2 text-center text-xs font-extrabold  tracking-normal text-[var(--muted)] sm:w-auto sm:text-xs tracking-normal">
         <span className="rounded-xl border border-[var(--jmi-blue)]/15 bg-[var(--jmi-blue-soft)] px-2 py-2 text-[var(--jmi-blue)] sm:px-3">{totalCount} total</span>
-        <span className="rounded-xl border border-amber-200 bg-amber-50 px-2 py-2 text-amber-900 sm:px-3">{waitingParts} parts</span>
-        <span className="rounded-xl border border-indigo-200 bg-indigo-50 px-2 py-2 text-indigo-900 sm:px-3">{estimates} estimates</span>
+        <span className="rounded-xl border border-[var(--warning-border)] bg-[var(--warning-soft)] px-2 py-2 text-[var(--warning-ink)] sm:px-3">{waitingParts} parts</span>
+        <span className="rounded-xl border border-[var(--scheduled-border)] bg-[var(--scheduled-soft)] px-2 py-2 text-[var(--scheduled-ink-strong)] sm:px-3">{estimates} estimates</span>
       </div>}
     />
     <div className="space-y-3 p-3 sm:p-4">
-      {paProjects.map((workOrder) => <article key={workOrder.id} className="rounded-2xl border border-[var(--line)] bg-white p-3 shadow-none sm:p-4">
+      {paProjects.map((workOrder) => <article key={workOrder.id} className="rounded-2xl border border-[var(--line)] bg-[var(--paper)] p-3 shadow-none sm:p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="flex flex-wrap items-center gap-2">
@@ -59,14 +59,14 @@ export function PaProjectsPanel({ workOrders, meta, onPage, onEdit, canEdit }: {
           <span>Vendor ref: {workOrder.vendor_reference || 'None'}</span>
           <span>Estimate #: {workOrder.estimate_number || 'None'}</span>
         </div>
-        {(workOrder.pa_project_notes || workOrder.latest_follow_up_note) && <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold leading-6 text-amber-950">{workOrder.pa_project_notes || workOrder.latest_follow_up_note}{workOrder.pa_project_notes && workOrder.latest_follow_up_note ? ` · Latest: ${workOrder.latest_follow_up_note}` : ''}</p>}
+        {(workOrder.pa_project_notes || workOrder.latest_follow_up_note) && <p className="mt-3 rounded-xl border border-[var(--warning-border)] bg-[var(--warning-soft)] px-3 py-2 text-sm font-semibold leading-6 text-[var(--warning-ink-strong)]">{workOrder.pa_project_notes || workOrder.latest_follow_up_note}{workOrder.pa_project_notes && workOrder.latest_follow_up_note ? ` · Latest: ${workOrder.latest_follow_up_note}` : ''}</p>}
       </article>)}
       {paProjects.length === 0 && <p className="rounded-2xl border border-dashed border-[var(--brand-line)] bg-[var(--surface-subtle)] p-6 text-sm font-semibold text-[var(--ink-soft)]">No PA Projects are marked yet. Check the PA Project box on a work order to make it appear here.</p>}
       {meta && meta.total_count > 0 && <div className="flex flex-wrap items-center justify-between gap-3 px-1 pt-2 text-xs font-bold  tracking-normal text-[var(--muted)]">
         <span>{paProjects.length} shown · {meta.total_count} total · page {meta.page} of {Math.max(meta.total_pages, 1)}</span>
         <div className="flex gap-2">
-          <button type="button" disabled={meta.page <= 1} onClick={() => void onPage(meta.page - 1)} className="rounded-full border border-[var(--line)] bg-white px-3 py-1.5 text-[var(--ink-soft)] disabled:cursor-not-allowed disabled:opacity-50">Previous</button>
-          <button type="button" disabled={meta.page >= meta.total_pages} onClick={() => void onPage(meta.page + 1)} className="rounded-full border border-[var(--line)] bg-white px-3 py-1.5 text-[var(--ink-soft)] disabled:cursor-not-allowed disabled:opacity-50">Next</button>
+          <button type="button" disabled={meta.page <= 1} onClick={() => void onPage(meta.page - 1)} className="rounded-full border border-[var(--line)] bg-[var(--paper)] px-3 py-1.5 text-[var(--ink-soft)] disabled:cursor-not-allowed disabled:opacity-50">Previous</button>
+          <button type="button" disabled={meta.page >= meta.total_pages} onClick={() => void onPage(meta.page + 1)} className="rounded-full border border-[var(--line)] bg-[var(--paper)] px-3 py-1.5 text-[var(--ink-soft)] disabled:cursor-not-allowed disabled:opacity-50">Next</button>
         </div>
       </div>}
     </div>

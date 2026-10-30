@@ -68,7 +68,7 @@ function slaBadgeKind(status?: string | null) {
 }
 
 function ScheduleSummary({ summary }: { summary: DispatchSummary }) {
-  return <div className="grid gap-3 rounded-2xl border border-blue-100 bg-gradient-to-br from-[var(--surface-subtle)] to-white p-3 text-sm text-[var(--ink)] shadow-none sm:grid-cols-4 sm:p-4">
+  return <div className="grid gap-3 rounded-2xl border border-[var(--info-soft-strong)] bg-gradient-to-br from-[var(--surface-subtle)] to-[var(--paper)] p-3 text-sm text-[var(--ink)] shadow-none sm:grid-cols-4 sm:p-4">
     <strong className="font-display tabular text-lg font-extrabold">{summary.scheduled_items}{summary.daily_item_limit ? `/${summary.daily_item_limit}` : ''} scheduled</strong>
     <span className="font-semibold">{summary.eligible_work_orders} work orders</span>
     <span className="font-semibold">{summary.eligible_pm_tasks} PM tasks</span>
@@ -80,14 +80,14 @@ function ScheduleSummary({ summary }: { summary: DispatchSummary }) {
 
 function StatusNotice({ schedule }: { schedule: DispatchSchedule }) {
   if (schedule.status === 'draft') {
-    return <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">Draft schedule: adjust crew, time, order, and notes before finalizing.</div>
+    return <div className="rounded-2xl border border-[var(--warning-border)] bg-[var(--warning-soft)] p-4 text-sm font-semibold text-[var(--warning-ink)]">Draft schedule: adjust crew, time, order, and notes before finalizing.</div>
   }
 
   if (schedule.status === 'finalized') {
-    return <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm font-semibold text-blue-900">Finalized schedule: editing and regeneration are locked. Reopen to make changes before sending.</div>
+    return <div className="rounded-2xl border border-[var(--info-border)] bg-[var(--info-soft)] p-4 text-sm font-semibold text-[var(--info-ink-strong)]">Finalized schedule: editing and regeneration are locked. Reopen to make changes before sending.</div>
   }
 
-  return <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-900">Sent schedule: this dispatch has been marked as sent to the crews.</div>
+  return <div className="rounded-2xl border border-[var(--success-border)] bg-[var(--success-soft)] p-4 text-sm font-semibold text-[var(--success-ink-strong)]">Sent schedule: this dispatch has been marked as sent to the crews.</div>
 }
 
 function DispatchCard({ item, scheduleDate, teams, technicians, disabled, canEdit, canEditOutcomes, canMoveEarlier, canMoveLater, onUpdate, onOutcome, onWorkOrderStatus }: { item: DispatchItem; scheduleDate: string; teams: Team[]; technicians: Technician[]; disabled: boolean; canEdit: boolean; canEditOutcomes: boolean; canMoveEarlier: boolean; canMoveLater: boolean; onUpdate: (itemId: number, changes: Record<string, unknown>) => Promise<void>; onOutcome: (itemId: number, changes: { outcome_status: DispatchOutcomeStatus; outcome_notes?: string; carried_over_to_date?: string }) => Promise<void>; onWorkOrderStatus: (workOrderId: number, status: WorkOrderStatus) => Promise<void> }) {
@@ -153,7 +153,7 @@ function DispatchCard({ item, scheduleDate, teams, technicians, disabled, canEdi
     }
   }
 
-  return <div className="rounded-2xl border border-[var(--line)] bg-white/92 p-3 shadow-none sm:p-4">
+  return <div className="rounded-2xl border border-[var(--line)] bg-[var(--paper)]/92 p-3 shadow-none sm:p-4">
     <div className="flex items-start justify-between gap-2">
       <div className="min-w-0">
         <p className="font-display tabular text-xs font-extrabold  tracking-normal text-[var(--jmi-blue)]">{scheduledTime || 'TBD'}</p>
@@ -171,7 +171,7 @@ function DispatchCard({ item, scheduleDate, teams, technicians, disabled, canEdi
       <button type="button" onClick={() => setShowDetails((current) => !current)} className="font-extrabold text-[var(--jmi-blue)] underline-offset-4 hover:underline">{showDetails ? 'Hide details' : 'Details'}</button>
     </div>
 
-    {showDetails && <div className="mt-3 rounded-2xl border border-blue-100 bg-[var(--surface-subtle)] p-3 text-sm leading-6 text-[var(--ink-soft)]">
+    {showDetails && <div className="mt-3 rounded-2xl border border-[var(--info-soft-strong)] bg-[var(--surface-subtle)] p-3 text-sm leading-6 text-[var(--ink-soft)]">
       <p className="font-display font-extrabold text-[var(--ink)]">{wo ? 'Work order details' : 'PM task details'}</p>
       <p className="mt-1">{wo?.description || pm?.task_name}</p>
       {wo?.notes && <p className="mt-2 text-xs font-semibold text-[var(--ink-soft)]">Work order notes: {wo.notes}</p>}
@@ -186,7 +186,7 @@ function DispatchCard({ item, scheduleDate, teams, technicians, disabled, canEdi
             {WORK_ORDER_STATUS_OPTIONS.map((option) => <option key={option.status} value={option.status}>{option.label}</option>)}
           </select>
         </label>
-        <button type="button" disabled={disabled || !canEditOutcomes || !workOrderStatusDirty} onClick={() => void onWorkOrderStatus(wo.id, workOrderStatus)} className="rounded-xl bg-[var(--jmi-blue)] px-3 py-2 text-xs font-extrabold text-white transition-colors  hover:bg-[var(--jmi-blue-deep)] disabled:cursor-not-allowed disabled:opacity-50">Update status</button>
+        <button type="button" disabled={disabled || !canEditOutcomes || !workOrderStatusDirty} onClick={() => void onWorkOrderStatus(wo.id, workOrderStatus)} className="rounded-xl button-action bg-[var(--jmi-blue)] px-3 py-2 text-xs font-extrabold text-[var(--paper)] transition-colors  hover:bg-[var(--jmi-blue-deep)] disabled:cursor-not-allowed disabled:opacity-50">Update status</button>
       </div>
       <p className="mt-2 text-xs font-semibold leading-5 text-[var(--muted)]">Use this for mid-day status changes. Use the outcome buttons below for the final result of this dispatch stop.</p>
     </div>}
@@ -204,9 +204,9 @@ function DispatchCard({ item, scheduleDate, teams, technicians, disabled, canEdi
       </label>
     </div>
 
-    {assignedCrewLine && <p className="mt-2 rounded-xl border border-blue-100 bg-[var(--surface-subtle)] px-3 py-2 text-xs font-extrabold text-[var(--jmi-blue)]">Assigned technicians for this stop: {assignedCrewLine}</p>}
+    {assignedCrewLine && <p className="mt-2 rounded-xl border border-[var(--info-soft-strong)] bg-[var(--surface-subtle)] px-3 py-2 text-xs font-extrabold text-[var(--jmi-blue)]">Assigned technicians for this stop: {assignedCrewLine}</p>}
 
-    {item.call_out_names.length > 0 && <p className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-extrabold text-amber-900">Out today from default crew: {item.call_out_names.join(', ')}. The active crew shown above excludes call-outs.</p>}
+    {item.call_out_names.length > 0 && <p className="mt-2 rounded-xl border border-[var(--warning-border)] bg-[var(--warning-soft)] px-3 py-2 text-xs font-extrabold text-[var(--warning-ink)]">Out today from default crew: {item.call_out_names.join(', ')}. The active crew shown above excludes call-outs.</p>}
 
     {canEdit && <div className="mt-3 rounded-2xl border border-[var(--brand-line)] bg-[var(--surface-subtle)] p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -215,14 +215,14 @@ function DispatchCard({ item, scheduleDate, teams, technicians, disabled, canEdi
           <p className="mt-1 text-xs font-semibold text-[var(--muted)]">Add helpers for larger jobs without changing the whole day’s crew.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button type="button" disabled={disabled} onClick={() => { markDirty(); setSelectedTechnicianIds(selectedTeamTechnicianIds) }} className="rounded-xl border border-[var(--jmi-blue)]/15 bg-white px-3 py-2 text-xs font-extrabold text-[var(--jmi-blue)] transition-colors hover:bg-[var(--jmi-blue-soft)] disabled:cursor-not-allowed disabled:opacity-50">Use selected crew</button>
-          <button type="button" onClick={() => setShowTechnicians((current) => !current)} className="rounded-xl bg-[var(--jmi-blue)] px-3 py-2 text-xs font-extrabold text-white">{showTechnicians ? 'Hide people' : 'Customize people'}</button>
+          <button type="button" disabled={disabled} onClick={() => { markDirty(); setSelectedTechnicianIds(selectedTeamTechnicianIds) }} className="rounded-xl border border-[var(--jmi-blue)]/15 bg-[var(--paper)] px-3 py-2 text-xs font-extrabold text-[var(--jmi-blue)] transition-colors hover:bg-[var(--jmi-blue-soft)] disabled:cursor-not-allowed disabled:opacity-50">Use selected crew</button>
+          <button type="button" onClick={() => setShowTechnicians((current) => !current)} className="rounded-xl button-action bg-[var(--jmi-blue)] px-3 py-2 text-xs font-extrabold text-[var(--paper)]">{showTechnicians ? 'Hide people' : 'Customize people'}</button>
         </div>
       </div>
       {showTechnicians && <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {activeTechnicians.map((technician) => {
           const checked = selectedTechnicianIds.includes(technician.id)
-          return <label key={technician.id} className={`flex cursor-pointer items-start gap-2 rounded-xl border p-2 text-xs transition-colors ${checked ? 'border-[var(--jmi-blue)] bg-white text-[var(--ink)]' : 'border-[var(--line)] bg-white/70 text-[var(--ink-soft)]'}`}>
+          return <label key={technician.id} className={`flex cursor-pointer items-start gap-2 rounded-xl border p-2 text-xs transition-colors ${checked ? 'border-[var(--jmi-blue)] bg-[var(--paper)] text-[var(--ink)]' : 'border-[var(--line)] bg-[var(--paper)]/70 text-[var(--ink-soft)]'}`}>
             <input disabled={disabled} type="checkbox" checked={checked} onChange={() => { markDirty(); setSelectedTechnicianIds((current) => current.includes(technician.id) ? current.filter((id) => id !== technician.id) : [...current, technician.id]) }} className="mt-0.5 accent-[var(--jmi-blue)]" />
             <span><span className="font-display block font-extrabold">{technician.name}{technician.is_driver ? ' (Driver)' : ''}</span><span className="font-semibold text-[var(--muted)]">{technician.primary_trade}{technician.availability === 'unavailable' ? ' · out today' : ''}</span></span>
           </label>
@@ -235,15 +235,15 @@ function DispatchCard({ item, scheduleDate, teams, technicians, disabled, canEdi
       <textarea disabled={disabled || !canEdit} value={notes} onChange={(event) => { markDirty(); setNotes(event.target.value) }} className="field-control mt-1 min-h-16 w-full rounded-xl px-3 py-2 text-sm text-[var(--ink-soft)]" />
     </label>
 
-    {item.reassignment_reason && <p className="mt-2 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-extrabold text-blue-900">Reassignment note: {item.reassignment_reason}</p>}
+    {item.reassignment_reason && <p className="mt-2 rounded-xl border border-[var(--info-soft-strong)] bg-[var(--info-soft)] px-3 py-2 text-xs font-extrabold text-[var(--info-ink-strong)]">Reassignment note: {item.reassignment_reason}</p>}
 
     {canEdit && <div className="mt-3 flex flex-wrap items-center gap-2">
-      <button disabled={isSaving || !isDirty} onClick={() => void saveOverride()} className="inline-flex items-center gap-1 rounded-xl bg-[var(--jmi-blue)] px-3 py-2 text-xs font-extrabold text-white transition-colors  hover:bg-[var(--jmi-blue-deep)] disabled:cursor-not-allowed disabled:opacity-60">
+      <button disabled={isSaving || !isDirty} onClick={() => void saveOverride()} className="inline-flex items-center gap-1 rounded-xl button-action bg-[var(--jmi-blue)] px-3 py-2 text-xs font-extrabold text-[var(--paper)] transition-colors  hover:bg-[var(--jmi-blue-deep)] disabled:cursor-not-allowed disabled:opacity-60">
         <Save size={14} /> {saveState === 'saving' ? 'Saving...' : 'Save override'}
       </button>
-      {saveState === 'saved' && !isDirty && <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-extrabold text-emerald-800"><CheckCircle2 size={14} /> Saved</span>}
-      <button disabled={disabled || !canMoveEarlier} title={!canMoveEarlier ? 'Only available when this crew has an earlier stop to swap with.' : undefined} onClick={() => onUpdate(item.id, { order_index: Math.max(0, item.order_index - 1) })} className="rounded-xl border border-[var(--line)] bg-white/80 px-3 py-2 text-xs font-extrabold text-[var(--ink-soft)] transition-colors  hover:bg-[var(--jmi-blue-soft)] disabled:cursor-not-allowed disabled:opacity-50">Move earlier</button>
-      <button disabled={disabled || !canMoveLater} title={!canMoveLater ? 'Only available when this crew has a later stop to swap with.' : undefined} onClick={() => onUpdate(item.id, { order_index: item.order_index + 1 })} className="rounded-xl border border-[var(--line)] bg-white/80 px-3 py-2 text-xs font-extrabold text-[var(--ink-soft)] transition-colors  hover:bg-[var(--jmi-blue-soft)] disabled:cursor-not-allowed disabled:opacity-50">Move later</button>
+      {saveState === 'saved' && !isDirty && <span className="inline-flex items-center gap-1 rounded-full border border-[var(--success-border)] bg-[var(--success-soft)] px-3 py-1.5 text-xs font-extrabold text-[var(--success-ink)]"><CheckCircle2 size={14} /> Saved</span>}
+      <button disabled={disabled || !canMoveEarlier} title={!canMoveEarlier ? 'Only available when this crew has an earlier stop to swap with.' : undefined} onClick={() => onUpdate(item.id, { order_index: Math.max(0, item.order_index - 1) })} className="rounded-xl border border-[var(--line)] bg-[var(--paper)]/80 px-3 py-2 text-xs font-extrabold text-[var(--ink-soft)] transition-colors  hover:bg-[var(--jmi-blue-soft)] disabled:cursor-not-allowed disabled:opacity-50">Move earlier</button>
+      <button disabled={disabled || !canMoveLater} title={!canMoveLater ? 'Only available when this crew has a later stop to swap with.' : undefined} onClick={() => onUpdate(item.id, { order_index: item.order_index + 1 })} className="rounded-xl border border-[var(--line)] bg-[var(--paper)]/80 px-3 py-2 text-xs font-extrabold text-[var(--ink-soft)] transition-colors  hover:bg-[var(--jmi-blue-soft)] disabled:cursor-not-allowed disabled:opacity-50">Move later</button>
     </div>}
 
     {canEditOutcomes && <div className="mt-4 rounded-2xl border border-[var(--line)] bg-[var(--surface-subtle)] p-3">
@@ -253,7 +253,7 @@ function DispatchCard({ item, scheduleDate, teams, technicians, disabled, canEdi
           <p className="mt-1 text-sm font-extrabold text-[var(--ink)]">{outcomeLabel(item.outcome_status)}</p>
         </div>
         <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
-          {OUTCOME_OPTIONS.map((option) => <button key={option.status} type="button" title={`Sets work order to ${statusLabel(option.workOrderStatus)}. ${option.description}`} disabled={disabled} onClick={() => void onOutcome(item.id, { outcome_status: option.status, outcome_notes: outcomeNotes, carried_over_to_date: option.status === 'carry_over' ? carryOverDate : undefined })} className={`rounded-xl border px-3 py-2 text-xs font-extrabold transition-colors  disabled:cursor-wait disabled:opacity-50 ${item.outcome_status === option.status ? 'border-[var(--jmi-blue)] bg-[var(--jmi-blue)] text-white' : 'border-[var(--brand-line)] bg-white text-[var(--jmi-blue)] hover:bg-[var(--jmi-blue-soft)]'}`}>{option.label}</button>)}
+          {OUTCOME_OPTIONS.map((option) => <button key={option.status} type="button" title={`Sets work order to ${statusLabel(option.workOrderStatus)}. ${option.description}`} disabled={disabled} onClick={() => void onOutcome(item.id, { outcome_status: option.status, outcome_notes: outcomeNotes, carried_over_to_date: option.status === 'carry_over' ? carryOverDate : undefined })} className={`rounded-xl border px-3 py-2 text-xs font-extrabold transition-colors  disabled:cursor-wait disabled:opacity-50 ${item.outcome_status === option.status ? 'border-[var(--jmi-blue)] button-action bg-[var(--jmi-blue)] text-[var(--paper)]' : 'border-[var(--brand-line)] bg-[var(--paper)] text-[var(--jmi-blue)] hover:bg-[var(--jmi-blue-soft)]'}`}>{option.label}</button>)}
         </div>
       </div>
       <div className="mt-3 grid gap-2 sm:grid-cols-[180px_1fr]">
@@ -290,9 +290,9 @@ export function DispatchBuilder({ schedule, teams, technicians, working, canEdit
       title="Dispatch Draft"
       description={canEditItems ? 'Draft assignments are editable. Review crew, time, route order, warnings, and notes before copying WhatsApp.' : 'Finalized and sent schedules are locked until reopened.'}
       action={canEdit && <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
-        {schedule?.status === 'draft' && <button disabled={working || schedule.items.length === 0} onClick={onFinalize} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[var(--success)] px-4 py-2.5 font-display text-sm font-extrabold text-white shadow-none transition-colors  hover:bg-[var(--success-deep)] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"><CheckCircle2 size={16} /> Finalize</button>}
-        {schedule && schedule.status !== 'draft' && <button disabled={working} onClick={onReopen} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-[var(--brand-line)] bg-white px-4 py-2.5 font-display text-sm font-extrabold text-[var(--jmi-blue)] transition-colors  hover:bg-[var(--jmi-blue-soft)] disabled:cursor-wait disabled:opacity-60 sm:w-auto"><Unlock size={16} /> Reopen</button>}
-        <button disabled={working || Boolean(schedule && schedule.status !== 'draft')} onClick={onSuggest} className="w-full rounded-2xl bg-[var(--jmi-blue)] px-4 py-2.5 font-display text-sm font-extrabold text-white shadow-none transition-colors  hover:bg-[var(--jmi-blue-deep)] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto">Generate Draft</button>
+        {schedule?.status === 'draft' && <button disabled={working || schedule.items.length === 0} onClick={onFinalize} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl button-success bg-[var(--success)] px-4 py-2.5 font-display text-sm font-extrabold text-[var(--paper)] shadow-none transition-colors  hover:bg-[var(--success-deep)] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"><CheckCircle2 size={16} /> Finalize</button>}
+        {schedule && schedule.status !== 'draft' && <button disabled={working} onClick={onReopen} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-[var(--brand-line)] bg-[var(--paper)] px-4 py-2.5 font-display text-sm font-extrabold text-[var(--jmi-blue)] transition-colors  hover:bg-[var(--jmi-blue-soft)] disabled:cursor-wait disabled:opacity-60 sm:w-auto"><Unlock size={16} /> Reopen</button>}
+        <button disabled={working || Boolean(schedule && schedule.status !== 'draft')} onClick={onSuggest} className="w-full rounded-2xl button-action bg-[var(--jmi-blue)] px-4 py-2.5 font-display text-sm font-extrabold text-[var(--paper)] shadow-none transition-colors  hover:bg-[var(--jmi-blue-deep)] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto">Generate Draft</button>
       </div>}
     />
     {!schedule ? (

@@ -67,6 +67,13 @@ describe('work-order intake and editing', () => {
     }
   })
 
+  it('shows the saved priority in the editor when an older record has no normalized priority', () => {
+    setup({ workOrders: [order({ normalized_priority: null, priority: 'P3' })] })
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    expect(screen.getByText('WO #DEMO-1 · New · P3')).toBeTruthy()
+    expect(screen.queryByText(/· null/)).toBeNull()
+  })
+
   it('shows the stored legacy priority and preserves it with exact clocks during unrelated edits', async () => {
     const reported = '2026-10-11T08:00:41.123456+10:00'
     const { user, onUpdate } = setup({ workOrders: [order({ priority: 'Level 1', normalized_priority: 'Level 1', reported_at: reported })] })

@@ -11,16 +11,17 @@ type WhatsAppExportProps = {
   canEdit: boolean
   onCopy: () => Promise<void>
   onMarkSent: () => Promise<void>
+  onOpenDispatch: () => void
 }
 
 function statusCopy(schedule: DispatchSchedule | null) {
-  if (!schedule) return 'Generate a schedule to preview the send-ready crew assignments.'
+  if (!schedule) return 'No dispatch plan for the selected date. Open dispatch to prepare the crew message.'
   if (schedule.status === 'sent') return `Marked sent${schedule.sent_by ? ` by ${schedule.sent_by}` : ''}.`
   if (schedule.status === 'finalized') return 'Finalized and ready to copy into WhatsApp. Mark sent after the message is sent.'
   return 'Draft preview. Finalize the schedule before marking it sent.'
 }
 
-export function WhatsAppExport({ schedule, message, crews, copied, working, canEdit, onCopy, onMarkSent }: WhatsAppExportProps) {
+export function WhatsAppExport({ schedule, message, crews, copied, working, canEdit, onCopy, onMarkSent, onOpenDispatch }: WhatsAppExportProps) {
   const canMarkSent = Boolean(message && schedule?.status === 'finalized' && canEdit)
   const totalStops = crews.reduce((sum, crew) => sum + crew.stops_count, 0)
 
@@ -30,7 +31,7 @@ export function WhatsAppExport({ schedule, message, crews, copied, working, canE
         eyebrow="Send-ready copy"
         title="WhatsApp Export"
         description={statusCopy(schedule)}
-        action={<div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
+        action={!schedule ? <button type="button" onClick={onOpenDispatch} className="min-h-11 rounded-xl border border-[var(--border)] px-4 text-sm font-bold text-[var(--jmi-blue)]">Open dispatch</button> : <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
           <button disabled={!message} onClick={onCopy} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl button-success bg-[var(--success)] px-4 py-2.5 font-display text-sm font-extrabold text-[var(--paper)] shadow-none transition-colors  hover:bg-[var(--success-deep)] disabled:cursor-not-allowed disabled:bg-[var(--border-strong)] disabled:shadow-none sm:w-auto">
             <Clipboard size={16} /> {copied ? 'Copied!' : 'Copy Dispatch'}
           </button>
@@ -71,7 +72,7 @@ export function WhatsAppExport({ schedule, message, crews, copied, working, canE
         </article>)}
       </div>}
 
-      <pre className="max-h-[720px] overflow-auto whitespace-pre-wrap bg-[var(--ink)] p-3 text-sm leading-6 text-[var(--info-soft)] shadow-inner sm:p-5">{message || 'Generate a schedule to preview the WhatsApp message.'}</pre>
+      {message && <pre role="region" tabIndex={0} aria-label="WhatsApp message" className="max-h-[720px] overflow-auto whitespace-pre-wrap bg-[var(--ink)] p-3 text-sm leading-6 text-[var(--info-soft)] shadow-inner sm:p-5">{message}</pre>}
     </Card>
   </div>
 }

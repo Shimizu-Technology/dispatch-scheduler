@@ -5,13 +5,13 @@ import type { ReactNode } from 'react'
 import App from './App'
 import type { WorkOrder } from './types'
 
-const auth = vi.hoisted(() => ({ signedIn: true }))
+const auth = vi.hoisted(() => ({ signedIn: true, loading: false, verifying: false, error: null as string | null, retainUser: false }))
 const api = vi.hoisted(() => ({ getJson: vi.fn(), postJson: vi.fn(), patchJson: vi.fn() }))
 vi.mock('./contexts/useAuthContext', () => ({ useAuthContext: () => ({
-  user: auth.signedIn ? { id: 1, name: 'Synthetic dispatcher', role: 'dispatcher', permissions: { can_admin: false } } : null,
-  isSignedIn: auth.signedIn, isLoading: false, isVerifyingApi: false, authError: null, canEditDispatch: true,
+  user: auth.signedIn && (auth.retainUser || (!auth.verifying && !auth.error)) ? { id: 1, name: 'Synthetic dispatcher', role: 'dispatcher', permissions: { can_admin: false } } : null,
+  isSignedIn: auth.signedIn, isLoading: auth.loading, isVerifyingApi: auth.verifying, authError: auth.error, canEditDispatch: true, refreshUser: vi.fn(),
 }) }))
-vi.mock('@clerk/react', () => ({ UserButton: () => <span>Account</span>, SignInButton: ({ children }: { children: ReactNode }) => children }))
+vi.mock('@clerk/react', () => ({ UserButton: () => <span>Account</span>, SignInButton: ({ children, forceRedirectUrl }: { children: ReactNode; forceRedirectUrl: string }) => <span data-return-url={forceRedirectUrl}>{children}</span> }))
 vi.mock('./lib/api', async (original) => ({ ...await original<typeof import('./lib/api')>(), ...api }))
 
 const order = {
@@ -42,6 +42,10 @@ function go(path: string) {
 }
 beforeEach(() => {
   auth.signedIn = true
+  auth.loading = false
+  auth.verifying = false
+  auth.error = null
+  auth.retainUser = false
   window.localStorage.clear()
   window.history.replaceState(null, '', '/work-orders')
   vi.stubGlobal('scrollTo', vi.fn())
@@ -66,10 +70,80 @@ describe('intake route and saved queue context', () => {
     auth.signedIn = false
     window.history.replaceState(null, '', '/dashboard')
     render(<App />)
-    expect(screen.getByRole('heading', { name: 'Sign in to your workspace' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'JMI Dispatch' })).toBeTruthy()
     expect(screen.queryByText('Loading operations overview...')).toBeNull()
     expect(screen.queryByText('Queue health')).toBeNull()
     expect(api.getJson).not.toHaveBeenCalled()
+  })
+
+  it.each(['/work-orders?q=PUMP', '/dispatch/2026-11-04', '/pm/month/2026-11', '/admin/users'])('has exactly one sign-in action and preserves %s', (path) => {
+    auth.signedIn = false
+    window.history.replaceState(null, '', path)
+    render(<App />)
+    expect(screen.getAllByRole('button', { name: 'Sign in' })).toHaveLength(1)
+    expect(screen.getByRole('button', { name: 'Sign in' }).parentElement?.dataset.returnUrl).toBe(window.location.href)
+    expect(window.location.pathname + window.location.search).toBe(path)
+    expect(screen.queryByRole('navigation')).toBeNull()
+    expect(screen.queryByText('User', { exact: true })).toBeNull()
+    expect(screen.queryByText('viewer', { exact: true })).toBeNull()
+    expect(screen.queryByText(/Clerk/)).toBeNull()
+    expect(api.getJson).not.toHaveBeenCalled()
+  })
+
+  it.each(['loading', 'verifying', 'inactive', 'uninvited', 'offline'])('keeps %s access distinct from signed-out', (state) => {
+    auth.loading = state === 'loading'
+    auth.verifying = state === 'verifying'
+    auth.error = ({ inactive: 'Your account is inactive.', uninvited: 'Your account has not been invited.', offline: 'The dispatch service could not be reached. Check your connection and retry.' } as Record<string, string>)[state] || null
+    render(<App />)
+    expect(screen.queryByRole('navigation')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Sign in' })).toBeNull()
+    if (auth.error) {
+      expect(screen.getByRole('alert').textContent).toBe(auth.error)
+      expect(screen.getByRole('button', { name: 'Retry access' })).toBeTruthy()
+      expect(screen.getByText('Check or switch your account')).toBeTruthy()
+    } else expect(screen.getByRole('status').textContent).toMatch(/Loading sign-in|Checking your access/)
+  })
+
+  it('ignores old stored dates and keeps date choices only during this visit', async () => {
+    window.localStorage.setItem('dispatch-scheduler:selected-date', '2026-10-10')
+    window.history.replaceState(null, '', '/dispatch/today')
+    const view = render(<App />)
+    const now = new Date()
+    const today = new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10)
+    expect(screen.getByLabelText('Schedule date')).toHaveProperty('value', today)
+    fireEvent.change(screen.getByLabelText('Schedule date'), { target: { value: '2026-10-09' } })
+    act(() => go('/dashboard'))
+    expect(screen.getByLabelText('As of date')).toHaveProperty('value', '2026-10-09')
+    view.unmount()
+    window.history.replaceState(null, '', '/dispatch/today')
+    render(<App />)
+    expect(screen.getByLabelText('Schedule date')).toHaveProperty('value', today)
+  })
+
+  it('resets the default on a new day but respects explicit dated links', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      vi.setSystemTime(new Date(2026, 9, 30, 23, 59))
+      window.history.replaceState(null, '', '/dispatch/today')
+      render(<App />)
+      expect(screen.getByLabelText('Schedule date')).toHaveProperty('value', '2026-10-30')
+      vi.setSystemTime(new Date(2026, 9, 31, 0, 1))
+      act(() => window.dispatchEvent(new Event('focus')))
+      expect(screen.getByLabelText('Schedule date')).toHaveProperty('value', '2026-10-31')
+      act(() => go('/dispatch/2026-10-15'))
+      vi.setSystemTime(new Date(2026, 10, 1, 0, 1))
+      act(() => window.dispatchEvent(new Event('focus')))
+      expect(screen.getByLabelText('Schedule date')).toHaveProperty('value', '2026-10-15')
+    } finally { vi.useRealTimers() }
+  })
+
+  it('offers a way to create the missing dispatch from WhatsApp', async () => {
+    window.history.replaceState(null, '', '/whatsapp')
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Open dispatch' }))
+    expect(window.location.pathname).toMatch(/^\/dispatch\//)
+    expect(screen.getByRole('heading', { name: 'Dispatch plan' })).toBeTruthy()
+    expect(screen.queryByText('Finalized and sent schedules are locked until reopened.')).toBeNull()
   })
 
   it('hides the closed phone drawer while keeping the desktop sidebar visible', async () => {
@@ -360,4 +434,65 @@ it('refreshes the dashboard for the newly selected date, not the first-render da
   const dashboardDates = api.getJson.mock.calls.slice(before).map(([path]) => String(path)).filter((path) => path.startsWith('/dashboard?')).map((path) => new URLSearchParams(path.split('?')[1]).get('date'))
   expect(dashboardDates.length).toBeGreaterThan(0)
   expect(dashboardDates.every((date) => date === nextDate)).toBe(true)
+})
+
+
+it('keeps a previous user behind the access-verification screen', () => {
+  auth.verifying = true
+  auth.retainUser = true
+  render(<App />)
+  expect(screen.getByRole('status').textContent).toContain('Checking your access')
+  expect(screen.queryByRole('navigation')).toBeNull()
+  expect(screen.queryByRole('button', { name: 'New Work Order' })).toBeNull()
+})
+
+it.each(['/dispatch/today', '/whatsapp'])('does not offer an empty plan until %s finishes loading', async (path) => {
+  let finish!: (value: unknown) => void
+  const pending = new Promise((resolve) => { finish = resolve })
+  api.getJson.mockImplementation((url: string) => url.startsWith('/dispatch_schedules?') ? pending : Promise.resolve(response(url)))
+  window.history.replaceState(null, '', path)
+  render(<App />)
+  expect(screen.queryByRole('button', { name: 'Generate Draft' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Open dispatch' })).toBeNull()
+  await act(async () => { finish({ schedule: null }) })
+  expect(await screen.findByRole('button', { name: path === '/whatsapp' ? 'Open dispatch' : 'Generate Draft' })).toBeTruthy()
+})
+
+it('removes an old schedule on date change and requires recovery before generating', async () => {
+  const loaded = { id: 1, date: '2026-10-30', status: 'finalized', items: [], summary: { scheduled_items: 0, eligible_work_orders: 0, eligible_pm_tasks: 0, deferred_items: 0, blocked_work_orders: 0 } }
+  api.getJson.mockImplementation(async (path: string) => {
+    if (path === '/dispatch_schedules?date=2026-10-30') return { schedule: loaded }
+    if (path === '/dispatch_schedules?date=2026-10-29') throw new Error('Synthetic dispatch outage')
+    return response(path)
+  })
+  window.history.replaceState(null, '', '/dispatch/2026-10-30')
+  render(<App />)
+  await screen.findByRole('heading', { name: 'Finalized dispatch' })
+  fireEvent.change(screen.getByLabelText('Schedule date'), { target: { value: '2026-10-29' } })
+  expect(screen.queryByRole('heading', { name: 'Finalized dispatch' })).toBeNull()
+  await screen.findByRole('button', { name: 'Retry dispatch' })
+  expect(screen.queryByRole('button', { name: 'Generate Draft' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Reopen' })).toBeNull()
+  api.getJson.mockImplementation(async (path: string) => response(path))
+  fireEvent.click(screen.getByRole('button', { name: 'Retry dispatch' }))
+  await screen.findByRole('button', { name: 'Generate Draft' })
+})
+
+
+it('filters PM stations using the visible Status and Region fields', async () => {
+  window.history.replaceState(null, '', '/pm/month/2026-10')
+  const tasks = [
+    { id: 1, client: 'Synthetic', location: 'North site', region: 'North', task_name: 'Check pump', trade_category: 'General', scheduled_date: '2026-10-30', status: 'pending' },
+    { id: 2, client: 'Synthetic', location: 'South site', region: 'South', task_name: 'Check lights', trade_category: 'General', scheduled_date: '2026-10-30', status: 'completed' },
+  ]
+  api.getJson.mockImplementation(async (path: string) => path.startsWith('/pm_tasks?') ? tasks : response(path))
+  render(<App />)
+  await screen.findByRole('heading', { name: 'North site' })
+  fireEvent.change(screen.getByRole('combobox', { name: 'Status' }), { target: { value: 'completed' } })
+  expect(screen.queryByRole('heading', { name: 'North site' })).toBeNull()
+  expect(screen.getByRole('heading', { name: 'South site' })).toBeTruthy()
+  fireEvent.change(screen.getByRole('combobox', { name: 'Status' }), { target: { value: '' } })
+  fireEvent.change(screen.getByRole('combobox', { name: 'Region' }), { target: { value: 'North' } })
+  expect(screen.getByRole('heading', { name: 'North site' })).toBeTruthy()
+  expect(screen.queryByRole('heading', { name: 'South site' })).toBeNull()
 })

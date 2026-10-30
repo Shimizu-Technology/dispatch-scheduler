@@ -21,7 +21,7 @@ export function PaProjectsPanel({ workOrders, meta, onPage, onEdit, canEdit }: {
     <PanelHeader
       eyebrow="Follow-up workspace"
       title="PA Projects"
-      description="Status-independent tracking for CBRE/Mobil work that should stay visible while parts, materials, estimates, or long-lead follow-up are pending."
+      description="Track CBRE/Mobil work waiting for parts, materials, estimates, or follow-up, whatever its current status."
       action={<div className="grid w-full grid-cols-3 gap-2 text-center text-xs font-extrabold  tracking-normal text-[var(--muted)] sm:w-auto sm:text-xs tracking-normal">
         <span className="rounded-xl border border-[var(--jmi-blue)]/15 bg-[var(--jmi-blue-soft)] px-2 py-2 text-[var(--jmi-blue)] sm:px-3">{totalCount} total</span>
         <span className="rounded-xl border border-[var(--warning-border)] bg-[var(--warning-soft)] px-2 py-2 text-[var(--warning-ink)] sm:px-3">{waitingParts} parts</span>
@@ -33,7 +33,7 @@ export function PaProjectsPanel({ workOrders, meta, onPage, onEdit, canEdit }: {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <Badge kind={workOrder.normalized_priority}>{workOrder.normalized_priority}</Badge>
+              <Badge kind={workOrder.normalized_priority || workOrder.priority}>{workOrder.normalized_priority || workOrder.priority || 'Priority unknown'}</Badge>
               <Badge kind={workOrder.status}>{statusLabel(workOrder.status)}</Badge>
               {workOrder.corrective_maintenance && <Badge kind="approved">CM</Badge>}
               {workOrder.estimate_required && <Badge kind="scheduled">Estimate</Badge>}

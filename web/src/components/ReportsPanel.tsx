@@ -70,7 +70,7 @@ export function ReportsPanel({ month, onMonthChange, report, loading, onDownload
     <PanelHeader
       eyebrow="Monthly reporting"
       title={report ? `JMI Dispatch Report · ${report.month}` : 'JMI Dispatch Report'}
-      description="Export the numbers John needs for Mobil/CBRE conversations: KPI pressure, PM completion, CM, estimates, PA Projects, and follow-up visibility."
+      description="Monthly totals for Mobil/CBRE: KPI pressure, PM completion, corrective maintenance, estimates, PA Projects, and follow-ups."
       action={<button type="button" disabled={!report || loading} onClick={() => void onDownloadCsv()} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl button-action bg-[var(--jmi-blue)] px-4 py-2.5 font-display text-sm font-extrabold text-[var(--paper)] shadow-none transition-colors  hover:bg-[var(--jmi-blue-deep)] disabled:cursor-not-allowed disabled:bg-[var(--border-strong)] sm:w-auto"><Download size={16} /> Download CSV</button>}
     />
 

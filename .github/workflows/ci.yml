@@ -11,7 +11,8 @@ on:
 jobs:
   api:
     name: Rails API
-    runs-on: ubuntu-latest
+    # Ruby 3.3.7 has no prebuilt archive on the new ubuntu-latest (26.04).
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: api

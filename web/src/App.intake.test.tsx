@@ -346,3 +346,18 @@ it('keeps a deep-linked editor saving across repeated sidebar leave attempts', a
   await act(async () => finish({ ...order, description: 'Pending saved scope', lock_version: 1 }))
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
 })
+
+it('refreshes the dashboard for the newly selected date, not the first-render date', async () => {
+  window.history.replaceState(null, '', '/dashboard')
+  render(<App />)
+  await waitFor(() => expect(screen.queryByRole('status')).toBeNull())
+  const initialDate = (screen.getByLabelText('As of date') as HTMLInputElement).value
+  const nextDate = initialDate === '2026-10-28' ? '2026-10-27' : '2026-10-28'
+  const before = api.getJson.mock.calls.length
+  fireEvent.change(screen.getByLabelText('As of date'), { target: { value: nextDate } })
+  await waitFor(() => expect(api.getJson.mock.calls.slice(before).some(([path]) => String(path) === `/dashboard?date=${nextDate}`)).toBe(true))
+  await waitFor(() => expect(screen.queryByRole('status')).toBeNull())
+  const dashboardDates = api.getJson.mock.calls.slice(before).map(([path]) => String(path)).filter((path) => path.startsWith('/dashboard?')).map((path) => new URLSearchParams(path.split('?')[1]).get('date'))
+  expect(dashboardDates.length).toBeGreaterThan(0)
+  expect(dashboardDates.every((date) => date === nextDate)).toBe(true)
+})

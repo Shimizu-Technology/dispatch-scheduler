@@ -708,7 +708,9 @@ function DispatchApp() {
   }
 
   async function refreshWorkOrderContext(nextQuery = currentRoute.section === 'work-orders' ? currentRoute.search.replace(/^\?/, '') || DEFAULT_WORK_ORDER_QUERY : DEFAULT_WORK_ORDER_QUERY) {
-    const date = selectedDate
+    // Read the live date: loadInitialData keeps a first-render closure of this
+    // function, and a stale date here would supersede the new date's dashboard.
+    const date = context.current.date
     // Partial/deep-link queries still need the paginated envelope. Use the same
     // normalized query for both the actual request and stale-context checks.
     const requestQuery = queueQueryKey(nextQuery)

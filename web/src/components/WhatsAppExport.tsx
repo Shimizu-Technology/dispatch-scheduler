@@ -77,7 +77,7 @@ export function WhatsAppExport({ schedule, message, crews, copied, working, canE
         </article>)}
       </div>}
 
-      <pre className="max-h-[720px] overflow-auto whitespace-pre-wrap bg-[var(--ink)] p-3 text-sm leading-6 text-[var(--info-soft)] shadow-inner sm:p-5">{message || 'Generate a schedule to preview the WhatsApp message.'}</pre>
+      <pre tabIndex={0} aria-label="WhatsApp message" className="max-h-[720px] overflow-auto whitespace-pre-wrap bg-[var(--ink)] p-3 text-sm leading-6 text-[var(--info-soft)] shadow-inner sm:p-5">{message || 'Generate a schedule to preview the WhatsApp message.'}</pre>
     </Card>
   </div>
 }

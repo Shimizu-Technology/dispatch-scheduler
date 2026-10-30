@@ -24,14 +24,14 @@ export function ActivityPanel({ events }: { events: AuditEvent[] }) {
       description="Recent work-order, crew, dispatch, and schedule status changes."
     />
     <div className="space-y-3 p-3 sm:p-4">
-      {events.length === 0 && <p className="rounded-2xl border border-dashed border-[rgba(23,32,51,0.18)] bg-[#f8faff] p-5 text-sm font-semibold text-[#526071]">No activity has been recorded yet.</p>}
-      {events.map((event) => <article key={event.id} className="rounded-2xl border border-[rgba(23,32,51,0.1)] bg-white/88 p-3 shadow-[0_10px_26px_rgba(23,32,51,0.05)] sm:p-4">
+      {events.length === 0 && <p className="rounded-2xl border border-dashed border-[var(--line)] bg-[var(--surface-subtle)] p-5 text-sm font-semibold text-[var(--ink-soft)]">No activity has been recorded yet.</p>}
+      {events.map((event) => <article key={event.id} className="rounded-2xl border border-[var(--line)] bg-white/88 p-3 shadow-none sm:p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="font-display text-sm font-extrabold capitalize text-[#172033]">{eventSummary(event)}</p>
-            <p className="mt-1 text-xs font-semibold text-[#64748b]">{event.user_name || 'System'} • {event.record_type} #{event.record_id || 'N/A'}</p>
+            <p className="font-display text-sm font-extrabold capitalize text-[var(--ink)]">{eventSummary(event)}</p>
+            <p className="mt-1 text-xs font-semibold text-[var(--muted)]">{event.user_name || 'System'} • {event.record_type} #{event.record_id || 'N/A'}</p>
           </div>
-          <time className="tabular text-xs font-bold uppercase tracking-[0.12em] text-[#7b8798]">{eventTime(event.occurred_at)}</time>
+          <time className="tabular text-xs font-bold  tracking-normal text-[var(--muted)]">{eventTime(event.occurred_at)}</time>
         </div>
       </article>)}
     </div>

@@ -159,3 +159,10 @@ it('shows draft generation and the schedule date on dispatch', async () => {
   expect(await screen.findByRole('button', { name: 'Generate Draft' })).toBeTruthy()
   expect(screen.getByLabelText('Schedule date')).toBeTruthy()
 })
+
+it('does not present unloaded navigation totals as zero', async () => {
+  api.getJson.mockImplementation((path: string) => path.startsWith('/dashboard') ? new Promise(() => undefined) : Promise.resolve(response(path)))
+  render(<App />)
+  await waitFor(() => expect(api.getJson).toHaveBeenCalled())
+  expect(screen.getByRole('navigation', { name: 'JMI management navigation' }).textContent).not.toMatch(/\b0\b/)
+})

@@ -146,8 +146,8 @@ function FloatingTooltip({ anchorRef, label, visible }: { anchorRef: RefObject<H
 
   return createPortal(
     <div className="pointer-events-none fixed z-[120] hidden -translate-y-1/2 items-center xl:flex" style={{ top: position.top, left: position.left }}>
-      <span className="h-3 w-3 translate-x-[7px] rotate-45 rounded-[3px] bg-[#111827] shadow-lg" />
-      <span className="whitespace-nowrap rounded-xl bg-[#111827] px-3.5 py-2 text-xs font-semibold text-white shadow-2xl">{label}</span>
+      <span className="h-3 w-3 translate-x-[7px] rotate-45 rounded-[3px] bg-[var(--ink)] shadow-none" />
+      <span className="whitespace-nowrap rounded-xl bg-[var(--ink)] px-3.5 py-2 text-xs font-semibold text-white shadow-none">{label}</span>
     </div>,
     document.body
   )
@@ -155,14 +155,14 @@ function FloatingTooltip({ anchorRef, label, visible }: { anchorRef: RefObject<H
 
 function SidebarLogo({ collapsed }: { collapsed: boolean }) {
   return <div className={`flex items-center rounded-2xl transition-colors ${collapsed ? 'gap-3 px-3 py-2 xl:justify-center xl:p-1.5' : 'gap-3 px-3 py-2'}`}>
-    <span className="relative inline-flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-[#244393]/12">
-      <span className="absolute left-2.5 h-8 w-1.5 -skew-x-[28deg] bg-[#244393]" />
-      <span className="absolute left-5 h-8 w-1.5 -skew-x-[28deg] bg-[#d84332]" />
-      <span className="absolute left-[1.875rem] h-8 w-1.5 -skew-x-[28deg] bg-[#244393]" />
+    <span className="relative inline-flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-none ring-1 ring-[var(--jmi-blue)]/12">
+      <span className="absolute left-2.5 h-8 w-1.5 -skew-x-[28deg] bg-[var(--jmi-blue)]" />
+      <span className="absolute left-5 h-8 w-1.5 -skew-x-[28deg] bg-[var(--jmi-red)]" />
+      <span className="absolute left-[1.875rem] h-8 w-1.5 -skew-x-[28deg] bg-[var(--jmi-blue)]" />
     </span>
     <span className={collapsed ? 'min-w-0 xl:sr-only' : 'min-w-0'}>
-      <span className="font-display block truncate text-sm font-black tracking-tight text-[#172033]">JMI Guam</span>
-      <span className="block truncate text-[0.64rem] font-extrabold uppercase tracking-[0.18em] text-[#64748b]">Management System</span>
+      <span className="font-display block truncate text-sm font-black tracking-tight text-[var(--ink)]">JMI Guam</span>
+      <span className="block truncate text-xs font-extrabold  tracking-normal text-[var(--muted)]">Management System</span>
     </span>
   </div>
 }
@@ -187,14 +187,14 @@ function SidebarNavLink({ section, href, active, collapsed, onNavigate }: { sect
       onBlur={() => setTooltipVisible(false)}
       aria-label={collapsed ? section.label : undefined}
       title={collapsed ? section.label : undefined}
-      className={`group relative flex min-h-11 items-center rounded-xl text-sm font-semibold transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#244393]/30 ${collapsed ? 'gap-3 px-3 py-2.5 xl:justify-center xl:gap-0 xl:px-2' : 'gap-3 px-3 py-2.5'} ${active ? 'bg-[#172b63] text-white shadow-[0_12px_26px_-18px_rgba(23,43,99,0.9)] ring-1 ring-[#172b63]/15' : 'text-[#526071] hover:bg-[#eef3ff] hover:text-[#172033]'}`}
+      className={`group relative flex min-h-11 items-center rounded-xl text-sm font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--jmi-blue)]/30 ${collapsed ? 'gap-3 px-3 py-2.5 xl:justify-center xl:gap-0 xl:px-2' : 'gap-3 px-3 py-2.5'} ${active ? 'bg-[var(--jmi-blue-deep)] text-white shadow-none ring-1 ring-[var(--jmi-blue-deep)]/15' : 'text-[var(--ink-soft)] hover:bg-[var(--jmi-blue-soft)] hover:text-[var(--ink)]'}`}
     >
-      <span className={`inline-flex shrink-0 rounded-xl p-2 ${active ? 'bg-white/12 text-white' : 'bg-[#eef3ff] text-[#244393] group-hover:bg-white'}`}>{section.icon}</span>
+      <span className={`inline-flex shrink-0 rounded-xl p-2 ${active ? 'bg-white/12 text-white' : 'bg-[var(--jmi-blue-soft)] text-[var(--jmi-blue)] group-hover:bg-white'}`}>{section.icon}</span>
       <span className={collapsed ? 'min-w-0 flex-1 xl:sr-only' : 'min-w-0 flex-1'}>
         <span className="block truncate font-display text-sm font-extrabold">{section.label}</span>
-        <span className={`block truncate text-xs font-semibold ${active ? 'text-blue-100/78' : 'text-[#7b8798]'}`}>{section.description}</span>
+        <span className={`block truncate text-xs font-semibold ${active ? 'text-blue-100/78' : 'text-[var(--muted)]'}`}>{section.description}</span>
       </span>
-      {typeof section.count === 'number' && <span className={`${collapsed ? 'ml-auto min-w-7 px-2 text-xs xl:absolute xl:right-1 xl:top-1 xl:min-w-5 xl:px-1 xl:text-[0.62rem]' : 'ml-auto min-w-7 px-2 text-xs'} tabular inline-flex justify-center rounded-full py-0.5 font-extrabold ${active ? 'bg-white/14 text-white' : 'bg-[#eef2ff] text-[#244393]'}`}>{section.count}</span>}
+      {typeof section.count === 'number' && <span className={`${collapsed ? 'ml-auto min-w-7 px-2 text-xs xl:absolute xl:right-1 xl:top-1 xl:min-w-5 xl:px-1 xl:text-xs' : 'ml-auto min-w-7 px-2 text-xs'} tabular inline-flex justify-center rounded-full py-0.5 font-extrabold ${active ? 'bg-white/14 text-white' : 'bg-[var(--jmi-blue-soft)] text-[var(--jmi-blue)]'}`}>{section.count}</span>}
     </a>
     {collapsed && <FloatingTooltip anchorRef={anchorRef} label={section.label} visible={tooltipVisible} />}
   </>
@@ -209,14 +209,14 @@ function AppSidebar({ sections, currentSection, collapsed, mobileOpen, userName,
     items: sections.filter((section) => section.group === group),
   })).filter((group) => group.items.length > 0)
 
-  return <aside className={`fixed inset-y-0 left-0 z-50 flex w-[18rem] flex-col border-r border-[rgba(23,32,51,0.1)] bg-white/98 shadow-2xl shadow-slate-900/18 transition-all duration-200 xl:sticky xl:top-5 xl:z-auto xl:h-[calc(100vh-2.5rem)] xl:translate-x-0 xl:rounded-[1.15rem] xl:border xl:shadow-[0_14px_36px_rgba(23,32,51,0.08)] ${mobileOpen ? 'translate-x-0' : '-translate-x-full'} ${collapsed ? 'xl:w-[5.25rem]' : 'xl:w-[15.5rem]'}`}>
+  return <aside className={`app-sidebar fixed inset-y-0 left-0 z-50 flex w-[18rem] flex-col border-r border-[var(--line)] bg-white/98 shadow-none  xl:sticky xl:top-5 xl:z-auto xl:h-[calc(100vh-2.5rem)] xl:translate-x-0 xl:rounded-[1.15rem] xl:border xl:shadow-none ${mobileOpen ? 'translate-x-0' : '-translate-x-full'} ${collapsed ? 'xl:w-[5.25rem]' : 'xl:w-[15.5rem]'}`}>
     <nav className="flex h-full flex-col" aria-label="JMI management navigation">
-      <div className={`border-b border-[rgba(23,32,51,0.09)] ${collapsed ? 'px-3 pb-3 pt-4' : 'px-3 pb-4 pt-4'}`}>
+      <div className={`border-b border-[var(--line)] ${collapsed ? 'px-3 pb-3 pt-4' : 'px-3 pb-4 pt-4'}`}>
         <div className="flex items-center justify-between gap-2">
-          <a href="/dashboard" onClick={(event) => { event.preventDefault(); onNavigate('overview') }} className="min-w-0 rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#244393]/30">
+          <a href="/dashboard" onClick={(event) => { event.preventDefault(); onNavigate('overview') }} className="min-w-0 rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--jmi-blue)]/30">
             <SidebarLogo collapsed={collapsed} />
           </a>
-          <button type="button" onClick={onCloseMobile} className="rounded-xl p-2 text-[#64748b] transition hover:bg-slate-100 xl:hidden" aria-label="Close navigation"><X size={18} /></button>
+          <button type="button" onClick={onCloseMobile} className="rounded-xl p-2 text-[var(--muted)] transition-colors hover:bg-slate-100 xl:hidden" aria-label="Close navigation"><X size={18} /></button>
         </div>
         <button
           ref={collapseButtonRef}
@@ -226,7 +226,7 @@ function AppSidebar({ sections, currentSection, collapsed, mobileOpen, userName,
           onMouseLeave={() => setCollapseTooltipVisible(false)}
           onFocus={() => collapsed && setCollapseTooltipVisible(true)}
           onBlur={() => setCollapseTooltipVisible(false)}
-          className={`mt-3 hidden min-h-10 w-full items-center rounded-xl border border-[rgba(23,32,51,0.1)] bg-[#f8faff] px-3 py-2 text-xs font-extrabold text-[#526071] transition hover:border-[#244393]/18 hover:bg-[#eef3ff] hover:text-[#244393] xl:flex ${collapsed ? 'justify-center' : 'justify-between'}`}
+          className={`mt-3 hidden min-h-10 w-full items-center rounded-xl border border-[var(--line)] bg-[var(--surface-subtle)] px-3 py-2 text-xs font-extrabold text-[var(--ink-soft)] transition-colors hover:border-[var(--jmi-blue)]/18 hover:bg-[var(--jmi-blue-soft)] hover:text-[var(--jmi-blue)] xl:flex ${collapsed ? 'justify-center' : 'justify-between'}`}
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           aria-expanded={!collapsed}
           title={collapsed ? 'Expand sidebar' : undefined}
@@ -238,19 +238,19 @@ function AppSidebar({ sections, currentSection, collapsed, mobileOpen, userName,
 
       <div className={`flex-1 overflow-y-auto py-3 ${collapsed ? 'space-y-3 px-2' : 'space-y-4 px-3'}`}>
         {groupedSections.map((group, groupIndex) => <div key={group.group}>
-          <div className={collapsed ? (groupIndex === 0 ? 'mb-1.5 px-3 font-display text-[0.62rem] font-extrabold uppercase tracking-[0.16em] text-[#94a0b5] xl:sr-only' : 'mb-1.5 px-3 font-display text-[0.62rem] font-extrabold uppercase tracking-[0.16em] text-[#94a0b5] xl:mx-3 xl:my-2 xl:border-t xl:border-[rgba(23,32,51,0.1)] xl:px-0 xl:text-transparent') : 'mb-1.5 px-3 font-display text-[0.62rem] font-extrabold uppercase tracking-[0.16em] text-[#94a0b5]'}>{group.label}</div>
+          <div className={collapsed ? (groupIndex === 0 ? 'mb-1.5 px-3 font-display text-xs font-extrabold  tracking-normal text-[var(--muted)] xl:sr-only' : 'mb-1.5 px-3 font-display text-xs font-extrabold  tracking-normal text-[var(--muted)] xl:mx-3 xl:my-2 xl:border-t xl:border-[var(--line)] xl:px-0 xl:text-transparent') : 'mb-1.5 px-3 font-display text-xs font-extrabold  tracking-normal text-[var(--muted)]'}>{group.label}</div>
           <div className="space-y-1">
             {group.items.map((section) => <SidebarNavLink key={section.id} section={section} href={hrefForSection(section.id)} active={currentSection === section.id} collapsed={collapsed} onNavigate={(target) => { onNavigate(target); onCloseMobile() }} />)}
           </div>
         </div>)}
       </div>
 
-      <div className={`border-t border-[rgba(23,32,51,0.09)] p-3 ${collapsed ? 'text-center' : ''}`}>
-        <div className={`flex items-center rounded-2xl border border-[rgba(23,32,51,0.1)] bg-[#f8faff] ${collapsed ? 'gap-3 px-3 py-2.5 xl:justify-center xl:gap-0 xl:px-2 xl:py-2' : 'gap-3 px-3 py-2.5'}`}>
+      <div className={`border-t border-[var(--line)] p-3 ${collapsed ? 'text-center' : ''}`}>
+        <div className={`flex items-center rounded-2xl border border-[var(--line)] bg-[var(--surface-subtle)] ${collapsed ? 'gap-3 px-3 py-2.5 xl:justify-center xl:gap-0 xl:px-2 xl:py-2' : 'gap-3 px-3 py-2.5'}`}>
           <UserButton />
           <div className={collapsed ? 'min-w-0 flex-1 xl:sr-only' : 'min-w-0 flex-1'}>
-            <p className="font-display truncate text-sm font-extrabold text-[#172033]">{userName || 'User'}</p>
-            <p className="truncate text-xs capitalize text-[#64748b]">{userRole || 'viewer'}</p>
+            <p className="font-display truncate text-sm font-extrabold text-[var(--ink)]">{userName || 'User'}</p>
+            <p className="truncate text-xs capitalize text-[var(--muted)]">{userRole || 'viewer'}</p>
           </div>
         </div>
       </div>
@@ -277,6 +277,7 @@ function DispatchApp() {
   const [pmTemplates, setPmTemplates] = useState<PmTemplate[]>([])
   const [serviceLines, setServiceLines] = useState<ServiceLine[]>([])
   const [managedUsers, setManagedUsers] = useState<ManagedUser[]>([])
+  const [usersLoaded, setUsersLoaded] = useState(false)
   const [monthlyReport, setMonthlyReport] = useState<MonthlyReport | null>(null)
   const [reportLoading, setReportLoading] = useState(false)
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([])
@@ -479,7 +480,7 @@ function DispatchApp() {
     if (!user?.permissions.can_admin) return
 
     void getJson<{ users: ManagedUser[] }>('/users')
-      .then((payload) => setManagedUsers(payload.users))
+      .then((payload) => { setManagedUsers(payload.users); setUsersLoaded(true) })
       .catch((err) => {
         setError(err instanceof Error ? err.message : 'Unable to load users')
       })
@@ -1386,17 +1387,17 @@ function DispatchApp() {
 
   const currentSection = currentRoute.section === 'users' && !user?.permissions.can_admin ? 'overview' : currentRoute.section
   const sections: SectionLink[] = [
-    { id: 'work-orders', label: 'Work Orders', mobileLabel: 'WOs', description: 'Requests, status and follow-up', icon: <Wrench size={18} />, count: dashboard?.counts.open_work_orders ?? workOrderMeta?.total_count ?? workOrders.filter((workOrder) => !workOrder.archived).length, group: 'operate' },
+    { id: 'work-orders', label: 'Work Orders', mobileLabel: 'WOs', description: 'Requests, status and follow-up', icon: <Wrench size={18} />, count: dashboard?.counts.open_work_orders ?? workOrderMeta?.total_count, group: 'operate' },
     { id: 'overview', label: 'Dashboard', mobileLabel: 'Home', description: 'Operations health', icon: <LayoutDashboard size={18} />, group: 'operate' },
-    { id: 'pm-tasks', label: 'PMs', description: 'Monthly station obligations', icon: <CalendarDays size={18} />, count: pmTasks.length, group: 'operate' },
-    { id: 'pa-projects', label: 'PA Projects', mobileLabel: 'PA', description: 'Parts, estimates, and follow-up', icon: <FolderKanban size={18} />, count: dashboard?.counts.pa_projects ?? paProjectMeta?.total_count ?? workOrders.filter((workOrder) => !workOrder.archived && workOrder.pa_project).length, group: 'operate' },
+    { id: 'pm-tasks', label: 'PMs', description: 'Monthly station obligations', icon: <CalendarDays size={18} />, count: overviewReady ? pmTasks.length : undefined, group: 'operate' },
+    { id: 'pa-projects', label: 'PA Projects', mobileLabel: 'PA', description: 'Parts, estimates, and follow-up', icon: <FolderKanban size={18} />, count: dashboard?.counts.pa_projects ?? paProjectMeta?.total_count, group: 'operate' },
     { id: 'dispatch', label: "Today’s Dispatch", mobileLabel: 'Dispatch', description: 'Build, finalize, and send crews', icon: <ClipboardList size={18} />, count: schedule?.items.length, group: 'manage' },
-    { id: 'teams', label: 'Crews', description: 'Drivers and call-outs', icon: <Users size={18} />, count: teams.length, group: 'manage' },
+    { id: 'teams', label: 'Crews', description: 'Drivers and call-outs', icon: <Users size={18} />, count: overviewReady ? teams.length : undefined, group: 'manage' },
     { id: 'reports', label: 'Reports', mobileLabel: 'Rpt', description: 'Monthly KPI exports', icon: <BarChart3 size={18} />, group: 'manage' },
     { id: 'whatsapp', label: 'WhatsApp', mobileLabel: 'WA', description: 'Copy send-ready text', icon: <MessageSquareText size={18} />, group: 'manage' },
     { id: 'activity', label: 'Activity', description: 'Audit history', icon: <Activity size={18} />, group: 'manage' },
-    { id: 'service-lines', label: 'Service Lines', mobileLabel: 'Lines', description: 'Contracts and divisions', icon: <Settings2 size={18} />, count: serviceLines.filter((line) => line.active).length, group: 'admin' },
-    ...(user?.permissions.can_admin ? [{ id: 'users' as const, label: 'Users', description: 'Roles and access', icon: <UserCog size={18} />, count: managedUsers.length, group: 'admin' as const }] : []),
+    { id: 'service-lines', label: 'Service Lines', mobileLabel: 'Lines', description: 'Contracts and divisions', icon: <Settings2 size={18} />, count: overviewReady ? serviceLines.filter((line) => line.active).length : undefined, group: 'admin' },
+    ...(user?.permissions.can_admin ? [{ id: 'users' as const, label: 'Users', description: 'Roles and access', icon: <UserCog size={18} />, count: usersLoaded ? managedUsers.length : undefined, group: 'admin' as const }] : []),
   ]
 
   const activeSectionMeta = sections.find((section) => section.id === currentSection) || sections[0]
@@ -1405,17 +1406,17 @@ function DispatchApp() {
   const isAuthBlocked = isSignedIn && !user && !authLoading && !isVerifyingApi
 
   if (authLoading) {
-    return <main className="grid min-h-screen place-items-center px-6 text-[#526071]">
-      <div className="rounded-2xl border border-[rgba(23,32,51,0.12)] bg-white/90 p-8 text-center shadow-[0_24px_70px_rgba(23,32,51,0.12)]">
-        <RefreshCw className="mx-auto mb-3 animate-spin text-[#244393]" />
+    return <main className="grid min-h-screen place-items-center px-6 text-[var(--ink-soft)]">
+      <div className="rounded-2xl border border-[var(--line)] bg-white/90 p-8 text-center shadow-none">
+        <RefreshCw className="mx-auto mb-3 animate-spin text-[var(--jmi-blue)]" />
         <p className="font-display font-bold">Loading JMI Management System...</p>
       </div>
     </main>
   }
 
   return (
-    <main className="min-h-screen overflow-hidden">
-      {mobileNavOpen && <button type="button" aria-label="Close navigation" className="fixed inset-0 z-40 bg-[#07111f]/38 backdrop-blur-sm xl:hidden" onClick={() => setMobileNavOpen(false)} />}
+    <main className="app-shell min-h-dvh overflow-hidden">
+      {mobileNavOpen && <button type="button" aria-label="Close navigation" className="fixed inset-0 z-40 bg-[var(--scrim-ink)]/38  xl:hidden" onClick={() => setMobileNavOpen(false)} />}
       <div className={`mx-auto grid max-w-[94rem] gap-3 px-3 py-3 sm:px-5 xl:px-6 xl:py-5 ${desktopSidebarCollapsed ? 'xl:grid-cols-[5.25rem_minmax(0,1fr)]' : 'xl:grid-cols-[15.5rem_minmax(0,1fr)]'}`}>
         <AppSidebar
           sections={sections}
@@ -1433,23 +1434,23 @@ function DispatchApp() {
         <div className="flex min-w-0 flex-col gap-3">
         <header className="app-header rounded-xl border border-slate-200 bg-white">
           <div className="flex min-h-14 items-center gap-3 px-3">
-            <button type="button" onClick={() => setMobileNavOpen(true)} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-[#244393] xl:hidden" aria-label="Open navigation" aria-expanded={mobileNavOpen}><Menu size={20} /></button>
-            <span className="font-display font-extrabold text-[#244393]">JMI</span>
-            <h1 className="min-w-0 flex-1 text-lg font-bold text-[#172033]">{activeSectionMeta?.label || 'Dispatch'}</h1>
+            <button type="button" onClick={() => setMobileNavOpen(true)} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-[var(--jmi-blue)] xl:hidden" aria-label="Open navigation" aria-expanded={mobileNavOpen}><Menu size={20} /></button>
+            <span className="font-display font-extrabold text-[var(--jmi-blue)]">JMI</span>
+            <h1 className="min-w-0 flex-1 text-xl font-bold text-[var(--ink)]">{activeSectionMeta?.label || 'Dispatch'}</h1>
             {user && <UserButton />}
-            {!isSignedIn && <SignInButton mode="modal"><button className="min-h-11 rounded-xl bg-[#172b63] px-3 text-sm font-bold text-white">Sign in</button></SignInButton>}
+            {!isSignedIn && <SignInButton mode="modal"><button className="min-h-11 rounded-xl bg-[var(--jmi-blue-deep)] px-3 text-sm font-bold text-white">Sign in</button></SignInButton>}
           </div>
           {user && dispatchScreen && <div className="flex flex-wrap items-end gap-2 border-t border-slate-200 p-3">
-            <label className="min-w-0 flex-1 text-xs font-semibold text-[#526071]">Schedule date<input type="date" value={selectedDate} onChange={(event) => handleSelectedDateChange(event.target.value)} className="field-control mt-1 block w-full rounded-xl px-3 py-2" /></label>
+            <label className="min-w-0 flex-1 text-xs font-semibold text-[var(--ink-soft)]">Schedule date<input type="date" value={selectedDate} onChange={(event) => handleSelectedDateChange(event.target.value)} className="field-control mt-1 block w-full rounded-xl px-3 py-2" /></label>
             <button type="button" disabled={selectedDate === todayDate} onClick={() => handleSelectedDateChange(todayDate)} className="min-h-11 rounded-xl border border-slate-200 px-3 text-sm font-bold">Today</button>
-            {canEditDispatch && currentSection === 'whatsapp' && <button disabled={working || Boolean(schedule && schedule.status !== 'draft')} onClick={suggestSchedule} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#c53c2e] px-3 text-sm font-bold text-white disabled:opacity-60"><ClipboardList size={17} />{scheduleActionLabel}</button>}
+            {canEditDispatch && currentSection === 'whatsapp' && <button disabled={working || Boolean(schedule && schedule.status !== 'draft')} onClick={suggestSchedule} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[var(--jmi-red)] px-3 text-sm font-bold text-white disabled:opacity-60"><ClipboardList size={17} />{scheduleActionLabel}</button>}
           </div>}
         </header>
 
         {!user && !authError && !isVerifyingApi && <SignInRequiredPanel />}
 
-        {isVerifyingApi && !user && <section className="rounded-2xl border border-[rgba(23,32,51,0.12)] bg-white/90 p-6 shadow-[0_18px_50px_rgba(23,32,51,0.08)]">
-          <div className="inline-flex items-center gap-3 text-sm font-bold text-[#244393]">
+        {isVerifyingApi && !user && <section className="rounded-2xl border border-[var(--line)] bg-white/90 p-6 shadow-none">
+          <div className="inline-flex items-center gap-3 text-sm font-bold text-[var(--jmi-blue)]">
             <RefreshCw size={18} className="animate-spin" /> Verifying your Clerk session with the dispatch API...
           </div>
         </section>}
@@ -1495,13 +1496,13 @@ function DispatchApp() {
 }
 
 function SignInRequiredPanel({ title = 'Sign in to load live dispatch data' }: { title?: string }) {
-  return <section className="rounded-2xl border border-[rgba(23,32,51,0.12)] bg-white/90 p-4 shadow-[0_18px_50px_rgba(23,32,51,0.08)] sm:p-6">
+  return <section className="rounded-2xl border border-[var(--line)] bg-white/90 p-4 shadow-none sm:p-6">
     <div className="max-w-2xl">
-      <p className="font-display text-[0.68rem] font-extrabold uppercase tracking-[0.24em] text-[#244393]">Secure JMI workspace</p>
-      <h2 className="font-display mt-1 text-xl font-extrabold tracking-tight text-[#172033] sm:text-2xl">{title}</h2>
-      <p className="mt-2 text-sm leading-6 text-[#526071]">The app shell is available so the page does not feel broken while Clerk is loading or before sign-in. Live JMI data and editing actions load after you sign in.</p>
+      <p className="font-display text-xs font-extrabold  tracking-normal text-[var(--jmi-blue)]">Secure JMI workspace</p>
+      <h2 className="font-display mt-1 text-xl font-extrabold tracking-tight text-[var(--ink)] sm:text-2xl">{title}</h2>
+      <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">The app shell is available so the page does not feel broken while Clerk is loading or before sign-in. Live JMI data and editing actions load after you sign in.</p>
       <SignInButton mode="modal">
-        <button className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-[#244393] px-5 py-3 font-display text-sm font-extrabold text-white shadow-[0_16px_38px_rgba(36,67,147,0.2)] transition hover:-translate-y-0.5 hover:bg-[#172b63]">
+        <button className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-[var(--jmi-blue)] px-5 py-3 font-display text-sm font-extrabold text-white shadow-none transition-colors  hover:bg-[var(--jmi-blue-deep)]">
           <LockKeyhole size={18} /> Sign In With Clerk
         </button>
       </SignInButton>

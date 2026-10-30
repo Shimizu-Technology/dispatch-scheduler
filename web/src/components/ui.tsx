@@ -13,24 +13,24 @@ function badgeClass(kind: string) {
   if (value.includes('cancelled') || value.includes('closed')) return 'border-slate-300 bg-slate-100 text-slate-700'
   if (value.includes('assessment')) return 'border-blue-200 bg-blue-50 text-blue-800'
   if (value.includes('pm')) return 'border-indigo-200 bg-indigo-50 text-indigo-900'
-  if (value.includes('admin') || value.includes('dispatcher') || value.includes('viewer')) return 'border-blue-200 bg-[#e8eefc] text-[#244393]'
+  if (value.includes('admin') || value.includes('dispatcher') || value.includes('viewer')) return 'border-blue-200 bg-[var(--jmi-blue-soft)] text-[var(--jmi-blue)]'
   return 'border-slate-200 bg-slate-50 text-slate-700'
 }
 
 export function Badge({ children, kind = '' }: { children: ReactNode; kind?: string }) {
-  return <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[0.7rem] font-extrabold uppercase tracking-[0.08em] ${badgeClass(kind || String(children))}`}>{children}</span>
+  return <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-extrabold  tracking-normal ${badgeClass(kind || String(children))}`}>{children}</span>
 }
 
 export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <section className={`rounded-[1.25rem] border border-[rgba(23,32,51,0.11)] bg-white/94 shadow-[0_14px_38px_rgba(23,32,51,0.065)] backdrop-blur ${className}`}>{children}</section>
+  return <section className={`rounded-xl border border-[var(--line)] bg-white ${className}`}>{children}</section>
 }
 
 export function PanelHeader({ eyebrow, title, description, action }: { eyebrow?: string; title: string; description: string; action?: ReactNode }) {
-  return <div className="flex flex-col gap-3 border-b border-[rgba(23,32,51,0.1)] bg-gradient-to-r from-[#f8faff] to-white p-3 sm:p-4 2xl:flex-row 2xl:items-start 2xl:justify-between 2xl:gap-5">
+  return <div className="flex flex-col gap-3 border-b border-[var(--line)] bg-white p-3 sm:p-4 2xl:flex-row 2xl:items-start 2xl:justify-between 2xl:gap-5">
     <div className="min-w-0 2xl:max-w-2xl">
-      {eyebrow && <p className="font-display text-[0.66rem] font-extrabold uppercase tracking-[0.2em] text-[#244393] sm:text-[0.68rem] sm:tracking-[0.24em]">{eyebrow}</p>}
-      <h2 className="font-display mt-1 text-lg font-extrabold tracking-tight text-[#172033] sm:text-xl">{title}</h2>
-      <p className="mt-1 max-w-3xl text-sm leading-5 text-[#526071] sm:leading-6">{description}</p>
+      {eyebrow && eyebrow.toLowerCase() !== title.toLowerCase() && <p className="font-display text-xs font-extrabold  tracking-normal text-[var(--jmi-blue)] sm:text-xs tracking-normal">{eyebrow}</p>}
+      <h2 className="font-display mt-1 text-lg font-extrabold tracking-tight text-[var(--ink)] sm:text-xl">{title}</h2>
+      <p className="mt-1 max-w-3xl text-sm leading-5 text-[var(--ink-soft)] sm:leading-6">{description}</p>
     </div>
     {action && <div className="min-w-0 w-full 2xl:w-auto 2xl:flex-1">{action}</div>}
   </div>

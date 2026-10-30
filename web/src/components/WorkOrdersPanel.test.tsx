@@ -952,3 +952,13 @@ it('restores the edited row anchor and focus without scrolling focus into view',
   expect(scroll).toHaveBeenCalledWith({ top: 0, behavior: 'instant' })
   expect(focus).toHaveBeenCalledWith({ preventScroll: true })
 })
+
+it('keeps a scanned text file as the description of its manual fallback', async () => {
+  vi.mocked(postForm).mockRejectedValueOnce(new ApiError('Provider unavailable', 422))
+  const { user } = setup()
+  const file = new File(['OFFICE SCAN REQUEST'], 'request.txt', { type: 'text/plain' })
+  Object.defineProperty(file, 'text', { value: async () => 'OFFICE SCAN REQUEST' })
+  fireEvent.change(screen.getByLabelText('Scan File'), { target: { files: [file] } })
+  await user.click(await screen.findByRole('button', { name: 'Create manually' }))
+  expect(screen.getByLabelText('Description')).toHaveProperty('value', 'OFFICE SCAN REQUEST')
+})

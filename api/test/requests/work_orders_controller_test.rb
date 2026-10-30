@@ -629,5 +629,4 @@ class WorkOrdersControllerTest < ActionDispatch::IntegrationTest
       assert_response :bad_request
     end
   end
-
 end

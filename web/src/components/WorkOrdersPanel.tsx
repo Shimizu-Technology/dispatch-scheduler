@@ -982,6 +982,7 @@ export function WorkOrdersPanel({ canAdmin = false, workOrders, meta, serviceLin
     setImportDiagnostic('')
     setManualFallback(false)
     try {
+      if (file.type === 'text/plain') setPasteText(await file.text())
       const data = new FormData()
       data.append('file', file)
       const payload = await postForm<WorkOrderImportPreview>('/work_order_imports/preview', data)

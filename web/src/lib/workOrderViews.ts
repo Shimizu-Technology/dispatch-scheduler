@@ -44,5 +44,9 @@ export function activeWorkOrderContext(query: string) {
   }
   if (params.get('archived') === 'only') labels.push('Archived')
   if (params.get('archived') === 'all') labels.push('Including archived')
-  return labels.length ? labels.join(' · ') : 'Active queue · Newest first'
+  if (!labels.length) labels.push('Active queue')
+  const sort = params.get('sort') || 'created_at'
+  const direction = params.get('direction') || 'desc'
+  labels.push(sort === 'created_at' ? direction === 'asc' ? 'Oldest first' : 'Newest first' : `Sort: ${sort.replaceAll('_', ' ')} ${direction}`)
+  return labels.join(' · ')
 }

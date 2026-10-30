@@ -3,6 +3,7 @@ import type { ClipboardEvent, FormEvent, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Archive, ArchiveRestore, ClipboardPaste, Edit3, FileUp, Plus, Search, Sparkles, X } from 'lucide-react'
 import { Badge } from './ui'
+import { FilterDisclosure, MoreViews } from './QueueControls'
 import { activeWorkOrderContext, DEFAULT_WORK_ORDER_QUERY, WORK_ORDER_VIEWS, workOrderViewQuery, type WorkOrderView } from '../lib/workOrderViews'
 import { ApiError, postForm, postJson } from '../lib/api'
 import type { OcrWorkOrderDraft, PaginationMeta, ServiceLine, WorkOrder, WorkOrderImportPreview, WorkOrderInput, WorkOrderStatus } from '../types'
@@ -276,7 +277,7 @@ function WorkOrderRow({ workOrder, canEdit, onEdit, onArchive }: { workOrder: Wo
     ['Parts ETA', shortDate(workOrder.parts_eta)], ['Follow-up owner', workOrder.follow_up_owner || 'Unassigned'],
     ['Follow-up due', shortDate(workOrder.follow_up_due_on)], ['Vendor reference', workOrder.vendor_reference || 'Not set'],
   ]
-  return <article data-work-order-id={workOrder.id} tabIndex={-1} className="work-order-row rounded-xl border border-slate-200 bg-white p-3 md:rounded-none md:border-x-0 md:border-t-0">
+  return <article data-work-order-id={workOrder.id} tabIndex={-1} className="work-order-row rounded-xl border border-[var(--border)] bg-[var(--paper)] p-3 md:rounded-none md:border-x-0 md:border-t-0">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="work-order-content min-w-0 flex-1">
         <div className="wo-tags flex flex-wrap items-center gap-2">
@@ -289,14 +290,14 @@ function WorkOrderRow({ workOrder, canEdit, onEdit, onArchive }: { workOrder: Wo
         <h3 className="wo-location mt-2 break-words [overflow-wrap:anywhere] text-base font-bold text-[var(--ink)]">{workOrder.location}</h3>
         <p className="wo-description mt-1 line-clamp-2 break-words [overflow-wrap:anywhere] text-sm leading-5 text-[var(--ink-soft)]">{workOrder.description || workOrder.title}</p>
         <p className="wo-client mt-2 break-words [overflow-wrap:anywhere] text-xs text-[var(--muted)]">{workOrder.client} · {statusSummary(workOrder.status)}</p>
-        {(workOrder.latest_follow_up_note || workOrder.parts_status || workOrder.follow_up_due_on) && <p className="wo-follow-up mt-2 break-words [overflow-wrap:anywhere] text-xs leading-5 text-amber-900">
+        {(workOrder.latest_follow_up_note || workOrder.parts_status || workOrder.follow_up_due_on) && <p className="wo-follow-up mt-2 break-words [overflow-wrap:anywhere] text-xs leading-5 text-[var(--warning-ink)]">
           {workOrder.latest_follow_up_note || (workOrder.parts_status ? `Parts: ${workOrder.parts_status}` : 'Follow-up required')}
           {workOrder.follow_up_due_on ? ` · Follow up ${shortDate(workOrder.follow_up_due_on)}` : ''}
         </p>}
       </div>
-      {canEdit && <button type="button" onClick={() => onEdit(workOrder)} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-[var(--jmi-blue)]/20 px-3 py-2 text-sm font-bold text-[var(--jmi-blue)] hover:bg-blue-50"><Edit3 size={15} /> Edit</button>}
+      {canEdit && <button type="button" onClick={() => onEdit(workOrder)} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-[var(--jmi-blue)]/20 px-3 py-2 text-sm font-bold text-[var(--jmi-blue)] hover:bg-[var(--info-soft)]"><Edit3 size={15} /> Edit</button>}
     </div>
-    <details className="mt-3 border-t border-slate-100 pt-2">
+    <details className="mt-3 border-t border-[var(--surface-muted)] pt-2">
       <summary className="cursor-pointer text-sm font-semibold text-[var(--jmi-blue)]">Details and notes</summary>
       {workOrder.title && workOrder.title !== workOrder.description && <p className="mt-3 break-words [overflow-wrap:anywhere] text-sm font-bold text-[var(--ink)]">{workOrder.title}</p>}
       <p className="mt-3 whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-sm leading-6 text-[var(--ink-soft)]">{workOrder.description || workOrder.title}</p>
@@ -308,8 +309,8 @@ function WorkOrderRow({ workOrder, canEdit, onEdit, onArchive }: { workOrder: Wo
       <dl className="grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-4">{details.map(([label, value]) => <div key={label} className="min-w-0"><dt className="text-xs text-[var(--muted)]">{label}</dt><dd className="mt-1 break-words [overflow-wrap:anywhere] text-[var(--ink)]">{value}</dd></div>)}</dl>
       {workOrder.pa_project_notes && <p className="mt-3 whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-sm text-[var(--ink-soft)]"><strong>PA Project: </strong>{workOrder.pa_project_notes}</p>}
       {workOrder.notes && <p className="mt-3 whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-sm text-[var(--ink-soft)]"><strong>Notes: </strong>{workOrder.notes}</p>}
-      {archiveError && <p role="alert" className="mt-3 text-sm text-red-800">{archiveError}</p>}
-      {canEdit && <button type="button" disabled={archiving} onClick={() => void archive()} className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm text-[var(--ink-soft)] disabled:opacity-50">{workOrder.archived ? <ArchiveRestore size={15} /> : <Archive size={15} />}{archiving ? 'Saving...' : workOrder.archived ? 'Restore' : 'Archive'}</button>}
+      {archiveError && <p role="alert" className="mt-3 text-sm text-[var(--danger-ink)]">{archiveError}</p>}
+      {canEdit && <button type="button" disabled={archiving} onClick={() => void archive()} className={`mt-4 inline-flex min-h-10 items-center gap-2 rounded-xl border border-[var(--border)] px-3 py-2 text-sm text-[var(--ink-soft)] disabled:opacity-50 ${workOrder.archived ? '' : 'button-destructive'}`}>{workOrder.archived ? <ArchiveRestore size={15} /> : <Archive size={15} />}{archiving ? 'Saving...' : workOrder.archived ? 'Restore' : 'Archive'}</button>}
     </details>
   </article>
 }
@@ -423,20 +424,20 @@ function WorkOrderForm({ initialValues, serviceLines, serviceLineCatalog, onRefr
   }
 
   return <form ref={formRef} onInvalidCapture={(event) => { if (event.target instanceof HTMLElement) event.target.closest('details')?.setAttribute('open', '') }} onSubmit={(event) => void handleSubmit(event)} className="work-order-editor flex min-h-0 flex-1 flex-col bg-[var(--surface-subtle)]">
-    {!canEdit && <p ref={accessNoticeRef} data-work-order-access-notice tabIndex={-1} role="alert" className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">Edit access is unavailable. Your entries and any pending save confirmation are kept here. You can continue if edit access is restored, or close and explicitly discard this draft.</p>}
+    {!canEdit && <p ref={accessNoticeRef} data-work-order-access-notice tabIndex={-1} role="alert" className="shrink-0 border-b border-[var(--warning-border)] bg-[var(--warning-soft)] px-4 py-3 text-sm text-[var(--warning-ink-strong)]">Edit access is unavailable. Your entries and any pending save confirmation are kept here. You can continue if edit access is restored, or close and explicitly discard this draft.</p>}
     <fieldset disabled={!canEdit || saving || unconfirmed} className="min-h-0 min-w-0 flex-1 overflow-y-auto border-0 p-4 pb-6">
-    {notice && <p role="status" className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-900">{notice}</p>}
-    {saveError && <p ref={saveErrorRef} tabIndex={-1} role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-900">{saveError}{conflict && <><span className="mt-2 block">Your entries are still here. Load the latest saved version to review the other changes before editing again.</span><button type="button" onClick={() => { const latest = formFromWorkOrder(conflict); dateBaseline.current = latest; setValues(latest); setConflict(null); setSaveError(''); onDirty(); formRef.current?.querySelector<HTMLElement>('[data-autofocus]')?.focus() }} className="mt-2 rounded-xl border border-red-300 bg-white px-3 py-2 font-bold">Discard my edits and load latest</button></>}</p>}
+    {notice && <p role="status" className="mb-4 rounded-xl border border-[var(--success-border)] bg-[var(--success-soft)] p-3 text-sm font-semibold text-[var(--success-ink-strong)]">{notice}</p>}
+    {saveError && <p ref={saveErrorRef} tabIndex={-1} role="alert" className="mb-4 rounded-xl border border-[var(--danger-border)] bg-[var(--danger-soft)] p-3 text-sm font-semibold text-[var(--danger-ink-strong)]">{saveError}{conflict && <><span className="mt-2 block">Your entries are still here. Load the latest saved version to review the other changes before editing again.</span><button type="button" onClick={() => { const latest = formFromWorkOrder(conflict); dateBaseline.current = latest; setValues(latest); setConflict(null); setSaveError(''); onDirty(); formRef.current?.querySelector<HTMLElement>('[data-autofocus]')?.focus() }} className="mt-2 rounded-xl border border-[var(--danger-border-strong)] bg-[var(--paper)] px-3 py-2 font-bold">Discard my edits and load latest</button></>}</p>}
     <p className="mb-4 text-sm text-[var(--ink-soft)]">Enter the request, then save. Unsaved changes stay here until you close.</p>
-    {review && <div role="note" aria-label="Extraction review" className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+    {review && <div role="note" aria-label="Extraction review" className="mb-4 rounded-xl border border-[var(--warning-border)] bg-[var(--warning-soft)] p-3 text-sm text-[var(--warning-ink-strong)]">
       <p className="font-bold">Extraction confidence: {review.confidence}</p>
       {review.issues.length > 0 && <ul className="mt-2 list-disc space-y-1 pl-5">{review.issues.map((issue, index) => <li key={index}>{issue}</li>)}</ul>}
       {!values.reported_at && <p className="mt-2 font-semibold">No reported time was extracted. Enter when this request was reported before saving.</p>}
     </div>}
-    {review?.originalRequestText && <details className="mb-4 rounded-xl border border-slate-200 bg-white p-3">
+    {review?.originalRequestText && <details className="mb-4 rounded-xl border border-[var(--border)] bg-[var(--paper)] p-3">
       <summary className="cursor-pointer font-bold text-[var(--ink)]">Original request text</summary>
       <p className="mt-2 break-words [overflow-wrap:anywhere] text-xs text-[var(--muted)]">Kept in this browser review only. This text is not saved with the work order.</p>
-      <pre className="mt-3 max-h-64 overflow-y-auto whitespace-pre-wrap break-words [overflow-wrap:anywhere] rounded-lg bg-slate-50 p-3 text-sm leading-6 text-[var(--ink-soft)]">{review.originalRequestText}</pre>
+      <pre className="mt-3 max-h-64 overflow-y-auto whitespace-pre-wrap break-words [overflow-wrap:anywhere] rounded-lg bg-[var(--surface-hover)] p-3 text-sm leading-6 text-[var(--ink-soft)]">{review.originalRequestText}</pre>
     </details>}
     <div className="grid gap-3 lg:grid-cols-4">
       <label className="text-xs font-extrabold  tracking-normal text-[var(--muted)]">
@@ -461,7 +462,7 @@ function WorkOrderForm({ initialValues, serviceLines, serviceLineCatalog, onRefr
 
     <label className="mt-3 block text-xs font-extrabold  tracking-normal text-[var(--muted)]">
       Description
-      <textarea data-autofocus={!allowAddAnother ? '' : undefined} required value={values.description} onChange={(event) => updateField('description', event.target.value)} placeholder="Paste or summarize the incoming request" className="field-control mt-1 min-h-24 w-full rounded-xl px-3 py-2 text-sm text-[var(--ink-soft)]" />
+      <textarea rows={5} data-autofocus={!allowAddAnother ? '' : undefined} required value={values.description} onChange={(event) => updateField('description', event.target.value)} placeholder="Paste or summarize the incoming request" className="field-control mt-1 min-h-32 w-full rounded-xl px-3 py-2 text-sm text-[var(--ink-soft)]" />
     </label>
 
     <div className="mt-3 grid gap-3 lg:grid-cols-6">
@@ -501,7 +502,7 @@ function WorkOrderForm({ initialValues, serviceLines, serviceLineCatalog, onRefr
         </label>
         {serviceLineMessage && <div className="mt-2 text-xs font-semibold normal-case text-[var(--ink-soft)]">
           <p id="work-order-service-line-status" role={serviceLineCatalog?.error ? 'alert' : 'status'}>{serviceLineMessage} {canEdit ? 'You can save other details; refresh the list to change the service line.' : 'The assignment is kept while editing access is unavailable.'}</p>
-          {onRefreshServiceLines && <button type="button" disabled={serviceLineCatalog?.loading || saving || unconfirmed || !canEdit} onClick={onRefreshServiceLines} className="mt-2 min-h-11 rounded-xl border border-slate-200 bg-white px-3 py-2 font-bold text-[var(--jmi-blue)] disabled:opacity-60">Refresh service lines</button>}
+          {onRefreshServiceLines && <button type="button" disabled={serviceLineCatalog?.loading || saving || unconfirmed || !canEdit} onClick={onRefreshServiceLines} className="mt-2 min-h-11 rounded-xl border border-[var(--border)] bg-[var(--paper)] px-3 py-2 font-bold text-[var(--jmi-blue)] disabled:opacity-60">Refresh service lines</button>}
         </div>}
       </div>
     </div>
@@ -513,7 +514,7 @@ function WorkOrderForm({ initialValues, serviceLines, serviceLineCatalog, onRefr
         <span className="mt-1 block text-xs font-semibold normal-case tracking-normal text-[var(--muted)]">Used to calculate assessment and repair KPI due times.</span>
       </label>
     </div>
-    <details className="mt-4 rounded-xl border border-slate-200 bg-white p-3" open={Boolean(initialValues.scheduled_date || initialValues.assessed_at || initialValues.estimated_hours || Number(initialValues.required_technician_count) > 1)}>
+    <details className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--paper)] p-3" open={Boolean(initialValues.scheduled_date || initialValues.assessed_at || initialValues.estimated_hours || Number(initialValues.required_technician_count) > 1)}>
       <summary className="cursor-pointer font-bold text-[var(--ink)]">Scheduling and assessment</summary>
     <div className="mt-3 grid gap-3 lg:grid-cols-4">
       <div>
@@ -522,7 +523,7 @@ function WorkOrderForm({ initialValues, serviceLines, serviceLineCatalog, onRefr
           <input ref={dispatchDateRef} type="date" value={values.scheduled_date || ''} onChange={(event) => updateField('scheduled_date', event.target.value)} className="field-control tabular mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[var(--ink)]" />
           <span className="mt-1 block text-xs font-semibold normal-case tracking-normal text-[var(--muted)]">Leave blank so KPI timing decides when it appears in dispatch.</span>
         </label>
-        <button type="button" onClick={() => clearOptionalDateValue('scheduled_date', dispatchDateRef.current)} className="mt-2 min-h-10 rounded-xl border border-[var(--jmi-blue)]/20 px-3 py-2 text-xs font-bold text-[var(--jmi-blue)] hover:bg-blue-50">Clear dispatch date</button>
+        <button type="button" onClick={() => clearOptionalDateValue('scheduled_date', dispatchDateRef.current)} className="mt-2 min-h-10 rounded-xl border border-[var(--jmi-blue)]/20 px-3 py-2 text-xs font-bold text-[var(--jmi-blue)] hover:bg-[var(--info-soft)]">Clear dispatch date</button>
       </div>
 
       <div>
@@ -531,7 +532,7 @@ function WorkOrderForm({ initialValues, serviceLines, serviceLineCatalog, onRefr
           <input ref={assessedTimeRef} type="datetime-local" value={datetimeLocalValue(values.assessed_at)} onChange={(event) => updateField('assessed_at', event.target.value)} className="field-control tabular mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[var(--ink)]" />
           <span className="mt-1 block text-xs font-semibold normal-case tracking-normal text-[var(--muted)]">Optional. Once assessed, repair due time becomes the scheduling pressure.</span>
         </label>
-        <button type="button" onClick={() => clearOptionalDateValue('assessed_at', assessedTimeRef.current)} className="mt-2 min-h-10 rounded-xl border border-[var(--jmi-blue)]/20 px-3 py-2 text-xs font-bold text-[var(--jmi-blue)] hover:bg-blue-50">Clear assessment time</button>
+        <button type="button" onClick={() => clearOptionalDateValue('assessed_at', assessedTimeRef.current)} className="mt-2 min-h-10 rounded-xl border border-[var(--jmi-blue)]/20 px-3 py-2 text-xs font-bold text-[var(--jmi-blue)] hover:bg-[var(--info-soft)]">Clear assessment time</button>
       </div>
       <label className="text-xs font-extrabold  tracking-normal text-[var(--muted)]">
         Est. hours
@@ -546,20 +547,20 @@ function WorkOrderForm({ initialValues, serviceLines, serviceLineCatalog, onRefr
     </div>
 
     </details>
-    <details className="mt-4 rounded-xl border border-slate-200 bg-white p-3" open={Boolean(initialValues.pa_project || initialValues.corrective_maintenance || initialValues.estimate_required || initialValues.parts_status || initialValues.parts_ordered || initialValues.parts_eta || initialValues.follow_up_due_on || initialValues.follow_up_owner || initialValues.latest_follow_up_note || initialValues.vendor_reference || initialValues.estimate_number)}>
+    <details className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--paper)] p-3" open={Boolean(initialValues.pa_project || initialValues.corrective_maintenance || initialValues.estimate_required || initialValues.parts_status || initialValues.parts_ordered || initialValues.parts_eta || initialValues.follow_up_due_on || initialValues.follow_up_owner || initialValues.latest_follow_up_note || initialValues.vendor_reference || initialValues.estimate_number)}>
       <summary className="cursor-pointer font-bold text-[var(--ink)]">Parts, estimates and follow-up</summary>
     <div className="mt-3 grid gap-3 lg:grid-cols-3">
-      <label className="rounded-2xl border border-[var(--brand-line)] bg-white p-3 text-sm font-bold text-[var(--ink)]">
+      <label className="rounded-2xl border border-[var(--brand-line)] bg-[var(--paper)] p-3 text-sm font-bold text-[var(--ink)]">
         <input type="checkbox" checked={Boolean(values.pa_project)} onChange={(event) => updateField('pa_project', event.target.checked)} className="mr-2 accent-[var(--jmi-blue)]" />
         PA Project
         <span className="mt-1 block text-xs font-semibold leading-5 text-[var(--muted)]">Track separately from status so long-lead work does not get lost.</span>
       </label>
-      <label className="rounded-2xl border border-[var(--brand-line)] bg-white p-3 text-sm font-bold text-[var(--ink)]">
+      <label className="rounded-2xl border border-[var(--brand-line)] bg-[var(--paper)] p-3 text-sm font-bold text-[var(--ink)]">
         <input type="checkbox" checked={Boolean(values.corrective_maintenance)} onChange={(event) => updateField('corrective_maintenance', event.target.checked)} className="mr-2 accent-[var(--jmi-blue)]" />
         Corrective Maintenance
         <span className="mt-1 block text-xs font-semibold leading-5 text-[var(--muted)]">Used for Mobil/CBRE monthly reporting and pricing conversations.</span>
       </label>
-      <label className="rounded-2xl border border-[var(--brand-line)] bg-white p-3 text-sm font-bold text-[var(--ink)]">
+      <label className="rounded-2xl border border-[var(--brand-line)] bg-[var(--paper)] p-3 text-sm font-bold text-[var(--ink)]">
         <input type="checkbox" checked={Boolean(values.estimate_required)} onChange={(event) => updateField('estimate_required', event.target.checked)} className="mr-2 accent-[var(--jmi-blue)]" />
         Estimate Required
         <span className="mt-1 block text-xs font-semibold leading-5 text-[var(--muted)]">Flag work needing estimate/approval tracking.</span>
@@ -580,19 +581,19 @@ function WorkOrderForm({ initialValues, serviceLines, serviceLineCatalog, onRefr
           Parts ETA
           <input ref={partsEtaRef} type="date" value={values.parts_eta || ''} onChange={(event) => updateField('parts_eta', event.target.value)} className="field-control mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[var(--ink)]" />
         </label>
-        <button type="button" onClick={() => clearOptionalDateValue('parts_eta', partsEtaRef.current)} className="mt-2 min-h-10 rounded-xl border border-[var(--jmi-blue)]/20 px-3 py-2 text-xs font-bold text-[var(--jmi-blue)] hover:bg-blue-50">Clear parts ETA</button>
+        <button type="button" onClick={() => clearOptionalDateValue('parts_eta', partsEtaRef.current)} className="mt-2 min-h-10 rounded-xl border border-[var(--jmi-blue)]/20 px-3 py-2 text-xs font-bold text-[var(--jmi-blue)] hover:bg-[var(--info-soft)]">Clear parts ETA</button>
       </div>
       <div>
         <label className="block text-xs font-extrabold  tracking-normal text-[var(--muted)]">
           Follow-up due
           <input ref={followUpDateRef} type="date" value={values.follow_up_due_on || ''} onChange={(event) => updateField('follow_up_due_on', event.target.value)} className="field-control mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[var(--ink)]" />
         </label>
-        <button type="button" onClick={() => clearOptionalDateValue('follow_up_due_on', followUpDateRef.current)} className="mt-2 min-h-10 rounded-xl border border-[var(--jmi-blue)]/20 px-3 py-2 text-xs font-bold text-[var(--jmi-blue)] hover:bg-blue-50">Clear follow-up date</button>
+        <button type="button" onClick={() => clearOptionalDateValue('follow_up_due_on', followUpDateRef.current)} className="mt-2 min-h-10 rounded-xl border border-[var(--jmi-blue)]/20 px-3 py-2 text-xs font-bold text-[var(--jmi-blue)] hover:bg-[var(--info-soft)]">Clear follow-up date</button>
       </div>
     </div>
 
     <div className="mt-3 grid gap-3 lg:grid-cols-4">
-      <label className="rounded-2xl border border-[var(--brand-line)] bg-white p-3 text-sm font-bold text-[var(--ink)]">
+      <label className="rounded-2xl border border-[var(--brand-line)] bg-[var(--paper)] p-3 text-sm font-bold text-[var(--ink)]">
         <input type="checkbox" checked={Boolean(values.parts_ordered)} onChange={(event) => updateField('parts_ordered', event.target.checked)} className="mr-2 accent-[var(--jmi-blue)]" />
         Parts Ordered
         <span className="mt-1 block text-xs font-semibold leading-5 text-[var(--muted)]">Track whether someone actually ordered parts/materials.</span>
@@ -602,7 +603,7 @@ function WorkOrderForm({ initialValues, serviceLines, serviceLineCatalog, onRefr
           Ordered at
           <input ref={orderedTimeRef} type="datetime-local" value={datetimeLocalValue(values.parts_ordered_at)} onChange={(event) => updateField('parts_ordered_at', event.target.value)} className="field-control mt-1 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[var(--ink)]" />
         </label>
-        <button type="button" onClick={() => clearOptionalDateValue('parts_ordered_at', orderedTimeRef.current)} className="mt-2 min-h-10 rounded-xl border border-[var(--jmi-blue)]/20 px-3 py-2 text-xs font-bold text-[var(--jmi-blue)] hover:bg-blue-50">Clear order time</button>
+        <button type="button" onClick={() => clearOptionalDateValue('parts_ordered_at', orderedTimeRef.current)} className="mt-2 min-h-10 rounded-xl border border-[var(--jmi-blue)]/20 px-3 py-2 text-xs font-bold text-[var(--jmi-blue)] hover:bg-[var(--info-soft)]">Clear order time</button>
       </div>
       <label className="text-xs font-extrabold  tracking-normal text-[var(--muted)]">
         Follow-up owner
@@ -631,15 +632,15 @@ function WorkOrderForm({ initialValues, serviceLines, serviceLineCatalog, onRefr
     </label>
 
     </fieldset>
-    <div className="editor-footer sticky bottom-0 z-10 flex shrink-0 items-center justify-end gap-2 border-t border-slate-200 bg-white p-3">
-      {allowAddAnother && <button aria-label="Save and add another" disabled={!canEdit || saving || unconfirmed || Boolean(conflict)} type="submit" name="intent" value="another" className="min-h-11 rounded-xl border border-[var(--jmi-blue)]/25 bg-white px-3 text-sm font-bold text-[var(--jmi-blue)] disabled:opacity-50">Save + next</button>}
-      <button aria-label={unconfirmed ? 'Retry and confirm save' : 'Save Work Order'} disabled={!canEdit || saving || Boolean(conflict)} type="submit" className="min-h-11 rounded-xl bg-[var(--jmi-red)] px-5 text-sm font-bold text-white disabled:opacity-60">{saving ? 'Saving...' : unconfirmed ? 'Retry save' : 'Save'}</button>
+    <div className="editor-footer sticky bottom-0 z-10 flex shrink-0 items-center justify-end gap-2 border-t border-[var(--border)] bg-[var(--paper)] p-3">
+      {allowAddAnother && <button aria-label="Save + next" disabled={!canEdit || saving || unconfirmed || Boolean(conflict)} type="submit" name="intent" value="another" className="min-h-11 rounded-xl border border-[var(--jmi-blue)]/25 bg-[var(--paper)] px-3 text-sm font-bold text-[var(--jmi-blue)] disabled:opacity-50">Save + next</button>}
+      <button aria-label={unconfirmed ? 'Retry save and confirm' : 'Save Work Order'} disabled={!canEdit || saving || Boolean(conflict)} type="submit" className="min-h-11 rounded-xl button-primary bg-[var(--primary)] px-5 text-sm font-bold text-[var(--paper)] disabled:opacity-60">{saving ? 'Saving...' : unconfirmed ? 'Retry save' : 'Save'}</button>
     </div>
   </form>
 }
 
 function WorkOrderEditorDrawer({ open, title, subtitle, saving, onClose, onEditorFocus, children }: { open: boolean; title: string; subtitle: string; saving: boolean; onClose: () => void; onEditorFocus?: (field: HTMLElement) => void; children: ReactNode }) {
-  const dialogRef = useRef<HTMLElement>(null)
+  const dialogRef = useRef<HTMLDivElement>(null)
   const closeRef = useRef(onClose)
   const savingRef = useRef(saving)
   useEffect(() => { closeRef.current = onClose; savingRef.current = saving }, [onClose, saving])
@@ -682,16 +683,16 @@ function WorkOrderEditorDrawer({ open, title, subtitle, saving, onClose, onEdito
   return createPortal(
     <div className="fixed inset-0 z-50 flex justify-end">
       <button type="button" aria-hidden="true" tabIndex={-1} aria-label="Close work order editor" disabled={saving} onClick={onClose} className="absolute inset-0 bg-[var(--scrim-ink)]/48  transition-colors disabled:cursor-wait" />
-      <aside ref={dialogRef} onFocusCapture={(event) => { if (event.target instanceof HTMLElement && event.target.matches('input, textarea, select')) onEditorFocus?.(event.target) }} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="work-order-editor-title" className="editor-drawer relative flex h-full w-full max-w-5xl flex-col overflow-hidden border-l border-white/20 bg-[var(--surface-subtle)] shadow-none sm:w-[92vw] xl:w-[78vw]">
-        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[var(--line)] bg-white px-4 py-2 sm:px-5">
+      <div ref={dialogRef} onFocusCapture={(event) => { if (event.target instanceof HTMLElement && event.target.matches('input, textarea, select')) onEditorFocus?.(event.target) }} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="work-order-editor-title" className="editor-drawer relative flex h-full w-full max-w-5xl flex-col overflow-hidden border-l border-[var(--paper)]/20 bg-[var(--surface-subtle)] shadow-none sm:w-[92vw] xl:w-[78vw]">
+        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[var(--line)] bg-[var(--paper)] px-4 py-2 sm:px-5">
           <div>
             <h2 id="work-order-editor-title" className="font-display mt-1 text-xl font-black tracking-tight text-[var(--ink)]">{title}</h2>
             <p className="mt-1 text-sm font-semibold leading-5 text-[var(--muted)]">{subtitle}</p>
           </div>
-          <button type="button" aria-label="Close work order editor" disabled={saving} onClick={onClose} className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white p-2 text-[var(--ink-soft)] transition-colors  hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60"><X size={18} /></button>
+          <button type="button" aria-label="Close work order editor" disabled={saving} onClick={onClose} className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--paper)] p-2 text-[var(--ink-soft)] transition-colors  hover:bg-[var(--surface-hover)] disabled:cursor-wait disabled:opacity-60"><X size={18} /></button>
         </div>
         {children}
-      </aside>
+      </div>
     </div>,
     document.body
   )
@@ -805,7 +806,14 @@ export function WorkOrdersPanel({ canAdmin = false, workOrders, meta, serviceLin
   useEffect(() => {
     const normalized = normalizedWorkOrderQuery(routeSearch || DEFAULT_WORK_ORDER_QUERY)
     const next = workOrderFiltersFromQuery(normalized)
+    restoreFilterInputs(next)
     // eslint-disable-next-line react-hooks/set-state-in-effect
+    setAppliedQuery(normalized)
+    void onFetch(normalized)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeSearch])
+
+  function restoreFilterInputs(next: WorkOrderFilterState) {
     setQuery(next.query)
     setStatusFilter(next.status)
     setPriorityFilter(next.priority)
@@ -821,10 +829,7 @@ export function WorkOrdersPanel({ canAdmin = false, workOrders, meta, serviceLin
     setSlaStatusFilter(next.slaStatus)
     setSort(next.sort)
     setDirection(next.direction)
-    setAppliedQuery(normalized)
-    void onFetch(normalized)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [routeSearch])
+  }
 
   function queryFor(page = 1) {
     const params = new URLSearchParams()
@@ -1048,22 +1053,22 @@ export function WorkOrdersPanel({ canAdmin = false, workOrders, meta, serviceLin
   }
 
   return <div className="work-order-workspace">
-    <div className="queue-actions rounded-t-xl border-x border-t border-slate-200 bg-white flex flex-wrap items-center gap-2 border-b border-slate-200 p-3">
+    <div className="queue-actions rounded-t-xl border-x border-t border-[var(--border)] bg-[var(--paper)] flex flex-wrap items-center gap-2 border-b border-[var(--border)] p-3">
       <h2 className="mr-auto text-base font-bold text-[var(--ink)]">Requests</h2>
       {canEdit && <>
-        <button type="button" onClick={startCreate} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[var(--jmi-red)] px-3 text-sm font-bold text-white"><Plus size={16} /><span>New Work Order</span></button>
-        <button type="button" aria-expanded={showPasteIntake} onClick={() => setShowPasteIntake((current) => !current)} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm font-bold text-[var(--jmi-blue)]"><ClipboardPaste size={16} />Paste Intake</button>
-        <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm font-bold text-[var(--jmi-blue)] focus-within:ring-2"><FileUp size={16} />{uploading ? 'Scanning...' : 'Scan File'}<input aria-label="Scan File" type="file" accept="image/png,image/jpeg,image/webp,application/pdf,text/plain" disabled={uploading} onChange={(event) => { const file = event.target.files?.[0] || null; event.target.value = ''; void previewUpload(file) }} className="sr-only" /></label>
+        <button type="button" onClick={startCreate} className="inline-flex min-h-11 items-center gap-2 rounded-xl button-primary bg-[var(--primary)] px-3 text-sm font-bold text-[var(--paper)]"><Plus size={16} /><span>New Work Order</span></button>
+        <button type="button" aria-expanded={showPasteIntake} onClick={() => setShowPasteIntake((current) => !current)} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[var(--border)] px-3 text-sm font-bold text-[var(--jmi-blue)]"><ClipboardPaste size={16} />Paste Intake</button>
+        <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-[var(--border)] px-3 text-sm font-bold text-[var(--jmi-blue)] focus-within:ring-2"><FileUp size={16} />{uploading ? 'Scanning...' : 'Scan File'}<input aria-label="Scan File" type="file" accept="image/png,image/jpeg,image/webp,application/pdf,text/plain" disabled={uploading} onChange={(event) => { const file = event.target.files?.[0] || null; event.target.value = ''; void previewUpload(file) }} className="sr-only" /></label>
       </>}
     </div>
 
-    {saveNotice && !isFormOpen && <div className="flex flex-wrap items-center justify-between gap-2 border-b border-emerald-100 bg-emerald-50 px-4 py-3">
-      <p role="status" className="text-sm font-semibold text-emerald-900">{saveNotice}</p>
-      {savedRecord && <button type="button" data-saved-receipt onClick={() => startEdit(savedRecord)} className="min-h-10 rounded-xl border border-emerald-800 px-3 py-2 text-sm font-bold text-emerald-900">View saved work order</button>}
+    {saveNotice && !isFormOpen && <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--success-soft-strong)] bg-[var(--success-soft)] px-4 py-3">
+      <p role="status" className="text-sm font-semibold text-[var(--success-ink-strong)]">{saveNotice}</p>
+      {savedRecord && <button type="button" data-saved-receipt onClick={() => startEdit(savedRecord)} className="min-h-10 rounded-xl border border-[var(--success-ink)] px-3 py-2 text-sm font-bold text-[var(--success-ink-strong)]">View saved work order</button>}
     </div>}
-    {importError && <div role="alert" className="border-b border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+    {importError && <div role="alert" className="border-b border-[var(--warning-border)] bg-[var(--warning-soft)] p-3 text-sm text-[var(--warning-ink-strong)]">
       <p>{importError}</p>
-      {manualFallback && canEdit && <button type="button" onClick={() => { startCreate(); setNewDefaults({ description: pasteText }); setShowPasteIntake(false) }} className="mt-2 min-h-11 rounded-xl border border-amber-300 bg-white px-3 font-bold">Create manually</button>}
+      {manualFallback && canEdit && <button type="button" onClick={() => { startCreate(); setNewDefaults({ description: pasteText }); setShowPasteIntake(false) }} className="mt-2 min-h-11 rounded-xl border border-[var(--warning-border-strong)] bg-[var(--paper)] px-3 font-bold">Create manually</button>}
       {canAdmin && importDiagnostic && <details className="mt-2"><summary>Admin diagnostics</summary><p className="break-words">{importDiagnostic}</p></details>}
     </div>}
 
@@ -1073,21 +1078,21 @@ export function WorkOrdersPanel({ canAdmin = false, workOrders, meta, serviceLin
           <p className="font-display text-sm font-extrabold  tracking-normal text-[var(--jmi-blue)]">Paste intake</p>
           <p id="work-order-paste-intake-help" className="mt-1 text-sm text-[var(--ink-soft)]">Paste a WhatsApp/email request, or paste a screenshot directly into this box. The app creates reviewable drafts only.</p>
         </div>
-        <button type="button" onClick={() => setShowPasteIntake(false)} className="rounded-2xl border border-[var(--line)] bg-white px-3 py-2 font-display text-xs font-extrabold  tracking-normal text-[var(--ink-soft)]">Close</button>
+        <button type="button" onClick={() => setShowPasteIntake(false)} className="rounded-2xl border border-[var(--line)] bg-[var(--paper)] px-3 py-2 font-display text-xs font-extrabold  tracking-normal text-[var(--ink-soft)]">Close</button>
       </div>
       <textarea disabled={!canEdit || uploading} aria-label="Incoming request text or screenshot" aria-describedby="work-order-paste-intake-help" value={pasteText} onPaste={handleClipboardPaste} onChange={(event) => { if (!extractingSource.current) setPasteText(event.target.value) }} rows={5} placeholder="Paste text here, or click in this box and paste a screenshot from the clipboard..." className="field-control w-full rounded-2xl px-4 py-3 text-sm font-semibold leading-6 text-[var(--ink)]" />
       {uploading && <p role="status" className="mt-2 text-sm text-[var(--ink-soft)]">Reading this source. Text stays locked until the preview finishes.</p>}
       <div className="mt-3 flex flex-wrap gap-2">
-        <button type="button" disabled={!canEdit || uploading || !pasteText.trim()} onClick={() => void previewPastedText()} className="rounded-xl bg-[var(--jmi-blue)] px-4 py-2 text-sm font-extrabold text-white transition-colors  hover:bg-[var(--jmi-blue-deep)] disabled:cursor-not-allowed disabled:opacity-50">Preview pasted text</button>
-        <span className="rounded-xl border border-blue-100 bg-white px-3 py-2 text-xs font-bold text-[var(--muted)]">Screenshots are scanned immediately when pasted.</span>
+        <button type="button" disabled={!canEdit || uploading || !pasteText.trim()} onClick={() => void previewPastedText()} className="rounded-xl button-action bg-[var(--jmi-blue)] px-4 py-2 text-sm font-extrabold text-[var(--paper)] transition-colors  hover:bg-[var(--jmi-blue-deep)] disabled:cursor-not-allowed disabled:opacity-50">Preview pasted text</button>
+        <span className="rounded-xl border border-[var(--info-soft-strong)] bg-[var(--paper)] px-3 py-2 text-xs font-bold text-[var(--muted)]">Screenshots are scanned immediately when pasted.</span>
       </div>
     </div>}
 
-    {importWarnings.length > 0 && <div role="status" className="border-b border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+    {importWarnings.length > 0 && <div role="status" className="border-b border-[var(--warning-border)] bg-[var(--warning-soft)] p-4 text-sm text-[var(--warning-ink-strong)]">
       <p className="font-bold">Check this extraction before continuing</p>
       <ul className="mt-2 list-disc space-y-1 pl-5">{importWarnings.map((warning, index) => <li key={`${index}-${warning}`}>{warning}</li>)}</ul>
       <p className="mt-2">Review any omitted requests before acknowledging this extraction.</p>
-      <button type="button" onClick={() => setImportWarnings([])} className="mt-3 rounded-xl border border-amber-300 bg-white px-3 py-2 font-bold">Acknowledge extraction warnings</button>
+      <button type="button" onClick={() => setImportWarnings([])} className="mt-3 rounded-xl border border-[var(--warning-border-strong)] bg-[var(--paper)] px-3 py-2 font-bold">Acknowledge extraction warnings</button>
     </div>}
 
     {importDrafts.length > 0 && <div className="border-b border-[var(--line)] bg-[var(--surface-subtle)] p-4">
@@ -1096,10 +1101,10 @@ export function WorkOrdersPanel({ canAdmin = false, workOrders, meta, serviceLin
           <p className="font-display text-sm font-extrabold  tracking-normal text-[var(--jmi-blue)]">AI intake preview</p>
           <p className="mt-1 text-sm text-[var(--ink-soft)]">Open each extracted request, correct the fields, then save it as a work order. Nothing enters dispatch until reviewed.</p>
         </div>
-        <button type="button" aria-label="Clear intake preview" onClick={() => setImportDrafts([])} className="rounded-2xl border border-[var(--line)] bg-white px-3 py-2 font-display text-xs font-extrabold  tracking-normal text-[var(--ink-soft)]">Clear</button>
+        <button type="button" aria-label="Clear intake preview" onClick={() => setImportDrafts([])} className="rounded-2xl border border-[var(--line)] bg-[var(--paper)] px-3 py-2 font-display text-xs font-extrabold  tracking-normal text-[var(--ink-soft)]">Clear</button>
       </div>
       <div className="grid gap-3 lg:grid-cols-2">
-        {importDrafts.map((draft) => <article key={draft.draftId} className="rounded-2xl border border-[var(--line)] bg-white p-4 shadow-none">
+        {importDrafts.map((draft) => <article key={draft.draftId} className="rounded-2xl border border-[var(--line)] bg-[var(--paper)] p-4 shadow-none">
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="flex flex-wrap items-center gap-2">
@@ -1109,12 +1114,12 @@ export function WorkOrdersPanel({ canAdmin = false, workOrders, meta, serviceLin
               </div>
               <h3 className="font-display mt-2 font-extrabold text-[var(--ink)]">{draft.location} - {draft.title}</h3>
             </div>
-            <button type="button" disabled={!canEdit || saving} onClick={() => { if (!canEdit) return; setSaveNotice(''); setSavedRecord(null); setSaveUnconfirmed(false); setEditorDirty(false); setConfirmDiscard(false); setReviewDraft(draft); setShowForm(false); setEditing(null); onEditConsumed?.() }} className="shrink-0 rounded-2xl bg-[var(--success)] px-3 py-2 font-display text-xs font-extrabold  tracking-normal text-white transition-colors  hover:bg-[var(--success-deep)] disabled:cursor-wait disabled:opacity-60">Review/Edit</button>
+            <button type="button" disabled={!canEdit || saving} onClick={() => { if (!canEdit) return; setSaveNotice(''); setSavedRecord(null); setSaveUnconfirmed(false); setEditorDirty(false); setConfirmDiscard(false); setReviewDraft(draft); setShowForm(false); setEditing(null); onEditConsumed?.() }} className="shrink-0 rounded-2xl button-success bg-[var(--success)] px-3 py-2 font-display text-xs font-extrabold  tracking-normal text-[var(--paper)] transition-colors  hover:bg-[var(--success-deep)] disabled:cursor-wait disabled:opacity-60">Review/Edit</button>
           </div>
           <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">{draft.description}</p>
           <p className="mt-2 text-xs font-semibold text-[var(--muted)]">{draft.client} • {draft.region} • {draft.trade_category} • WO #{draft.external_id || 'N/A'}</p>
           {draft.notes && <p className="mt-2 text-xs font-semibold text-[var(--ink-soft)]">Notes: {draft.notes}</p>}
-          {draft.issues.length > 0 && <p className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900">Review: {draft.issues.join(', ')}</p>}
+          {draft.issues.length > 0 && <p className="mt-2 rounded-xl border border-[var(--warning-border)] bg-[var(--warning-soft)] px-3 py-2 text-xs font-bold text-[var(--warning-ink)]">Review: {draft.issues.join(', ')}</p>}
         </article>)}
       </div>
     </div>}
@@ -1124,29 +1129,28 @@ export function WorkOrdersPanel({ canAdmin = false, workOrders, meta, serviceLin
     </WorkOrderEditorDrawer>
 
     <WorkOrderEditorDrawer open={isFormOpen} title={editorTitle} subtitle={editorSubtitle} saving={saving} onClose={closeEditor} onEditorFocus={(field) => { lastEditorField.current = field }}>
-      {leaveBlocked && saving && <p role="status" className="shrink-0 border-b border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950">Wait for this save to finish before leaving Work Orders.</p>}
-      {(confirmDiscard || pendingLeave) && <div role="alert" className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+      {leaveBlocked && saving && <p role="status" className="shrink-0 border-b border-[var(--info-border)] bg-[var(--info-soft)] px-4 py-3 text-sm text-[var(--info-ink-deep)]">Wait for this save to finish before leaving Work Orders.</p>}
+      {(confirmDiscard || pendingLeave) && <div role="alert" className="shrink-0 border-b border-[var(--warning-border)] bg-[var(--warning-soft)] px-4 py-3 text-sm text-[var(--warning-ink-strong)]">
         <p className="font-bold">{saveUnconfirmed ? 'The last save may already be in the queue. Close without confirming it?' : pendingLeave ? 'Leave Work Orders and discard the unsaved changes?' : 'Discard the unsaved changes to this work order?'}</p>
         <div className="mt-2 flex flex-wrap gap-2">
-          <button ref={keepEditingRef} type="button" disabled={saving} onClick={keepEditing} className="rounded-xl border border-amber-300 bg-white px-3 py-2 font-bold">Keep editing</button>
-          <button type="button" disabled={saving} onClick={() => { if (pendingLeave) { discardEditor(false); onDiscardAndLeave?.() } else discardEditor() }} className="rounded-xl bg-amber-950 px-3 py-2 font-bold text-white">{saveUnconfirmed ? 'Close without confirming' : 'Discard changes'}</button>
+          <button ref={keepEditingRef} type="button" disabled={saving} onClick={keepEditing} className="rounded-xl border border-[var(--warning-border-strong)] bg-[var(--paper)] px-3 py-2 font-bold">Keep editing</button>
+          <button type="button" disabled={saving} onClick={() => { if (pendingLeave) { discardEditor(false); onDiscardAndLeave?.() } else discardEditor() }} className="rounded-xl button-destructive bg-[var(--warning-ink-strong)] px-3 py-2 font-bold text-[var(--paper)]">{saveUnconfirmed ? 'Close without confirming' : 'Discard changes'}</button>
         </div>
       </div>}
       <WorkOrderForm key={activeEditing?.id || reviewDraft?.draftId || `new-${editorInstance}`} initialValues={formInitialValues} serviceLines={serviceLines} serviceLineCatalog={serviceLineCatalog} onRefreshServiceLines={onRefreshServiceLines} currentServiceLine={activeEditing?.service_line_id ? { id: activeEditing.service_line_id, name: activeEditing.service_line } : undefined} canEdit={canEdit} saving={saving} notice={saveNotice} allowAddAnother={!activeEditing && !reviewDraft} isNew={!activeEditing} review={reviewDraft || undefined} onUnconfirmed={setSaveUnconfirmed} onDirty={() => setEditorDirty(true)} onSubmit={submitForm} />
     </WorkOrderEditorDrawer>
 
-    <div className="queue-toolbar rounded-b-xl border-x border-b border-slate-200 bg-white p-3">
+    <div className="queue-toolbar rounded-b-xl border-x border-b border-[var(--border)] bg-[var(--paper)] p-3">
       <div className="flex gap-2">
         <label className="relative block min-w-0 flex-1"><span className="sr-only">Search work orders</span><Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} aria-label="Search work orders" enterKeyHint="search" onKeyDown={(event) => { if (event.key === 'Enter') applyFilters() }} placeholder="WO #, site, description or notes" className="field-control min-h-11 w-full rounded-xl py-2 pl-9 pr-3" /></label>
-        <button type="button" onClick={applyFilters} className="min-h-11 rounded-xl border border-slate-200 px-3 text-sm font-bold text-[var(--jmi-blue)]">Search</button>
+        <button type="button" onClick={applyFilters} className="min-h-11 rounded-xl border border-[var(--border)] px-3 text-sm font-bold text-[var(--jmi-blue)]">Search</button>
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-1">
-        {coreViews.map((view) => <button key={view} type="button" aria-pressed={matchesView(view)} onClick={() => applyQuickFilter(workOrderViewQuery(view))} className={`min-h-11 rounded-xl border px-2 text-sm font-semibold ${matchesView(view) ? 'border-[var(--jmi-blue-deep)] bg-[var(--jmi-blue-deep)] text-white' : 'border-slate-200 text-[var(--jmi-blue)]'}`}>{WORK_ORDER_VIEWS[view].label}</button>)}
-        <details className="relative"><summary className="flex min-h-11 cursor-pointer items-center rounded-xl px-1 text-xs font-semibold text-[var(--jmi-blue)]">More views</summary><div className="absolute right-0 z-20 grid w-56 gap-1 rounded-xl border border-slate-200 bg-white p-2 shadow-none">{moreViews.map((view) => <button key={view} type="button" aria-pressed={matchesView(view)} onClick={(event) => { applyQuickFilter(workOrderViewQuery(view)); event.currentTarget.closest('details')?.removeAttribute('open') }} className="min-h-11 rounded-lg px-3 text-left text-sm text-[var(--jmi-blue)]">{WORK_ORDER_VIEWS[view].label}</button>)}</div></details>
+        {coreViews.map((view) => <button key={view} type="button" aria-pressed={matchesView(view)} onClick={() => applyQuickFilter(workOrderViewQuery(view))} className={`min-h-11 rounded-xl border px-2 text-sm font-semibold ${matchesView(view) ? 'border-[var(--jmi-blue-deep)] button-action-deep bg-[var(--jmi-blue-deep)] text-[var(--paper)]' : 'border-[var(--border)] text-[var(--jmi-blue)]'}`}>{WORK_ORDER_VIEWS[view].label}</button>)}
+        <MoreViews views={moreViews} matchesView={matchesView} onSelect={(view) => applyQuickFilter(workOrderViewQuery(view))} />
       </div>
       <p aria-label="Active filters" className="mt-2 break-words text-xs text-[var(--ink-soft)]">{activeWorkOrderContext(appliedQuery)}</p>
-      <details className="mt-2">
-        <summary className="flex min-h-11 cursor-pointer items-center text-sm font-semibold text-[var(--jmi-blue)]">Filters and sorting{hasActiveFilters ? ' · selected' : ''}</summary>
+      <FilterDisclosure selected={hasActiveFilters} onCancel={() => restoreFilterInputs(workOrderFiltersFromQuery(appliedQuery))}>{(closeFilters) => <>
         <select aria-label="Status filter" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="field-control my-2 w-full rounded-xl px-3 py-2"><option value="">All statuses</option>{statuses.map((status) => <option key={status} value={status}>{statusLabel(status)}</option>)}</select>
       <div className="grid gap-2 sm:gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-[1fr_150px_160px_150px_150px_180px_150px]">
 
@@ -1189,37 +1193,38 @@ export function WorkOrdersPanel({ canAdmin = false, workOrders, meta, serviceLin
           <option value="asc">Ascending</option>
           <option value="desc">Descending</option>
         </select>
-        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-          <button type="button" onClick={applyFilters} className="w-full rounded-xl bg-[var(--jmi-blue)] px-4 py-2 font-display text-sm font-extrabold text-white transition-colors  hover:bg-[var(--jmi-blue-deep)] sm:w-auto">Apply filters</button>
-          <button type="button" onClick={clearFilters} className="w-full rounded-xl border border-[var(--line)] bg-white px-4 py-2 font-display text-sm font-extrabold text-[var(--ink-soft)] transition-colors  hover:bg-slate-50 sm:w-auto">Clear</button>
-        </div>
+
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
-        <button type="button" aria-pressed={paProjectFilter} onClick={() => setPaProjectFilter((current) => !current)} className={`rounded-full px-3 py-1.5 text-xs font-extrabold  tracking-normal ${paProjectFilter ? 'bg-[var(--jmi-blue)] text-white' : 'border border-[var(--brand-line)] bg-white text-[var(--jmi-blue)]'}`}>PA Projects</button>
-        <button type="button" aria-pressed={correctiveMaintenanceFilter} onClick={() => setCorrectiveMaintenanceFilter((current) => !current)} className={`rounded-full px-3 py-1.5 text-xs font-extrabold  tracking-normal ${correctiveMaintenanceFilter ? 'bg-[var(--jmi-blue)] text-white' : 'border border-[var(--brand-line)] bg-white text-[var(--jmi-blue)]'}`}>CM</button>
-        <button type="button" aria-pressed={estimateRequiredFilter} onClick={() => setEstimateRequiredFilter((current) => !current)} className={`rounded-full px-3 py-1.5 text-xs font-extrabold  tracking-normal ${estimateRequiredFilter ? 'bg-[var(--jmi-blue)] text-white' : 'border border-[var(--brand-line)] bg-white text-[var(--jmi-blue)]'}`}>Estimates</button>
-        <button type="button" aria-pressed={followUpDueFilter} onClick={() => setFollowUpDueFilter((current) => !current)} className={`rounded-full px-3 py-1.5 text-xs font-extrabold  tracking-normal ${followUpDueFilter ? 'bg-[var(--jmi-blue)] text-white' : 'border border-[var(--brand-line)] bg-white text-[var(--jmi-blue)]'}`}>Follow-up Due</button>
-        <button type="button" onClick={() => { setOpenOnlyFilter((current) => !current); setClosedFilter(false) }} className={`rounded-full px-3 py-1.5 text-xs font-extrabold  tracking-normal ${openOnlyFilter ? 'bg-[var(--jmi-blue)] text-white' : 'border border-[var(--brand-line)] bg-white text-[var(--jmi-blue)]'}`}>Open Only</button>
-        <button type="button" onClick={() => { setClosedFilter((current) => !current); setOpenOnlyFilter(false) }} className={`rounded-full px-3 py-1.5 text-xs font-extrabold  tracking-normal ${closedFilter ? 'bg-[var(--jmi-blue)] text-white' : 'border border-[var(--brand-line)] bg-white text-[var(--jmi-blue)]'}`}>Closed</button>
+        <button type="button" aria-pressed={paProjectFilter} onClick={() => setPaProjectFilter((current) => !current)} className={`rounded-full px-3 py-1.5 text-xs font-extrabold  tracking-normal ${paProjectFilter ? 'button-action bg-[var(--jmi-blue)] text-[var(--paper)]' : 'border border-[var(--brand-line)] bg-[var(--paper)] text-[var(--jmi-blue)]'}`}>PA Projects</button>
+        <button type="button" aria-pressed={correctiveMaintenanceFilter} onClick={() => setCorrectiveMaintenanceFilter((current) => !current)} className={`rounded-full px-3 py-1.5 text-xs font-extrabold  tracking-normal ${correctiveMaintenanceFilter ? 'button-action bg-[var(--jmi-blue)] text-[var(--paper)]' : 'border border-[var(--brand-line)] bg-[var(--paper)] text-[var(--jmi-blue)]'}`}>CM</button>
+        <button type="button" aria-pressed={estimateRequiredFilter} onClick={() => setEstimateRequiredFilter((current) => !current)} className={`rounded-full px-3 py-1.5 text-xs font-extrabold  tracking-normal ${estimateRequiredFilter ? 'button-action bg-[var(--jmi-blue)] text-[var(--paper)]' : 'border border-[var(--brand-line)] bg-[var(--paper)] text-[var(--jmi-blue)]'}`}>Estimates</button>
+        <button type="button" aria-pressed={followUpDueFilter} onClick={() => setFollowUpDueFilter((current) => !current)} className={`rounded-full px-3 py-1.5 text-xs font-extrabold  tracking-normal ${followUpDueFilter ? 'button-action bg-[var(--jmi-blue)] text-[var(--paper)]' : 'border border-[var(--brand-line)] bg-[var(--paper)] text-[var(--jmi-blue)]'}`}>Follow-up Due</button>
+        <button type="button" onClick={() => { setOpenOnlyFilter((current) => !current); setClosedFilter(false) }} className={`rounded-full px-3 py-1.5 text-xs font-extrabold  tracking-normal ${openOnlyFilter ? 'button-action bg-[var(--jmi-blue)] text-[var(--paper)]' : 'border border-[var(--brand-line)] bg-[var(--paper)] text-[var(--jmi-blue)]'}`}>Open Only</button>
+        <button type="button" onClick={() => { setClosedFilter((current) => !current); setOpenOnlyFilter(false) }} className={`rounded-full px-3 py-1.5 text-xs font-extrabold  tracking-normal ${closedFilter ? 'button-action bg-[var(--jmi-blue)] text-[var(--paper)]' : 'border border-[var(--brand-line)] bg-[var(--paper)] text-[var(--jmi-blue)]'}`}>Closed</button>
       </div>
-      </details>
+        <div className="filter-actions mt-3 flex gap-2 border-t border-[var(--line)] bg-[var(--paper)] py-3">
+          <button type="button" onClick={() => { applyFilters(); closeFilters() }} className="w-full rounded-xl button-action bg-[var(--jmi-blue)] px-4 py-2 font-display text-sm font-extrabold text-[var(--paper)] transition-colors  hover:bg-[var(--jmi-blue-deep)] sm:w-auto">Apply filters</button>
+          <button type="button" onClick={() => { clearFilters(); closeFilters() }} className="w-full rounded-xl border border-[var(--line)] bg-[var(--paper)] px-4 py-2 font-display text-sm font-extrabold text-[var(--ink-soft)] transition-colors  hover:bg-[var(--surface-hover)] sm:w-auto">Clear</button>
+        </div>
+      </>}</FilterDisclosure>
     </div>
 
     <div className="queue-rows mt-3 space-y-2 md:space-y-0">
-      {loading && <p role="status" className="rounded-xl bg-blue-50 p-4 text-sm font-semibold text-[var(--jmi-blue)]">Loading work orders...</p>}
-      {loadError && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900"><p>{loadError}</p>{onRetry && <button type="button" onClick={onRetry} className="mt-2 rounded-xl border border-red-300 bg-white px-3 py-2 font-bold">Retry work orders</button>}</div>}
+      {loading && <p role="status" className="rounded-xl bg-[var(--info-soft)] p-4 text-sm font-semibold text-[var(--jmi-blue)]">Loading work orders...</p>}
+      {loadError && <div role="alert" className="rounded-xl border border-[var(--danger-border)] bg-[var(--danger-soft)] p-4 text-sm text-[var(--danger-ink-strong)]"><p>{loadError}</p>{onRetry && <button type="button" onClick={onRetry} className="mt-2 rounded-xl border border-[var(--danger-border-strong)] bg-[var(--paper)] px-3 py-2 font-bold">Retry work orders</button>}</div>}
       {filteredWorkOrders.map((wo) => <WorkOrderRow key={wo.id} workOrder={wo} canEdit={canEdit} onEdit={startEdit} onArchive={onArchive} />)}
       {!loading && !loadError && workOrders.length === 0 && hasActiveFilters && <p className="rounded-xl border border-dashed border-[var(--line)] bg-[var(--surface-subtle)] p-5 text-sm font-semibold text-[var(--ink-soft)]">No work orders match the current filters.</p>}
       {!loading && !loadError && workOrders.length === 0 && !hasActiveFilters && <div className="rounded-2xl border border-dashed border-[var(--brand-line)] bg-[var(--surface-subtle)] p-6">
         <p className="font-display text-lg font-extrabold text-[var(--ink)]">No work orders yet.</p>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--ink-soft)]">Start by adding the first incoming request from WhatsApp, phone, email, or the work-order system. Once saved, it can be reviewed and scheduled.</p>
-        {canEdit && <button onClick={startCreate} className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-[var(--jmi-blue)] px-4 py-2.5 font-display text-sm font-extrabold text-white transition-colors  hover:bg-[var(--jmi-blue-deep)]"><Plus size={16} /> Add First Work Order</button>}
+        {canEdit && <button onClick={startCreate} className="mt-4 inline-flex items-center gap-2 rounded-2xl button-action bg-[var(--jmi-blue)] px-4 py-2.5 font-display text-sm font-extrabold text-[var(--paper)] transition-colors  hover:bg-[var(--jmi-blue-deep)]"><Plus size={16} /> Add First Work Order</button>}
       </div>}
       {!loading && !loadError && workOrders.length > 0 && <div className="flex flex-col items-start justify-between gap-3 px-2 pb-2 text-xs font-bold  tracking-normal text-[var(--muted)] sm:flex-row sm:items-center sm:px-3">
         <span>{meta ? `${workOrders.length} shown · ${meta.total_count} total · page ${meta.page} of ${Math.max(meta.total_pages, 1)}` : `${workOrders.length} shown`}</span>
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
-          <button type="button" disabled={!meta || meta.page <= 1} onClick={() => goToQuery(queryForAppliedPage((meta?.page || 1) - 1))} className="rounded-full border border-[var(--line)] bg-white px-3 py-1.5 text-[var(--ink-soft)] disabled:cursor-not-allowed disabled:opacity-50">Previous</button>
-          <button type="button" disabled={!meta || meta.page >= meta.total_pages} onClick={() => goToQuery(queryForAppliedPage((meta?.page || 1) + 1))} className="rounded-full border border-[var(--line)] bg-white px-3 py-1.5 text-[var(--ink-soft)] disabled:cursor-not-allowed disabled:opacity-50">Next</button>
+          <button type="button" disabled={!meta || meta.page <= 1} onClick={() => goToQuery(queryForAppliedPage((meta?.page || 1) - 1))} className="rounded-full border border-[var(--line)] bg-[var(--paper)] px-3 py-1.5 text-[var(--ink-soft)] disabled:cursor-not-allowed disabled:opacity-50">Previous</button>
+          <button type="button" disabled={!meta || meta.page >= meta.total_pages} onClick={() => goToQuery(queryForAppliedPage((meta?.page || 1) + 1))} className="rounded-full border border-[var(--line)] bg-[var(--paper)] px-3 py-1.5 text-[var(--ink-soft)] disabled:cursor-not-allowed disabled:opacity-50">Next</button>
           {hasActiveFilters && <button className="inline-flex items-center gap-1 text-[var(--jmi-blue)]" onClick={clearFilters}><X size={13} /> Clear filters</button>}
         </div>
       </div>}

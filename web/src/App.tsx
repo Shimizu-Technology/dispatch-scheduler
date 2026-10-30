@@ -147,7 +147,7 @@ function FloatingTooltip({ anchorRef, label, visible }: { anchorRef: RefObject<H
   return createPortal(
     <div className="pointer-events-none fixed z-[120] hidden -translate-y-1/2 items-center xl:flex" style={{ top: position.top, left: position.left }}>
       <span className="h-3 w-3 translate-x-[7px] rotate-45 rounded-[3px] bg-[var(--ink)] shadow-none" />
-      <span className="whitespace-nowrap rounded-xl bg-[var(--ink)] px-3.5 py-2 text-xs font-semibold text-white shadow-none">{label}</span>
+      <span className="whitespace-nowrap rounded-xl bg-[var(--ink)] px-3.5 py-2 text-xs font-semibold text-[var(--paper)] shadow-none">{label}</span>
     </div>,
     document.body
   )
@@ -155,10 +155,10 @@ function FloatingTooltip({ anchorRef, label, visible }: { anchorRef: RefObject<H
 
 function SidebarLogo({ collapsed }: { collapsed: boolean }) {
   return <div className={`flex items-center rounded-2xl transition-colors ${collapsed ? 'gap-3 px-3 py-2 xl:justify-center xl:p-1.5' : 'gap-3 px-3 py-2'}`}>
-    <span className="relative inline-flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-none ring-1 ring-[var(--jmi-blue)]/12">
-      <span className="absolute left-2.5 h-8 w-1.5 -skew-x-[28deg] bg-[var(--jmi-blue)]" />
-      <span className="absolute left-5 h-8 w-1.5 -skew-x-[28deg] bg-[var(--jmi-red)]" />
-      <span className="absolute left-[1.875rem] h-8 w-1.5 -skew-x-[28deg] bg-[var(--jmi-blue)]" />
+    <span className="relative inline-flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[var(--paper)] shadow-none ring-1 ring-[var(--jmi-blue)]/12">
+      <span className="absolute left-2.5 h-8 w-1.5 -skew-x-[28deg] button-action bg-[var(--jmi-blue)]" />
+      <span className="absolute left-5 h-8 w-1.5 -skew-x-[28deg] button-primary bg-[var(--primary)]" />
+      <span className="absolute left-[1.875rem] h-8 w-1.5 -skew-x-[28deg] button-action bg-[var(--jmi-blue)]" />
     </span>
     <span className={collapsed ? 'min-w-0 xl:sr-only' : 'min-w-0'}>
       <span className="font-display block truncate text-sm font-black tracking-tight text-[var(--ink)]">JMI Guam</span>
@@ -187,14 +187,14 @@ function SidebarNavLink({ section, href, active, collapsed, onNavigate }: { sect
       onBlur={() => setTooltipVisible(false)}
       aria-label={collapsed ? section.label : undefined}
       title={collapsed ? section.label : undefined}
-      className={`group relative flex min-h-11 items-center rounded-xl text-sm font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--jmi-blue)]/30 ${collapsed ? 'gap-3 px-3 py-2.5 xl:justify-center xl:gap-0 xl:px-2' : 'gap-3 px-3 py-2.5'} ${active ? 'bg-[var(--jmi-blue-deep)] text-white shadow-none ring-1 ring-[var(--jmi-blue-deep)]/15' : 'text-[var(--ink-soft)] hover:bg-[var(--jmi-blue-soft)] hover:text-[var(--ink)]'}`}
+      className={`group relative flex min-h-11 items-center rounded-xl text-sm font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--jmi-blue)]/30 ${collapsed ? 'gap-3 px-3 py-2.5 xl:justify-center xl:gap-0 xl:px-2' : 'gap-3 px-3 py-2.5'} ${active ? 'button-action-deep bg-[var(--jmi-blue-deep)] text-[var(--paper)] shadow-none ring-1 ring-[var(--jmi-blue-deep)]/15' : 'text-[var(--ink-soft)] hover:bg-[var(--jmi-blue-soft)] hover:text-[var(--ink)]'}`}
     >
-      <span className={`inline-flex shrink-0 rounded-xl p-2 ${active ? 'bg-white/12 text-white' : 'bg-[var(--jmi-blue-soft)] text-[var(--jmi-blue)] group-hover:bg-white'}`}>{section.icon}</span>
+      <span className={`inline-flex shrink-0 rounded-xl p-2 ${active ? 'bg-[var(--paper)]/12 text-[var(--paper)]' : 'bg-[var(--jmi-blue-soft)] text-[var(--jmi-blue)] group-hover:bg-[var(--paper)]'}`}>{section.icon}</span>
       <span className={collapsed ? 'min-w-0 flex-1 xl:sr-only' : 'min-w-0 flex-1'}>
         <span className="block truncate font-display text-sm font-extrabold">{section.label}</span>
-        <span className={`block truncate text-xs font-semibold ${active ? 'text-blue-100/78' : 'text-[var(--muted)]'}`}>{section.description}</span>
+        <span className={`block truncate text-xs font-semibold ${active ? 'text-[var(--info-soft-strong)]/78' : 'text-[var(--muted)]'}`}>{section.description}</span>
       </span>
-      {typeof section.count === 'number' && <span className={`${collapsed ? 'ml-auto min-w-7 px-2 text-xs xl:absolute xl:right-1 xl:top-1 xl:min-w-5 xl:px-1 xl:text-xs' : 'ml-auto min-w-7 px-2 text-xs'} tabular inline-flex justify-center rounded-full py-0.5 font-extrabold ${active ? 'bg-white/14 text-white' : 'bg-[var(--jmi-blue-soft)] text-[var(--jmi-blue)]'}`}>{section.count}</span>}
+      {typeof section.count === 'number' && <span className={`${collapsed ? 'ml-auto min-w-7 px-2 text-xs xl:absolute xl:right-1 xl:top-1 xl:min-w-5 xl:px-1 xl:text-xs' : 'ml-auto min-w-7 px-2 text-xs'} tabular inline-flex justify-center rounded-full py-0.5 font-extrabold ${active ? 'bg-[var(--paper)]/14 text-[var(--paper)]' : 'bg-[var(--jmi-blue-soft)] text-[var(--jmi-blue)]'}`}>{section.count}</span>}
     </a>
     {collapsed && <FloatingTooltip anchorRef={anchorRef} label={section.label} visible={tooltipVisible} />}
   </>
@@ -209,14 +209,14 @@ function AppSidebar({ sections, currentSection, collapsed, mobileOpen, userName,
     items: sections.filter((section) => section.group === group),
   })).filter((group) => group.items.length > 0)
 
-  return <aside className={`app-sidebar fixed inset-y-0 left-0 z-50 flex w-[18rem] flex-col border-r border-[var(--line)] bg-white/98 shadow-none  xl:sticky xl:top-5 xl:z-auto xl:h-[calc(100vh-2.5rem)] xl:translate-x-0 xl:rounded-[1.15rem] xl:border xl:shadow-none ${mobileOpen ? 'translate-x-0' : '-translate-x-full'} ${collapsed ? 'xl:w-[5.25rem]' : 'xl:w-[15.5rem]'}`}>
+  return <aside className={`app-sidebar fixed inset-y-0 left-0 z-50 flex w-[18rem] flex-col border-r border-[var(--line)] bg-[var(--paper)]/98 shadow-none  xl:sticky xl:top-5 xl:z-auto xl:h-[calc(100vh-2.5rem)] xl:translate-x-0 xl:rounded-[1.15rem] xl:border xl:shadow-none ${mobileOpen ? 'translate-x-0' : '-translate-x-full'} ${collapsed ? 'xl:w-[5.25rem]' : 'xl:w-[15.5rem]'}`}>
     <nav className="flex h-full flex-col" aria-label="JMI management navigation">
       <div className={`border-b border-[var(--line)] ${collapsed ? 'px-3 pb-3 pt-4' : 'px-3 pb-4 pt-4'}`}>
         <div className="flex items-center justify-between gap-2">
           <a href="/dashboard" onClick={(event) => { event.preventDefault(); onNavigate('overview') }} className="min-w-0 rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--jmi-blue)]/30">
             <SidebarLogo collapsed={collapsed} />
           </a>
-          <button type="button" onClick={onCloseMobile} className="rounded-xl p-2 text-[var(--muted)] transition-colors hover:bg-slate-100 xl:hidden" aria-label="Close navigation"><X size={18} /></button>
+          <button type="button" onClick={onCloseMobile} className="rounded-xl p-2 text-[var(--muted)] transition-colors hover:bg-[var(--surface-muted)] xl:hidden" aria-label="Close navigation"><X size={18} /></button>
         </div>
         <button
           ref={collapseButtonRef}
@@ -1401,13 +1401,12 @@ function DispatchApp() {
   ]
 
   const activeSectionMeta = sections.find((section) => section.id === currentSection) || sections[0]
-  const scheduleActionLabel = working ? 'Working...' : schedule?.status && schedule.status !== 'draft' ? 'Schedule Locked' : 'Generate Draft'
   const dispatchScreen = currentSection === 'dispatch' || currentSection === 'whatsapp'
   const isAuthBlocked = isSignedIn && !user && !authLoading && !isVerifyingApi
 
   if (authLoading) {
     return <main className="grid min-h-screen place-items-center px-6 text-[var(--ink-soft)]">
-      <div className="rounded-2xl border border-[var(--line)] bg-white/90 p-8 text-center shadow-none">
+      <div className="rounded-2xl border border-[var(--line)] bg-[var(--paper)]/90 p-8 text-center shadow-none">
         <RefreshCw className="mx-auto mb-3 animate-spin text-[var(--jmi-blue)]" />
         <p className="font-display font-bold">Loading JMI Management System...</p>
       </div>
@@ -1432,41 +1431,41 @@ function DispatchApp() {
         />
 
         <div className="flex min-w-0 flex-col gap-3">
-        <header className="app-header rounded-xl border border-slate-200 bg-white">
+        <header className="app-header rounded-xl border border-[var(--border)] bg-[var(--paper)]">
           <div className="flex min-h-14 items-center gap-3 px-3">
             <button type="button" onClick={() => setMobileNavOpen(true)} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-[var(--jmi-blue)] xl:hidden" aria-label="Open navigation" aria-expanded={mobileNavOpen}><Menu size={20} /></button>
             <span className="font-display font-extrabold text-[var(--jmi-blue)]">JMI</span>
             <h1 className="min-w-0 flex-1 text-xl font-bold text-[var(--ink)]">{activeSectionMeta?.label || 'Dispatch'}</h1>
             {user && <UserButton />}
-            {!isSignedIn && <SignInButton mode="modal"><button className="min-h-11 rounded-xl bg-[var(--jmi-blue-deep)] px-3 text-sm font-bold text-white">Sign in</button></SignInButton>}
+            {!isSignedIn && <SignInButton mode="modal"><button className="min-h-11 rounded-xl button-action-deep bg-[var(--jmi-blue-deep)] px-3 text-sm font-bold text-[var(--paper)]">Sign in</button></SignInButton>}
           </div>
-          {user && dispatchScreen && <div className="flex flex-wrap items-end gap-2 border-t border-slate-200 p-3">
+          {user && dispatchScreen && <div className="flex flex-wrap items-end gap-2 border-t border-[var(--border)] p-3">
             <label className="min-w-0 flex-1 text-xs font-semibold text-[var(--ink-soft)]">Schedule date<input type="date" value={selectedDate} onChange={(event) => handleSelectedDateChange(event.target.value)} className="field-control mt-1 block w-full rounded-xl px-3 py-2" /></label>
-            <button type="button" disabled={selectedDate === todayDate} onClick={() => handleSelectedDateChange(todayDate)} className="min-h-11 rounded-xl border border-slate-200 px-3 text-sm font-bold">Today</button>
-            {canEditDispatch && currentSection === 'whatsapp' && <button disabled={working || Boolean(schedule && schedule.status !== 'draft')} onClick={suggestSchedule} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[var(--jmi-red)] px-3 text-sm font-bold text-white disabled:opacity-60"><ClipboardList size={17} />{scheduleActionLabel}</button>}
+            <button type="button" disabled={selectedDate === todayDate} onClick={() => handleSelectedDateChange(todayDate)} className="min-h-11 rounded-xl border border-[var(--border)] px-3 text-sm font-bold">Today</button>
+
           </div>}
         </header>
 
         {!user && !authError && !isVerifyingApi && <SignInRequiredPanel />}
 
-        {isVerifyingApi && !user && <section className="rounded-2xl border border-[var(--line)] bg-white/90 p-6 shadow-none">
+        {isVerifyingApi && !user && <section className="rounded-2xl border border-[var(--line)] bg-[var(--paper)]/90 p-6 shadow-none">
           <div className="inline-flex items-center gap-3 text-sm font-bold text-[var(--jmi-blue)]">
             <RefreshCw size={18} className="animate-spin" /> Verifying your Clerk session with the dispatch API...
           </div>
         </section>}
 
-        {user && loading && <div className="inline-flex w-fit items-center gap-2 rounded-2xl border border-blue-100 bg-blue-50/90 px-4 py-2 text-sm font-bold text-blue-900">
+        {user && loading && <div className="inline-flex w-fit items-center gap-2 rounded-2xl border border-[var(--info-soft-strong)] bg-[var(--info-soft)]/90 px-4 py-2 text-sm font-bold text-[var(--info-ink-strong)]">
           <RefreshCw size={16} className="animate-spin" /> Loading live dispatch data...
         </div>}
 
-        {isAuthBlocked && <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+        {isAuthBlocked && <div role="alert" className="rounded-xl border border-[var(--warning-border)] bg-[var(--warning-soft)] p-4 text-sm text-[var(--warning-ink-strong)]">
           <p>{authError || 'Your access could not be verified.'}</p>
-          <button type="button" onClick={() => void refreshUser()} className="mt-2 min-h-11 rounded-xl border border-amber-300 bg-white px-3 font-bold">Retry access</button>
+          <button type="button" onClick={() => void refreshUser()} className="mt-2 min-h-11 rounded-xl border border-[var(--warning-border-strong)] bg-[var(--paper)] px-3 font-bold">Retry access</button>
         </div>}
 
-        {user && !canEditDispatch && <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-900">Viewer mode: you can inspect dashboard, work orders, teams, PMs, and generated schedules, but editing controls are hidden.</div>}
+        {user && !canEditDispatch && <div className="rounded-2xl border border-[var(--warning-border)] bg-[var(--warning-soft)] p-4 text-sm font-bold text-[var(--warning-ink)]">Viewer mode: you can inspect dashboard, work orders, teams, PMs, and generated schedules, but editing controls are hidden.</div>}
 
-        {error && <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-800">{error}</div>}
+        {error && <div className="rounded-2xl border border-[var(--danger-border)] bg-[var(--danger-soft)] p-4 text-sm font-bold text-[var(--danger-ink)]">{error}</div>}
 
         {currentSection === 'overview' && <DashboardMetrics dashboard={overviewReady ? dashboard : null} workOrders={workOrders.filter((workOrder) => !workOrder.archived)} teams={teams} technicians={technicians} pmTasks={pmTasks} schedule={schedule} auditEvents={auditEvents} canEdit={canEditDispatch} working={working} loading={loading} loadError={error} onRetry={() => void loadInitialData(selectedDate).catch((err) => { setError(err.message); setLoading(false) })} onDateChange={handleSelectedDateChange} onGoToSection={goToSection} onOpenWorkOrders={(query) => navigateTo(`/work-orders?${query}`)} />}
 
@@ -1496,13 +1495,13 @@ function DispatchApp() {
 }
 
 function SignInRequiredPanel({ title = 'Sign in to load live dispatch data' }: { title?: string }) {
-  return <section className="rounded-2xl border border-[var(--line)] bg-white/90 p-4 shadow-none sm:p-6">
+  return <section className="rounded-2xl border border-[var(--line)] bg-[var(--paper)]/90 p-4 shadow-none sm:p-6">
     <div className="max-w-2xl">
       <p className="font-display text-xs font-extrabold  tracking-normal text-[var(--jmi-blue)]">Secure JMI workspace</p>
       <h2 className="font-display mt-1 text-xl font-extrabold tracking-tight text-[var(--ink)] sm:text-2xl">{title}</h2>
       <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">The app shell is available so the page does not feel broken while Clerk is loading or before sign-in. Live JMI data and editing actions load after you sign in.</p>
       <SignInButton mode="modal">
-        <button className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-[var(--jmi-blue)] px-5 py-3 font-display text-sm font-extrabold text-white shadow-none transition-colors  hover:bg-[var(--jmi-blue-deep)]">
+        <button className="mt-5 inline-flex items-center gap-2 rounded-2xl button-action bg-[var(--jmi-blue)] px-5 py-3 font-display text-sm font-extrabold text-[var(--paper)] shadow-none transition-colors  hover:bg-[var(--jmi-blue-deep)]">
           <LockKeyhole size={18} /> Sign In With Clerk
         </button>
       </SignInButton>

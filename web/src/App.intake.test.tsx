@@ -146,7 +146,7 @@ describe('intake route and saved queue context', () => {
   })
 })
 
-it.each(['/work-orders', '/admin/users', '/reports', '/pm', '/activity', '/dashboard'])('keeps dispatch generation out of %s', async (path) => {
+it.each(['/work-orders', '/admin/users', '/reports', '/pm', '/activity', '/dashboard', '/whatsapp', '/dispatch/whatsapp'])('keeps dispatch generation out of %s', async (path) => {
   window.history.replaceState({}, '', path)
   render(<App />)
   await waitFor(() => expect(api.getJson).toHaveBeenCalled())
